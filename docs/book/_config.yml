@@ -1,0 +1,32 @@
+title: SIGMA
+author: James Matthew Miraflor
+copyright: '2026'
+only_build_toc_files: true
+
+execute:
+  execute_notebooks: 'off'
+
+html:
+  use_repository_button: true
+  use_issues_button: true
+  use_edit_page_button: true
+  home_page_in_navbar: true
+  extra_navbar: 'SIGMA methodological documentation · Powered by <a href="https://jupyterbook.org">Jupyter Book</a>'
+
+repository:
+  url: https://github.com/miraflor/sigma
+  path_to_book: docs/book
+  branch: main
+
+sphinx:
+  extra_extensions:
+    - sphinx.ext.mathjax
+    - sphinx.ext.viewcode
+    - sphinx.ext.napoleon
+  config:
+    mathjax_path: https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+    html_theme_options:
+      repository_url: https://github.com/miraflor/sigma
+      use_repository_button: true
+      use_issues_button: true
+      use_edit_page_button: true

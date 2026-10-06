@@ -1,0 +1,30 @@
+format: jb-book
+root: content/intro/index
+parts:
+  - caption: Start here
+    chapters:
+      - file: content/intro/quickstart
+      - file: content/workflow/end_to_end
+      - file: content/workflow/notation
+  - caption: Geospatial ecosystem construction
+    chapters:
+      - file: content/methods/places
+      - file: content/methods/roads
+      - file: content/methods/hdbscan
+      - file: content/methods/centers
+      - file: content/methods/voronoi
+  - caption: Economic and spatial-economic network
+    chapters:
+      - file: content/methods/economy
+      - file: content/methods/x_graph
+      - file: content/methods/centrality
+      - file: content/methods/scoring
+  - caption: Reproducibility and interpretation
+    chapters:
+      - file: content/reproducibility/artifacts
+      - file: content/reference/defaults
+      - file: content/reference/outputs
+      - file: content/reference/method_lineage
+  - caption: References
+    chapters:
+      - file: content/reference/references
