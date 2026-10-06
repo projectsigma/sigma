@@ -110,12 +110,9 @@ GEOS / JTS Topology Suite (Martin Davis and contributors), used through Shapely 
 
 NumPy, pandas, GeoPandas, Shapely, Pyogrio, PyArrow, NetworkX, SciPy, and scikit-learn provide core numerical, graph, and geospatial infrastructure used by the implementation.
 
-## Reference implementations maintained by the author
+## Implementation provenance
 
-- [`net-hdbscan`](https://github.com/miraflor/net-hdbscan) — network-distance HDBSCAN* and detailed clustering provenance.
-- [`net-voronoi`](https://github.com/miraflor/net-voronoi) — network Voronoi concepts and implementation discussion.
-- [`net-center`](https://github.com/miraflor/net-center) — classical network median/center theory and implementation audit.
-
+SIGMA consolidates methodological lineage from network-distance HDBSCAN*, network Voronoi partitioning, and classical network-location methods. The published literature supporting those methods is consolidated above. SIGMA does not depend on separate reference repositories at runtime.
 ## Centrality provenance note
 
 Sharkey's 2017 result supplies the strongest direct precedent for requiring both Katz receiver and sender roles through their componentwise product. SIGMA's geometric mean

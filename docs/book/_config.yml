@@ -1,5 +1,5 @@
 title: SIGMA
-author: James Matthew Miraflor
+author: Project SIGMA
 copyright: '2026'
 only_build_toc_files: true
 
@@ -14,7 +14,7 @@ html:
   extra_navbar: 'SIGMA methodological documentation · Powered by <a href="https://jupyterbook.org">Jupyter Book</a>'
 
 repository:
-  url: https://github.com/miraflor/sigma
+  url: https://github.com/projectsigma/sigma
   path_to_book: docs/book
   branch: main
 
@@ -26,7 +26,7 @@ sphinx:
   config:
     mathjax_path: https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
     html_theme_options:
-      repository_url: https://github.com/miraflor/sigma
+      repository_url: https://github.com/projectsigma/sigma
       use_repository_button: true
       use_issues_button: true
       use_edit_page_button: true
