@@ -1,0 +1,9 @@
+left_tag,right_tag,notes
+amenity=pharmacy,healthcare=pharmacy,same pharmacy activity represented in two OSM namespaces
+amenity=clinic,healthcare=clinic,same clinic activity represented in two OSM namespaces
+amenity=dentist,healthcare=dentist,same dental activity represented in two OSM namespaces
+amenity=doctors,healthcare=doctor,same physician activity represented in two OSM namespaces
+amenity=townhall,office=government,same local-government activity represented in two OSM namespaces
+amenity=cafe,shop=coffee,cafe with compatible coffee retail tag
+amenity=cafe,shop=tea,cafe with compatible tea retail tag
+amenity=bank,atm=yes,bank with on-premises ATM metadata

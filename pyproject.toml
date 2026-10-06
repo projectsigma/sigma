@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sigma"
+dynamic = ["version"]
+description = "Unified SIGMA place, network-spatial, and economic analysis toolkit."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "James Matthew Miraflor"}]
+dependencies = [
+  "geopandas>=1.0,<2",
+  "networkx>=3.2,<4",
+  "numpy>=1.26,<3",
+  "openpyxl>=3.1,<4",
+  "osmium>=4.3,<5",
+  "overturemaps>=1.0.2,<2",
+  "pandas>=2.2,<4",
+  "pyarrow>=16,<27",
+  "pyogrio>=0.9,<1",
+  "PyYAML>=6,<7",
+  "rapidfuzz>=3.9,<4",
+  "requests>=2.32,<3",
+  "rich>=13.7,<16",
+  "scikit-learn>=1.5,<2",
+  "scipy>=1.11,<2",
+  "shapely>=2.1,<3",
+  "typer>=0.12,<1",
+]
+
+[project.scripts]
+sigma = "sigma.cli:app"
+
+[project.optional-dependencies]
+llm = ["openai>=1.50,<4"]
+dev = [
+  "build>=1.2",
+  "pytest>=8.2,<10",
+  "ruff>=0.8,<1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"sigma.resources" = ["*.txt"]
+"sigma.resources.areas" = ["data/*.yml", "data/boundaries/*.gpkg"]
+"sigma.resources.economy.psa_2018_io80" = ["*.csv", "*.yml"]
+"sigma.resources.economy.psa_2018_io16" = ["*.csv", "*.yml"]
+
+"sigma.resources.classification" = ["manifest.json", "crosswalks/*.csv", "io/*.csv", "psic_rev5/*.parquet", "psic_rev5/*.xlsx"]
+"sigma.resources.tagging.compatibility" = ["*.csv", "*.yml"]
+
+[tool.setuptools.dynamic]
+version = {attr = "sigma._version.__version__"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

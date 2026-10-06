@@ -1,0 +1,344 @@
+{
+  "centers": [
+    {
+      "center_network_node": 4,
+      "cluster": 0,
+      "geometry_wkt": "POINT (3 0)",
+      "type": "A"
+    },
+    {
+      "center_network_node": 9,
+      "cluster": 1,
+      "geometry_wkt": "POINT (97 0)",
+      "type": "A"
+    }
+  ],
+  "centers_columns": [
+    "type",
+    "cluster",
+    "center_network_node",
+    "geometry"
+  ],
+  "clustered_public": [
+    {
+      "canonical_id": "p0",
+      "canonical_name": "P0",
+      "cluster": 0,
+      "geometry_wkt": "POINT (1 0)",
+      "membership": 1.0,
+      "network_component": 0,
+      "network_position_wkt": "POINT (1 0)",
+      "point_id": "p0",
+      "snap_distance": 0.0,
+      "snap_distance_to_network": 0.0,
+      "snapped_edge_id": 0,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p1",
+      "canonical_name": "P1",
+      "cluster": 0,
+      "geometry_wkt": "POINT (2 0)",
+      "membership": 1.0,
+      "network_component": 0,
+      "network_position_wkt": "POINT (2 0)",
+      "point_id": "p1",
+      "snap_distance": 0.0,
+      "snap_distance_to_network": 0.0,
+      "snapped_edge_id": 0,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p2",
+      "canonical_name": "P2",
+      "cluster": 0,
+      "geometry_wkt": "POINT (3 0)",
+      "membership": 1.0,
+      "network_component": 0,
+      "network_position_wkt": "POINT (3 0)",
+      "point_id": "p2",
+      "snap_distance": 0.0,
+      "snap_distance_to_network": 0.0,
+      "snapped_edge_id": 0,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p3",
+      "canonical_name": "P3",
+      "cluster": 0,
+      "geometry_wkt": "POINT (4 0)",
+      "membership": 1.0,
+      "network_component": 0,
+      "network_position_wkt": "POINT (4 0)",
+      "point_id": "p3",
+      "snap_distance": 0.0,
+      "snap_distance_to_network": 0.0,
+      "snapped_edge_id": 0,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p4",
+      "canonical_name": "P4",
+      "cluster": 0,
+      "geometry_wkt": "POINT (5 0)",
+      "membership": 1.0,
+      "network_component": 0,
+      "network_position_wkt": "POINT (5 0)",
+      "point_id": "p4",
+      "snap_distance": 0.0,
+      "snap_distance_to_network": 0.0,
+      "snapped_edge_id": 0,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p5",
+      "canonical_name": "P5",
+      "cluster": 1,
+      "geometry_wkt": "POINT (95 0)",
+      "membership": 1.0,
+      "network_component": 0,
+      "network_position_wkt": "POINT (95 0)",
+      "point_id": "p5",
+      "snap_distance": 0.0,
+      "snap_distance_to_network": 0.0,
+      "snapped_edge_id": 0,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p6",
+      "canonical_name": "P6",
+      "cluster": 1,
+      "geometry_wkt": "POINT (96 0)",
+      "membership": 1.0,
+      "network_component": 0,
+      "network_position_wkt": "POINT (96 0)",
+      "point_id": "p6",
+      "snap_distance": 0.0,
+      "snap_distance_to_network": 0.0,
+      "snapped_edge_id": 0,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p7",
+      "canonical_name": "P7",
+      "cluster": 1,
+      "geometry_wkt": "POINT (97 0)",
+      "membership": 1.0,
+      "network_component": 0,
+      "network_position_wkt": "POINT (97 0)",
+      "point_id": "p7",
+      "snap_distance": 0.0,
+      "snap_distance_to_network": 0.0,
+      "snapped_edge_id": 0,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p8",
+      "canonical_name": "P8",
+      "cluster": 1,
+      "geometry_wkt": "POINT (98 0)",
+      "membership": 1.0,
+      "network_component": 0,
+      "network_position_wkt": "POINT (98 0)",
+      "point_id": "p8",
+      "snap_distance": 0.0,
+      "snap_distance_to_network": 0.0,
+      "snapped_edge_id": 0,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p9",
+      "canonical_name": "P9",
+      "cluster": 1,
+      "geometry_wkt": "POINT (99 0)",
+      "membership": 1.0,
+      "network_component": 0,
+      "network_position_wkt": "POINT (99 0)",
+      "point_id": "p9",
+      "snap_distance": 0.0,
+      "snap_distance_to_network": 0.0,
+      "snapped_edge_id": 0,
+      "type": "A"
+    }
+  ],
+  "clustered_public_columns": [
+    "canonical_id",
+    "canonical_name",
+    "type",
+    "geometry",
+    "cluster",
+    "membership",
+    "network_component",
+    "snap_distance_to_network",
+    "snapped_edge_id",
+    "point_id",
+    "network_position",
+    "snap_distance"
+  ],
+  "partition_area_total": 1000.0,
+  "partition_columns": [
+    "type",
+    "cluster",
+    "surface_area",
+    "surface_resolution",
+    "surface_method",
+    "surface_seed_method",
+    "geometry"
+  ],
+  "partitions": [
+    {
+      "cluster": 0,
+      "geometry_bounds": [
+        0.0,
+        -5.0,
+        50.0,
+        5.0
+      ],
+      "surface_area": 500.0,
+      "surface_method": "network_voronoi",
+      "surface_resolution": 1.0,
+      "surface_seed_method": "cluster_member_network_sources",
+      "type": "A"
+    },
+    {
+      "cluster": 1,
+      "geometry_bounds": [
+        50.0,
+        -5.0,
+        100.0,
+        5.0
+      ],
+      "surface_area": 500.0,
+      "surface_method": "network_voronoi",
+      "surface_resolution": 1.0,
+      "surface_seed_method": "cluster_member_network_sources",
+      "type": "A"
+    }
+  ],
+  "point_distance_columns": [
+    "point_id",
+    "type",
+    "cluster",
+    "distance_to_cluster_median",
+    "point_center_distance_method",
+    "canonical_id",
+    "canonical_name",
+    "geometry"
+  ],
+  "point_distances": [
+    {
+      "canonical_id": "p0",
+      "canonical_name": "P0",
+      "cluster": 0,
+      "distance_to_cluster_median": 2.0,
+      "geometry_wkt": "POINT (1 0)",
+      "point_center_distance_method": "network_shortest_path",
+      "point_id": "p0",
+      "type": "A"
+    },
+    {
+      "canonical_id": "p1",
+      "canonical_name": "P1",
+      "cluster": 0,
+      "distance_to_cluster_median": 1.0,
+      "geometry_wkt": "POINT (2 0)",
+      "point_center_distance_method": "network_shortest_path",
+      "point_id": "p1",
+      "type": "A"
+    },
+    {
+      "canonical_id": "p2",
+      "canonical_name": "P2",
+      "cluster": 0,
+      "distance_to_cluster_median": 0.0,
+      "geometry_wkt": "POINT (3 0)",
+      "point_center_distance_method": "network_shortest_path",
+      "point_id": "p2",
+      "type": "A"
+    },
+    {
+      "canonical_id": "p3",
+      "canonical_name": "P3",
+      "cluster": 0,
+      "distance_to_cluster_median": 1.0,
+      "geometry_wkt": "POINT (4 0)",
+      "point_center_distance_method": "network_shortest_path",
+      "point_id": "p3",
+      "type": "A"
+    },
+    {
+      "canonical_id": "p4",
+      "canonical_name": "P4",
+      "cluster": 0,
+      "distance_to_cluster_median": 2.0,
+      "geometry_wkt": "POINT (5 0)",
+      "point_center_distance_method": "network_shortest_path",
+      "point_id": "p4",
+      "type": "A"
+    },
+    {
+      "canonical_id": "p5",
+      "canonical_name": "P5",
+      "cluster": 1,
+      "distance_to_cluster_median": 2.0,
+      "geometry_wkt": "POINT (95 0)",
+      "point_center_distance_method": "network_shortest_path",
+      "point_id": "p5",
+      "type": "A"
+    },
+    {
+      "canonical_id": "p6",
+      "canonical_name": "P6",
+      "cluster": 1,
+      "distance_to_cluster_median": 1.0,
+      "geometry_wkt": "POINT (96 0)",
+      "point_center_distance_method": "network_shortest_path",
+      "point_id": "p6",
+      "type": "A"
+    },
+    {
+      "canonical_id": "p7",
+      "canonical_name": "P7",
+      "cluster": 1,
+      "distance_to_cluster_median": 0.0,
+      "geometry_wkt": "POINT (97 0)",
+      "point_center_distance_method": "network_shortest_path",
+      "point_id": "p7",
+      "type": "A"
+    },
+    {
+      "canonical_id": "p8",
+      "canonical_name": "P8",
+      "cluster": 1,
+      "distance_to_cluster_median": 1.0,
+      "geometry_wkt": "POINT (98 0)",
+      "point_center_distance_method": "network_shortest_path",
+      "point_id": "p8",
+      "type": "A"
+    },
+    {
+      "canonical_id": "p9",
+      "canonical_name": "P9",
+      "cluster": 1,
+      "distance_to_cluster_median": 2.0,
+      "geometry_wkt": "POINT (99 0)",
+      "point_center_distance_method": "network_shortest_path",
+      "point_id": "p9",
+      "type": "A"
+    }
+  ],
+  "retained_internal_columns": [
+    "canonical_id",
+    "canonical_name",
+    "type",
+    "geometry",
+    "cluster",
+    "membership",
+    "network_component",
+    "snap_distance_to_network",
+    "snapped_edge_id",
+    "network_node",
+    "snap_distance",
+    "network_position"
+  ]
+}

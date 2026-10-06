@@ -1,0 +1,94 @@
+rules:
+- code: '63'
+  all: []
+  any:
+  - amenity=restaurant
+  - amenity=cafe
+  - amenity=fast_food
+  - amenity=food_court
+  - amenity=bar
+  - amenity=pub
+  - cuisine=
+  reason: explicit food-and-beverage venue tag
+- code: '62'
+  any:
+  - tourism=hotel
+  - tourism=motel
+  - tourism=hostel
+  - tourism=guest_house
+  - tourism=resort
+  reason: explicit accommodation tag
+- code: '54'
+  any:
+  - shop=wholesale
+  reason: explicit wholesale tag
+- code: '56'
+  any:
+  - shop=car
+  - shop=car_repair
+  - shop=motorcycle
+  - shop=tyres
+  - shop=car_parts
+  reason: motor-vehicle sale or repair tag
+- code: '61'
+  any:
+  - amenity=post_office
+  - office=courier
+  reason: postal or courier tag
+- code: '66'
+  any:
+  - amenity=bank
+  reason: bank tag
+- code: '68'
+  any:
+  - office=insurance
+  reason: insurance tag
+- code: '73'
+  any:
+  - office=government
+  - amenity=townhall
+  - amenity=courthouse
+  - amenity=police
+  - amenity=fire_station
+  reason: public-administration tag
+- code: '79'
+  any:
+  - amenity=cinema
+  - amenity=theatre
+  - leisure=amusement_arcade
+  - leisure=fitness_centre
+  - leisure=sports_centre
+  - tourism=theme_park
+  reason: arts, entertainment or recreation tag
+- code: '80'
+  any:
+  - shop=laundry
+  - shop=hairdresser
+  - shop=beauty
+  - shop=funeral_directors
+  - leisure=spa
+  reason: personal or other service tag
+- code: '57'
+  any:
+  - amenity=bus_station
+  - public_transport=station
+  - public_transport=stop_position
+  - railway=station
+  reason: land-transport tag
+- code: '59'
+  any:
+  - aeroway=aerodrome
+  - aeroway=terminal
+  reason: air-transport tag
+- code: '55'
+  any:
+  - shop=supermarket
+  - shop=convenience
+  - shop=mall
+  - shop=department_store
+  - shop=pharmacy
+  reason: explicit retail tag
+- code: '70'
+  any:
+  - office=estate_agent
+  reason: real-estate tag

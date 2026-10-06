@@ -1,0 +1,329 @@
+source,source_value,mapping_kind,codes,match_type,confidence,notes,source_field
+overture,accountant,SUBTREE,692,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,advertising_agency,SUBTREE,731,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,animal_or_pet_service,EXACT,96902,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,attorney_or_law_firm,SUBTREE,691,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,auto_dealer,SUBTREE,4781,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,auto_detailing,SUBTREE,9534,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,auto_parts_store,SUBTREE,4782,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,automotive_repair,SUBTREE,953,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,b2b_advertising_and_marketing_service,SUBTREE,731,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,bank,SUBTREE,64,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,bank_or_credit_union,SUBTREE,64,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,bar,SUBTREE,563,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,barbecue_restaurant,SUBTREE,561,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,barber,SUBTREE,962,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,beauty_salon,SUBTREE,962,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,beauty_supply_store,SUBTREE,47,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,bike_store,SUBTREE,47,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,bookstore,SUBTREE,4761,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,bubble_tea_shop,SUBTREE,563,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,building_or_construction_service,SUBTREE,F,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,cafe,SUBTREE,563,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,car_rental_service,SUBTREE,771,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,car_wash,SUBTREE,9534,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,caterer,SUBTREE,5621,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,christian_place_of_worship,SUBTREE,9491,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,clothing_store,SUBTREE,4771,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,coffee_shop,SUBTREE,563,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,college_university,SUBTREE,854,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,computer_store,SUBTREE,474,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,contractor,SUBTREE,F,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,convenience_store,SUBTREE,4711,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,dental_clinic,SUBTREE,862,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,doctors_office,SUBTREE,862,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,driving_school,SUBTREE,8553,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,dry_cleaning,SUBTREE,961,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,education,SUBTREE,85,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,electronics_store,SUBTREE,474,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,elementary_school,SUBTREE,852,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,employment_agency,SUBTREE,78,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,event_photography_service,SUBTREE,742,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,eyewear_store,EXACT,47736,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,family_practice,SUBTREE,862,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,fast_food_restaurant,SUBTREE,561,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,filipino_restaurant,SUBTREE,561,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,financial_service,SUBTREE,L,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,flowers_and_gifts_store,SUBTREE,47,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,food_and_drink,SUBTREE,56,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,food_beverage_distributor,SUBTREE,G,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,food_truck_stand,SUBTREE,561,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,freight_and_cargo_service,SUBTREE,H,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,funeral_service,SUBTREE,963,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,furniture_store,SUBTREE,475,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,gas_station,SUBTREE,473,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,general_dentistry,SUBTREE,862,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,government_office,SUBTREE,84,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,grocery_store,SUBTREE,4711,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,gym,SUBTREE,931,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,hair_salon,SUBTREE,962,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,hardware_store,SUBTREE,4752,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,health_care,SUBTREE,86,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,high_school,SUBTREE,85,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,holiday_rental_home,SUBTREE,55,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,home_improvement_store,SUBTREE,475,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,hospital,SUBTREE,861,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,hotel,SUBTREE,551,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,hvac_service,SUBTREE,F,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,industrial_equipment_manufacturer,SUBTREE,C,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,information_technology_company,SUBTREE,62,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,installment_loans,SUBTREE,6495,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,internet_cafe,EXACT,61202,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,jewelry_store,EXACT,47734,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,laboratory_testing,SUBTREE,712,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,laundromat,SUBTREE,961,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,legal_service,SUBTREE,691,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,lodging,SUBTREE,55,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,manufacturer,SUBTREE,C,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,meat_wholesaler,SUBTREE,46,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,metal_fabricator,SUBTREE,25,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,mobile_phone_store,SUBTREE,474,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,motorcycle_dealer,SUBTREE,4783,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,motorcycle_repair,SUBTREE,9532,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,nail_salon,SUBTREE,962,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,notary_public,SUBTREE,691,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,pawn_shop,SUBTREE,6496,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,pest_control_service,EXACT,81291,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,pet_groomer,SUBTREE,9690,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,pet_store,SUBTREE,4776,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,pharmacy,SUBTREE,4772,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,preschool,SUBTREE,85,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,printing_service,SUBTREE,181,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,professional_service,SUBTREE,N,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,real_estate_agent,SUBTREE,68,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,real_estate_service,SUBTREE,68,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,religious_organization,SUBTREE,9491,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,resort,SUBTREE,55,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,restaurant,SUBTREE,561,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,roman_catholic_place_of_worship,SUBTREE,9491,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,school,SUBTREE,85,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,seafood_restaurant,SUBTREE,561,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,shipping_center,SUBTREE,53,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,shoe_store,SUBTREE,4771,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,smoothie_juice_bar,SUBTREE,563,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,software_development,SUBTREE,62,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,spa,SUBTREE,962,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,tattoo_and_piercing,SUBTREE,96,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,tea_room,SUBTREE,563,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,tour_operator,SUBTREE,7912,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,towing_service,SUBTREE,5221,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,travel_service,SUBTREE,79,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,veterinarian,SUBTREE,75,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,warehouse_club_store,SUBTREE,47,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,womens_clothing_store,SUBTREE,4771,exact,0.99,migrated trusted Overture deterministic floor,category
+osm,amenity=bank,SUBTREE,64,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=bar,SUBTREE,563,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=cafe,SUBTREE,563,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=car_wash,SUBTREE,9534,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=clinic,SUBTREE,862,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=college,SUBTREE,854,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=dentist,SUBTREE,862,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=doctors,SUBTREE,862,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=driving_school,SUBTREE,8553,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=fast_food,SUBTREE,561,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=fire_station,SUBTREE,84,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=fuel,SUBTREE,473,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=hospital,SUBTREE,861,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=internet_cafe,EXACT,61202,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=kindergarten,SUBTREE,85,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=library,SUBTREE,9111,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=pharmacy,SUBTREE,4772,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=place_of_worship,SUBTREE,9491,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=police,SUBTREE,84,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=post_office,SUBTREE,531,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=pub,SUBTREE,563,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=restaurant,SUBTREE,561,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=school,SUBTREE,85,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=townhall,SUBTREE,84,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=university,SUBTREE,854,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=veterinary,SUBTREE,75,exact,0.99,migrated trusted OSM amenity rule,category
+osm,shop=appliance,SUBTREE,475,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=bakery,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=beauty,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=bicycle,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=books,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=butcher,EXACT,47213,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=car,SUBTREE,4781,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=car_parts,SUBTREE,4782,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=car_repair,SUBTREE,953,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=clothes,SUBTREE,4771,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=computer,SUBTREE,474,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=convenience,SUBTREE,4711,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=copyshop,SUBTREE,181,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=dry_cleaning,SUBTREE,961,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=electronics,SUBTREE,474,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=funeral_directors,SUBTREE,963,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=furniture,SUBTREE,475,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=gas,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=general,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=hairdresser,SUBTREE,962,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=hardware,SUBTREE,4752,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=jewelry,EXACT,47734,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=laundry,SUBTREE,961,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=medical_supply,SUBTREE,4772,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=mobile_phone,SUBTREE,474,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=motorcycle,SUBTREE,4783,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=optician,EXACT,47736,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=pastry,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=pawnbroker,SUBTREE,6496,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=pet,SUBTREE,4776,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=pharmacy,SUBTREE,4772,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=photo,EXACT,47737,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=printing,SUBTREE,181,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=rice,SUBTREE,472,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=shoes,SUBTREE,4771,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=supermarket,SUBTREE,4711,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=tailor,SUBTREE,144,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=travel_agency,SUBTREE,7911,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=tyres,SUBTREE,4782,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=variety_store,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=water,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=yes,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,office=association,SUBTREE,94,exact,0.99,migrated trusted OSM office rule,category
+osm,office=courier,SUBTREE,532,exact,0.99,migrated trusted OSM office rule,category
+osm,office=educational_institution,SUBTREE,85,exact,0.99,migrated trusted OSM office rule,category
+osm,healthcare=clinic,SUBTREE,862,exact,0.99,migrated trusted OSM healthcare rule,category
+osm,healthcare=dentist,SUBTREE,862,exact,0.99,migrated trusted OSM healthcare rule,category
+osm,healthcare=laboratory,SUBTREE,869,exact,0.99,migrated trusted OSM healthcare rule,category
+osm,healthcare=pharmacy,SUBTREE,4772,exact,0.99,migrated trusted OSM healthcare rule,category
+osm,office=government,SUBTREE,84,exact,0.99,migrated trusted OSM deterministic floor,category
+osm,tourism=hotel,SUBTREE,551,exact,0.99,migrated trusted OSM deterministic floor,category
+osm,tourism=guest_house,SUBTREE,55,exact,0.99,migrated trusted OSM deterministic floor,category
+osm,tourism=hostel,SUBTREE,55,exact,0.99,migrated trusted OSM deterministic floor,category
+osm,tourism=chalet,SUBTREE,55,exact,0.99,migrated trusted OSM deterministic floor,category
+osm,tourism=apartment,SUBTREE,55,exact,0.99,migrated trusted OSM deterministic floor,category
+overture,beach,NOT_ACTIVITY,,exact,1.0,reviewed non-economic place category,category
+overture,bridge,NOT_ACTIVITY,,exact,1.0,reviewed non-economic place category,category
+overture,historic_site,NOT_ACTIVITY,,exact,1.0,reviewed non-economic place category,category
+overture,landmark,NOT_ACTIVITY,,exact,1.0,reviewed non-economic place category,category
+overture,monument,NOT_ACTIVITY,,exact,1.0,reviewed non-economic place category,category
+overture,park,NOT_ACTIVITY,,exact,1.0,reviewed non-economic place category,category
+overture,road,NOT_ACTIVITY,,exact,1.0,reviewed non-economic place category,category
+overture,arts_and_entertainment,UNCODEABLE,,exact,1.0,reviewed category too broad to assign PSIC safely,category
+overture,basketball_court,UNCODEABLE,,exact,1.0,reviewed category too broad to assign PSIC safely,category
+overture,campus_building,UNCODEABLE,,exact,1.0,reviewed category too broad to assign PSIC safely,category
+overture,community_and_government,UNCODEABLE,,exact,1.0,reviewed category too broad to assign PSIC safely,category
+overture,community_center,UNCODEABLE,,exact,1.0,reviewed category too broad to assign PSIC safely,category
+overture,corporate_or_business_office,UNCODEABLE,,exact,1.0,reviewed category too broad to assign PSIC safely,category
+overture,shopping_mall,UNCODEABLE,,exact,1.0,reviewed category too broad to assign PSIC safely,category
+overture,social_or_community_service,UNCODEABLE,,exact,1.0,reviewed category too broad to assign PSIC safely,category
+overture,sports_and_recreation,UNCODEABLE,,exact,1.0,reviewed category too broad to assign PSIC safely,category
+overture,swimming_pool,UNCODEABLE,,exact,1.0,reviewed category too broad to assign PSIC safely,category
+overture,travel_and_transportation,UNCODEABLE,,exact,1.0,reviewed category too broad to assign PSIC safely,category
+osm,leisure=park,NOT_ACTIVITY,,exact,1.0,reviewed non-economic OSM feature,category
+osm,leisure=pitch,NOT_ACTIVITY,,exact,1.0,reviewed non-economic OSM feature,category
+osm,man_made=bridge,NOT_ACTIVITY,,exact,1.0,reviewed non-economic OSM feature,category
+osm,man_made=mast,NOT_ACTIVITY,,exact,1.0,reviewed non-economic OSM feature,category
+osm,man_made=street_cabinet,NOT_ACTIVITY,,exact,1.0,reviewed non-economic OSM feature,category
+osm,man_made=surveillance,NOT_ACTIVITY,,exact,1.0,reviewed non-economic OSM feature,category
+osm,man_made=tower,NOT_ACTIVITY,,exact,1.0,reviewed non-economic OSM feature,category
+osm,public_transport=platform,NOT_ACTIVITY,,exact,1.0,reviewed non-economic OSM feature,category
+osm,public_transport=stop_position,NOT_ACTIVITY,,exact,1.0,reviewed non-economic OSM feature,category
+osm,tourism=artwork,NOT_ACTIVITY,,exact,1.0,reviewed non-economic OSM feature,category
+osm,amenity=atm,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,amenity=bus_station | public_transport=station,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,amenity=community_centre,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,amenity=marketplace,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,amenity=parking,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,amenity=parking_entrance,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,amenity=recycling,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,amenity=taxi,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,industrial=depot,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,leisure=playground,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,leisure=sports_hall,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,man_made=works,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,office=company,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,office=ngo,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,office=yes,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,public_transport=station,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,shop=mall,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+osm,tourism=attraction,UNCODEABLE,,exact,1.0,reviewed OSM category too broad to assign PSIC safely,category
+overture,shopping,SUBTREE,47,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,farm,SUBTREE,A,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,insurance_agency,EXACT,66220,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,money_transfer_service,EXACT,66191,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,town_hall,EXACT,84113,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,police_station,EXACT,84230,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,fueling_station,EXACT,47300,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,tutoring_service,EXACT,85593,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,library,EXACT,91110,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,agricultural_service,SUBTREE,016,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,bus_station,EXACT,52211,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,department_store,EXACT,47191,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,private_school,SUBTREE,85,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,public_school,SUBTREE,85,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,religious_school,SUBTREE,85,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,language_school,SUBTREE,85,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,educational_service,SUBTREE,85,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,building_supply_store,SUBTREE,4752,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,automotive_service,SUBTREE,953,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,medical_supply_store,SUBTREE,4772,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,sportswear_store,EXACT,47711,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,engineering_service,SUBTREE,71,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,home_cleaning,SUBTREE,812,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,property_management,SUBTREE,682,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,internet_service_provider,SUBTREE,61,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,broadcasting_media_production,SUBTREE,60,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,telecommunications_company,SUBTREE,61,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,museum,EXACT,91210,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,sport_or_fitness_facility,SUBTREE,9311,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,outpatient_care_facility,SUBTREE,86,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,medical_service_organization,SUBTREE,86,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,pediatric_clinic,SUBTREE,862,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,dialysis_clinic,EXACT,86223,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,vision_or_eye_care_clinic,EXACT,86224,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,obstetrics_and_gynecology,SUBTREE,862,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,hostel,SUBTREE,55,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,inn,SUBTREE,551,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,beach_resort,EXACT,55103,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,diner,SUBTREE,561,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,home_goods_store,SUBTREE,475,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,rental_service,SUBTREE,77,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,water_utility_provider,SUBTREE,36,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+osm,tourism=museum,EXACT,91210,exact,0.98,expanded reviewed high-confidence OSM category rule,category
+osm,leisure=fitness_centre,SUBTREE,9311,exact,0.98,expanded reviewed high-confidence OSM category rule,category
+osm,leisure=resort,SUBTREE,551,exact,0.98,expanded reviewed high-confidence OSM category rule,category
+osm,leisure=beach_resort,EXACT,55103,exact,0.98,expanded reviewed high-confidence OSM category rule,category
+osm,office=it,SUBTREE,62,exact,0.98,expanded reviewed high-confidence OSM category rule,category
+osm,\b(?:internet|cyber)\s+caf[eé]\b,EXACT,61202,regex,0.97,high-precision reviewed name rule: internet cafe,name
+osm,(?<!internet )(?<!cyber )\bcaf[eé]\b|\bcoffee\s+(?:shop|house)\b|\btea\s+(?:house|room)\b|\bmilk\s+tea\b,SUBTREE,563,regex,0.97,high-precision reviewed name rule: cafe/coffee/tea establishment,name
+osm,\b(?:dental|dentist|orthodont(?:ic|ics|ist))\b,SUBTREE,862,regex,0.97,high-precision reviewed name rule: dental establishment,name
+osm,\b(?:pharmacy|drugstore|drug\s+store)\b,SUBTREE,4772,regex,0.97,high-precision reviewed name rule: pharmacy/drugstore,name
+osm,\b(?:veterinary|vet\s+clinic|animal\s+clinic)\b,SUBTREE,75,regex,0.97,high-precision reviewed name rule: veterinary establishment,name
+osm,\b(?:laundry|laundromat|dry\s+clean(?:er|ing)?)\b,SUBTREE,961,regex,0.97,high-precision reviewed name rule: laundry/dry cleaning,name
+osm,\b(?:barber(?:shop)?|hair\s+salon|beauty\s+salon|nail\s+salon)\b,SUBTREE,962,regex,0.97,high-precision reviewed name rule: personal grooming establishment,name
+osm,\b(?:funeral(?:\s+home|\s+service)?|memorial\s+chapel)\b,SUBTREE,963,regex,0.97,high-precision reviewed name rule: funeral establishment,name
+osm,\b(?:pawnshop|pawn\s+shop)\b,SUBTREE,6496,regex,0.97,high-precision reviewed name rule: pawnshop,name
+osm,\b(?:travel|tour)\s+agency\b,SUBTREE,7911,regex,0.97,high-precision reviewed name rule: travel agency,name
+osm,\brestaurant\b,SUBTREE,561,regex,0.97,high-precision reviewed name rule: restaurant,name
+osm,\bhardware(?:\s+store)?\b,SUBTREE,4752,regex,0.97,high-precision reviewed name rule: hardware store,name
+osm,\b(?:tutorial|tutoring)\s+(?:center|centre|services?)\b,EXACT,85593,regex,0.97,high-precision reviewed name rule: academic tutorial service,name
+osm,\b(?:elementary|primary|high|secondary)\s+school\b|\buniversity\b|\bcollege\b,SUBTREE,85,regex,0.97,high-precision reviewed name rule: formal education establishment,name
+osm,\b(?:gym|fitness\s+(?:center|centre|club))\b,SUBTREE,9311,regex,0.97,high-precision reviewed name rule: fitness establishment,name
+osm,\bbook(?:store|shop)\b,SUBTREE,4761,regex,0.97,high-precision reviewed name rule: bookstore,name
+osm,\b(?:printing|print\s*shop)\b,SUBTREE,181,regex,0.97,high-precision reviewed name rule: printing service,name
+osm,\bcar\s+wash\b,SUBTREE,9534,regex,0.97,high-precision reviewed name rule: car wash,name
+osm,\b(?:construction|builders?)\b,SUBTREE,F,regex,0.97,high-precision reviewed name rule: construction business,name
+osm,\b(?:realty|real\s+estate)\b,SUBTREE,68,regex,0.97,high-precision reviewed name rule: real estate business,name
+osm,\bhotel\b|\bresort\b,SUBTREE,55,regex,0.97,high-precision reviewed name rule: hotel/resort accommodation,name
+overture,\b(?:internet|cyber)\s+caf[eé]\b,EXACT,61202,regex,0.97,high-precision reviewed name rule: internet cafe,name
+overture,(?<!internet )(?<!cyber )\bcaf[eé]\b|\bcoffee\s+(?:shop|house)\b|\btea\s+(?:house|room)\b|\bmilk\s+tea\b,SUBTREE,563,regex,0.97,high-precision reviewed name rule: cafe/coffee/tea establishment,name
+overture,\b(?:dental|dentist|orthodont(?:ic|ics|ist))\b,SUBTREE,862,regex,0.97,high-precision reviewed name rule: dental establishment,name
+overture,\b(?:pharmacy|drugstore|drug\s+store)\b,SUBTREE,4772,regex,0.97,high-precision reviewed name rule: pharmacy/drugstore,name
+overture,\b(?:veterinary|vet\s+clinic|animal\s+clinic)\b,SUBTREE,75,regex,0.97,high-precision reviewed name rule: veterinary establishment,name
+overture,\b(?:laundry|laundromat|dry\s+clean(?:er|ing)?)\b,SUBTREE,961,regex,0.97,high-precision reviewed name rule: laundry/dry cleaning,name
+overture,\b(?:barber(?:shop)?|hair\s+salon|beauty\s+salon|nail\s+salon)\b,SUBTREE,962,regex,0.97,high-precision reviewed name rule: personal grooming establishment,name
+overture,\b(?:funeral(?:\s+home|\s+service)?|memorial\s+chapel)\b,SUBTREE,963,regex,0.97,high-precision reviewed name rule: funeral establishment,name
+overture,\b(?:pawnshop|pawn\s+shop)\b,SUBTREE,6496,regex,0.97,high-precision reviewed name rule: pawnshop,name
+overture,\b(?:travel|tour)\s+agency\b,SUBTREE,7911,regex,0.97,high-precision reviewed name rule: travel agency,name
+overture,\brestaurant\b,SUBTREE,561,regex,0.97,high-precision reviewed name rule: restaurant,name
+overture,\bhardware(?:\s+store)?\b,SUBTREE,4752,regex,0.97,high-precision reviewed name rule: hardware store,name
+overture,\b(?:tutorial|tutoring)\s+(?:center|centre|services?)\b,EXACT,85593,regex,0.97,high-precision reviewed name rule: academic tutorial service,name
+overture,\b(?:elementary|primary|high|secondary)\s+school\b|\buniversity\b|\bcollege\b,SUBTREE,85,regex,0.97,high-precision reviewed name rule: formal education establishment,name
+overture,\b(?:gym|fitness\s+(?:center|centre|club))\b,SUBTREE,9311,regex,0.97,high-precision reviewed name rule: fitness establishment,name
+overture,\bbook(?:store|shop)\b,SUBTREE,4761,regex,0.97,high-precision reviewed name rule: bookstore,name
+overture,\b(?:printing|print\s*shop)\b,SUBTREE,181,regex,0.97,high-precision reviewed name rule: printing service,name
+overture,\bcar\s+wash\b,SUBTREE,9534,regex,0.97,high-precision reviewed name rule: car wash,name
+overture,\b(?:construction|builders?)\b,SUBTREE,F,regex,0.97,high-precision reviewed name rule: construction business,name
+overture,\b(?:realty|real\s+estate)\b,SUBTREE,68,regex,0.97,high-precision reviewed name rule: real estate business,name
+overture,\bhotel\b|\bresort\b,SUBTREE,55,regex,0.97,high-precision reviewed name rule: hotel/resort accommodation,name

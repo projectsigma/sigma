@@ -1,0 +1,38 @@
+{
+  "assets": {
+    "crosswalks/osm_compound_compatibility.csv": {
+      "rows": 8,
+      "sha256": "19f2bc8eca738e4fb899fa600108668a7b64665e5c068125adc4691659b1a0b7",
+      "size_bytes": 667
+    },
+    "crosswalks/psic_rev5.csv": {
+      "rows": 956,
+      "sha256": "1f121d52cb167d0b64d46c74e1e319539ca5fe85b1d5904e69375fe4e68c4292",
+      "size_bytes": 75869
+    },
+    "crosswalks/psic_rev5_reviewed.csv": {
+      "rows": 328,
+      "sha256": "7a2dbcb672d32bf06d4a29b4a69d70c0b8836d64f0d9b24a973f10e0e4e40c5a",
+      "size_bytes": 33991
+    },
+    "io/psic_2019_to_io_2018.csv": {
+      "rows": 354,
+      "sha256": "b0e69f5b5db613e5989b1e0c4e66ae2559db25b05a8aa82dc7a6a9d372abd07b",
+      "size_bytes": 193853
+    },
+    "io/psic_rev5_to_psic_2019.csv": {
+      "rows": 371,
+      "sha256": "695e1a69d88286a50db15d818d92b4624704230c638d0eea756d9329d1800abb",
+      "size_bytes": 37732
+    },
+    "psic_rev5/PSIC_Revision_5_Detailed_Structure_30July2026.xlsx": {
+      "sha256": "9f09fd2a1763f2feccc0d13276987bbfd5825a2ee3cc358bb5ecb1afa4b93593",
+      "size_bytes": 101242
+    },
+    "psic_rev5/nodes.parquet": {
+      "sha256": "f8f6791d340d6e010423f8fc9ee9ad616c64b32a0e56a611ddd2be35b4dfca23",
+      "size_bytes": 64881
+    }
+  },
+  "schema_version": 1
+}

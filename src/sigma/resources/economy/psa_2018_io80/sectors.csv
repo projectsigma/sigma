@@ -1,0 +1,81 @@
+code,label
+01,Palay / unmilled-rice farming
+02,Corn farming
+03,Coconut & copra farming
+04,Sugarcane farming
+05,Banana farming
+06,Mango farming
+07,Pineapple farming
+08,Coffee farming
+09,Cassava farming
+10,Rubber farming
+11,Cacao farming
+12,Abaca farming
+13,Tobacco farming
+14,Other crop farming
+15,Livestock raising
+16,Poultry & egg production
+17,Other animal production
+18,Forestry & logging
+19,Fishing & aquaculture
+20,"Agriculture, forestry & fishing support services"
+21,Coal extraction
+22,Crude-petroleum & natural-gas extraction
+23,Gold & precious-metal ore mining
+24,Nickel-ore mining
+25,Copper-ore mining
+26,Stone quarrying & other mining
+27,Food manufacturing
+28,Beverage manufacturing
+29,Tobacco-product manufacturing
+30,Textile manufacturing
+31,Apparel manufacturing
+32,Leather goods & footwear manufacturing
+33,"Wood, bamboo, cane & rattan products"
+34,Paper & paper-product manufacturing
+35,Printing & recorded-media reproduction
+36,Coke & refined-petroleum manufacturing
+37,Chemical-product manufacturing
+38,Pharmaceutical manufacturing
+39,Rubber & plastic-product manufacturing
+40,Non-metallic mineral-product manufacturing
+41,Basic-metal manufacturing
+42,Fabricated-metal manufacturing
+43,"Computer, electronic & optical-product manufacturing"
+44,Electrical-equipment manufacturing
+45,Other machinery & equipment manufacturing
+46,Transport-equipment manufacturing
+47,Furniture manufacturing
+48,Other manufacturing
+49,Electric-power services
+50,Steam services
+51,Water-supply services
+52,"Sewerage, waste-management & remediation services"
+53,Construction services
+54,Wholesale trade
+55,Retail trade
+56,Motor-vehicle & motorcycle sales/repair
+57,Land transport
+58,Water transport
+59,Air transport
+60,Warehousing & transport-support services
+61,Postal & courier services
+62,Accommodation services
+63,Food & beverage services
+64,Information & publishing services
+65,Communications services
+66,Banking services
+67,Non-bank financial services
+68,Insurance & pension-fund services
+69,Auxiliary financial services
+70,Real-estate services
+71,Dwelling-ownership services
+72,"Professional, scientific, technical, administrative & support services"
+73,"Government administration, defense & compulsory social security"
+74,Public education
+75,Private education
+76,Public health services
+77,Private health services
+78,Social-work services
+79,"Arts, entertainment & recreation"
+80,Other personal & service activities

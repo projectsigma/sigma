@@ -1,0 +1,81 @@
+io80_code,io80_label,io16_code,io16_label
+01,Palay / unmilled-rice farming,01,"Agriculture, forestry & fishing"
+02,Corn farming,01,"Agriculture, forestry & fishing"
+03,Coconut & copra farming,01,"Agriculture, forestry & fishing"
+04,Sugarcane farming,01,"Agriculture, forestry & fishing"
+05,Banana farming,01,"Agriculture, forestry & fishing"
+06,Mango farming,01,"Agriculture, forestry & fishing"
+07,Pineapple farming,01,"Agriculture, forestry & fishing"
+08,Coffee farming,01,"Agriculture, forestry & fishing"
+09,Cassava farming,01,"Agriculture, forestry & fishing"
+10,Rubber farming,01,"Agriculture, forestry & fishing"
+11,Cacao farming,01,"Agriculture, forestry & fishing"
+12,Abaca farming,01,"Agriculture, forestry & fishing"
+13,Tobacco farming,01,"Agriculture, forestry & fishing"
+14,Other crop farming,01,"Agriculture, forestry & fishing"
+15,Livestock raising,01,"Agriculture, forestry & fishing"
+16,Poultry & egg production,01,"Agriculture, forestry & fishing"
+17,Other animal production,01,"Agriculture, forestry & fishing"
+18,Forestry & logging,01,"Agriculture, forestry & fishing"
+19,Fishing & aquaculture,01,"Agriculture, forestry & fishing"
+20,"Agriculture, forestry & fishing support services",01,"Agriculture, forestry & fishing"
+21,Coal extraction,02,Mining & quarrying
+22,Crude-petroleum & natural-gas extraction,02,Mining & quarrying
+23,Gold & precious-metal ore mining,02,Mining & quarrying
+24,Nickel-ore mining,02,Mining & quarrying
+25,Copper-ore mining,02,Mining & quarrying
+26,Stone quarrying & other mining,02,Mining & quarrying
+27,Food manufacturing,03,Manufacturing
+28,Beverage manufacturing,03,Manufacturing
+29,Tobacco-product manufacturing,03,Manufacturing
+30,Textile manufacturing,03,Manufacturing
+31,Apparel manufacturing,03,Manufacturing
+32,Leather goods & footwear manufacturing,03,Manufacturing
+33,"Wood, bamboo, cane & rattan products",03,Manufacturing
+34,Paper & paper-product manufacturing,03,Manufacturing
+35,Printing & recorded-media reproduction,03,Manufacturing
+36,Coke & refined-petroleum manufacturing,03,Manufacturing
+37,Chemical-product manufacturing,03,Manufacturing
+38,Pharmaceutical manufacturing,03,Manufacturing
+39,Rubber & plastic-product manufacturing,03,Manufacturing
+40,Non-metallic mineral-product manufacturing,03,Manufacturing
+41,Basic-metal manufacturing,03,Manufacturing
+42,Fabricated-metal manufacturing,03,Manufacturing
+43,"Computer, electronic & optical-product manufacturing",03,Manufacturing
+44,Electrical-equipment manufacturing,03,Manufacturing
+45,Other machinery & equipment manufacturing,03,Manufacturing
+46,Transport-equipment manufacturing,03,Manufacturing
+47,Furniture manufacturing,03,Manufacturing
+48,Other manufacturing,03,Manufacturing
+49,Electric-power services,04,"Power, steam, water & environmental utilities"
+50,Steam services,04,"Power, steam, water & environmental utilities"
+51,Water-supply services,04,"Power, steam, water & environmental utilities"
+52,"Sewerage, waste-management & remediation services",04,"Power, steam, water & environmental utilities"
+53,Construction services,05,Construction
+54,Wholesale trade,06,Trade & motor-vehicle services
+55,Retail trade,06,Trade & motor-vehicle services
+56,Motor-vehicle & motorcycle sales/repair,06,Trade & motor-vehicle services
+57,Land transport,07,"Transport, storage & delivery"
+58,Water transport,07,"Transport, storage & delivery"
+59,Air transport,07,"Transport, storage & delivery"
+60,Warehousing & transport-support services,07,"Transport, storage & delivery"
+61,Postal & courier services,07,"Transport, storage & delivery"
+62,Accommodation services,08,Lodging & food services
+63,Food & beverage services,08,Lodging & food services
+64,Information & publishing services,09,Information & communications
+65,Communications services,09,Information & communications
+66,Banking services,10,Finance & insurance
+67,Non-bank financial services,10,Finance & insurance
+68,Insurance & pension-fund services,10,Finance & insurance
+69,Auxiliary financial services,10,Finance & insurance
+70,Real-estate services,11,Real-estate & dwelling services
+71,Dwelling-ownership services,11,Real-estate & dwelling services
+72,"Professional, scientific, technical, administrative & support services",12,"Professional, technical, administrative & support services"
+73,"Government administration, defense & compulsory social security",13,Government administration & defense
+74,Public education,14,Education
+75,Private education,14,Education
+76,Public health services,15,Health & social services
+77,Private health services,15,Health & social services
+78,Social-work services,15,Health & social services
+79,"Arts, entertainment & recreation",16,"Arts, recreation & other services"
+80,Other personal & service activities,16,"Arts, recreation & other services"

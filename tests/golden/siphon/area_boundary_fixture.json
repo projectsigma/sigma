@@ -1,0 +1,46 @@
+{
+  "catalog": {
+    "cities": 149,
+    "composites": [
+      "metro_cebu",
+      "metro_davao",
+      "metro_manila"
+    ],
+    "metro_cebu_members": 13,
+    "metro_davao_members": 15,
+    "metro_manila_members": 17,
+    "municipalities": 1493,
+    "total": 1645
+  },
+  "fixture": {
+    "bbox": [
+      120.9898384,
+      14.5896171,
+      121.1349718,
+      14.777563
+    ],
+    "boundary_identity": {
+      "field": "psgc_code",
+      "fingerprint": "136f87b62d2b3f73de47588133507395c561472c6e65852a9e5420340ebbf0d1",
+      "geometry_sha256": "3b90930400d0a84844f40d581bda67895a4c8c43ea659481c3c550175d492755",
+      "gpkg": "src/sigma_siphon/data/boundaries/areas.gpkg",
+      "layer": "areas",
+      "mode": "gpkg",
+      "values": [
+        "1381300000"
+      ]
+    },
+    "geometry_bounds": [
+      120.98983843600001,
+      14.589617128000043,
+      121.1349717920001,
+      14.777562997000075
+    ],
+    "kind": "city",
+    "members": [],
+    "name": "Quezon City",
+    "psgc_code": "1381300000",
+    "query": "Quezon City",
+    "slug": "quezon_city"
+  }
+}

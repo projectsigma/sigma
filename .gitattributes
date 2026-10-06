@@ -1,0 +1,5 @@
+# Checksum-controlled classification text assets must have stable bytes on Windows/Linux.
+src/sigma/resources/classification/**/*.csv text eol=lf
+src/sigma/resources/classification/manifest.json text eol=lf
+src/sigma/resources/classification/**/*.parquet binary
+src/sigma/resources/classification/**/*.xlsx binary

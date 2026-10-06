@@ -1,0 +1,1011 @@
+Metadata-Version: 2.4
+Name: sigma
+Version: 0.1.0.dev0
+Summary: Unified SIGMA place, network-spatial, and economic analysis toolkit.
+Author: James Matthew Miraflor
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: geopandas<2,>=1.0
+Requires-Dist: networkx<4,>=3.2
+Requires-Dist: numpy<3,>=1.26
+Requires-Dist: openpyxl<4,>=3.1
+Requires-Dist: osmium<5,>=4.3
+Requires-Dist: overturemaps<2,>=1.0.2
+Requires-Dist: pandas<4,>=2.2
+Requires-Dist: pyarrow<27,>=16
+Requires-Dist: pyogrio<1,>=0.9
+Requires-Dist: PyYAML<7,>=6
+Requires-Dist: rapidfuzz<4,>=3.9
+Requires-Dist: requests<3,>=2.32
+Requires-Dist: rich<16,>=13.7
+Requires-Dist: scikit-learn<2,>=1.5
+Requires-Dist: scipy<2,>=1.11
+Requires-Dist: shapely<3,>=2.1
+Requires-Dist: typer<1,>=0.12
+Provides-Extra: llm
+Requires-Dist: openai<4,>=1.50; extra == "llm"
+Provides-Extra: dev
+Requires-Dist: build>=1.2; extra == "dev"
+Requires-Dist: pytest<10,>=8.2; extra == "dev"
+Requires-Dist: ruff<1,>=0.8; extra == "dev"
+
+# Spatial Intelligence and Graph Modeling for MSME Acquisition (SIGMA)
+
+## Project Summary
+
+**Spatial Intelligence and Graph Modeling for MSME Acquisition (SIGMA)** is an end-to-end geocomputation framework for identifying, modeling, and prioritizing localized MSME ecosystems.
+
+The project applies geospatial analytics, network analysis, input-output economics, and graph-based modeling to shift MSME acquisition from an individual, location-based approach toward an **ecosystem-driven, network-aware strategy**. Rather than treating each establishment as an isolated prospect, SIGMA identifies geographically concentrated business ecosystems, classifies establishments by economic activity, models spatial and economic relationships among clusters, identifies influential ecosystem nodes, and produces cluster-to-cluster links that indicate where one ecosystem is structurally connected to another.
+
+The intended business use is to support more precise MSME targeting, lower acquisition effort, improve lead quality, identify influential businesses that can serve as acquisition entry points, and inform ecosystem-specific product and engagement strategies.
+
+SIGMA is designed so that the computational pipeline and the business decision layer remain distinct. The software produces reproducible geospatial, network, economic, and scoring outputs; bank-specific judgments such as whether a location is underserved, whether a business qualifies as an MSME, and which product bundle should be offered may be incorporated as human-reviewed or downstream decision inputs.
+
+---
+
+## Objectives
+
+The main objective of SIGMA is to enable the design of **ecosystem-specific MSME acquisition strategies** by identifying spatially concentrated business systems, estimating how those systems are connected, and ranking influential businesses within them.
+
+The project objectives map to the implemented SIGMA pipeline as follows:
+
+| Project objective | SIGMA implementation |
+|---|---|
+| 1. Identify emerging MSME ecosystem clusters with strong economic potential but underserved by BPI | Place acquisition and reconciliation; PSIC classification; PSIC-to-IO mapping; road-network preparation; network-constrained clustering; cluster centers; Voronoi/partition construction. Bank coverage/underservice is a downstream overlay or reviewed attribute rather than a hard-coded SIGMA rule. |
+| 2. Develop a Network Influence Score to identify key connectors or anchors within local business ecosystems | The spatial-economic **X graph**, weighted centrality, and distance-tempered point scoring identify influential cluster nodes and establishments. |
+| 3. Estimate which MSME ecosystems are structurally linked to other ecosystems | SIGMA's **cluster-to-cluster link generation** instantiates directed X-graph edges only where economic relationships, spatial overlap, and road-network reachability jointly support a connection. This is SIGMA's operational form of graph link prediction / structural link inference. |
+| 4. Enable ecosystem-specific acquisition strategies and product bundles | SIGMA exports ecosystem polygons, centers, linked-cluster edges and paths, centrality, point-level scores, economic relationships, and audit/provenance artifacts that can be translated into target zones, priority MSMEs, and product strategies. |
+
+---
+
+## Significance of the Project
+
+Current MSME acquisition approaches can depend heavily on broad geographic indicators and individual prospecting, producing high acquisition effort and uneven lead quality. MSMEs, however, often operate as parts of localized economic systems such as markets, malls, transport hubs, commercial corridors, and economic zones. Their commercial relevance may therefore depend not only on their individual characteristics, but also on their position within a spatial and economic network.
+
+SIGMA reframes the acquisition problem around **ecosystems rather than isolated establishments**. The resulting analysis can support:
+
+- identification of high-density and economically meaningful MSME clusters;
+- prioritization of businesses that occupy influential positions within those clusters;
+- identification of cluster-to-cluster relationships that may support indirect acquisition pathways;
+- comparison of target zones using spatial, network, and economic structure rather than location alone; and
+- design of ecosystem-level engagement and product strategies.
+
+The analytical premise is that acquiring a strategically positioned business may have value beyond that individual account when the business is embedded in a connected local ecosystem of suppliers, buyers, service providers, and adjacent economic activities.
+
+---
+
+## Scope and Limitations
+
+### Scope
+
+SIGMA supports:
+
+- development of MSME ecosystem maps using external geospatial/business-place data and, where available, aggregated, synthetic, reviewed, or otherwise permitted internal attributes;
+- place reconciliation and PSIC-based economic classification;
+- mapping from PSIC activity classes to configurable input-output sectors;
+- extraction of a routable road network from the shared Geofabrik Philippines PBF;
+- network-constrained geospatial clustering;
+- cluster-center and spatial partition construction;
+- directed input-output economic network construction;
+- cluster-to-cluster spatial-economic link generation;
+- network centrality and influence scoring;
+- point-level scoring with distance tempering;
+- restartable, content-addressed workflow execution; and
+- export of tabular, GeoParquet, CSV, and GeoPackage analytical products.
+
+### Limitations
+
+- Bank-specific customer-level transactional data are not required by the current codebase. Where the research design uses aggregated or synthetic internal data, those data must be introduced through permitted inputs or downstream joins.
+- External place data may contain incomplete, stale, duplicated, or incorrectly classified establishments. SIGMA therefore treats **human review as a legitimate analytical stage**, especially for determining which classified establishments should be treated as MSMEs.
+- The current cluster-link mechanism is **deterministic structural link inference**, not a supervised probabilistic link-prediction model trained on observed adoption outcomes.
+- Product-bundle selection is a strategic interpretation of SIGMA outputs; the current codebase does not contain a bank-product recommendation engine.
+- The routing graph is currently undirected. OSM `oneway` is retained as audit metadata but is not used to create a directed road graph.
+- Managed-road extraction uses a 5 km buffer around the selected administrative boundary so routes near the edge may leave and re-enter the area.
+
+---
+
+# Methodology and Implementation Mapping
+
+## 1. Geospatial Ecosystem Discovery
+
+The first milestone constructs MSME ecosystem maps from observed establishments and the physical road network.
+
+### 1.1 Area selection and boundary resolution
+
+A user selects an area from SIGMA's canonical Philippine area catalog. SIGMA resolves the corresponding exact boundary and uses that boundary as the spatial scope for place acquisition and analysis.
+
+Relevant stages:
+
+```text
+area.definition
+area.boundary
+```
+
+### 1.2 Place acquisition
+
+SIGMA acquires place observations from two implemented source families:
+
+1. **OpenStreetMap**, using the shared Geofabrik Philippines PBF; and
+2. **Overture Maps Places**.
+
+SIGMA requires an explicit one-time `sigma init` before any workflow command. Initialization creates a visible shared data directory (by default `Documents\SIGMA`) and downloads the national Geofabrik Philippines PBF there. That one content-addressed PBF is reused across areas and supplies both OSM places and managed roads.
+
+Relevant stages:
+
+```text
+source.geofabrik_pbf
+source.osm_national_pois
+source.osm_area_index
+source.overture_snapshot
+places.osm_area
+places.overture_area
+```
+
+> **Source-policy note.** The current implementation does **not** directly ingest Foursquare. It uses OSM + Overture Places, and the current Overture source policy excludes Foursquare-attributed records. If the research proposal refers to Foursquare as an example of an external business directory, that should be understood as conceptual source context rather than a statement that the present SIGMA code directly consumes Foursquare.
+
+### 1.3 Canonical place reconciliation
+
+OSM and Overture observations are reconciled into canonical places, reducing duplicate observations while preserving source provenance and audit information.
+
+Relevant stage:
+
+```text
+places.canonical
+```
+
+### 1.4 PSIC classification and economic tagging
+
+Canonical places are classified against the Philippine Standard Industrial Classification (PSIC), then mapped into the selected economic sector system. The default economy is PSA 2018 IO80; built-in IO16 and custom economies are also supported.
+
+Relevant stages:
+
+```text
+classification.taxonomy
+classification.tagging_references
+places.psic
+places.classified
+```
+
+The default classification path is deterministic. Optional OpenAI-assisted classification is available but not required.
+
+### 1.5 Human MSME validation
+
+After the place list has been generated and PSIC-tagged, **human review is expected and supported conceptually as a provenance boundary**.
+
+A reviewer may open the resulting GeoParquet in QGIS, ArcGIS Pro, Python, or another GIS/data-review platform and:
+
+- remove establishments that are irrelevant to the study;
+- remove or flag establishments that are not MSMEs;
+- correct obvious place-name or category errors where appropriate;
+- retain only establishments that should participate in ecosystem analysis; and
+- preserve the canonical identifiers, geometry, and economic classification fields needed by downstream SIGMA stages.
+
+For downstream analysis, filtering non-MSMEs **out of the reviewed file** is currently safer than merely adding an `is_msme` flag, because the spatial pipeline clusters the rows it receives and does not presently apply a special MSME flag filter.
+
+At minimum, a reviewed point file should preserve:
+
+```text
+canonical_id
+geometry
+CRS
+economy_code
+```
+
+It is strongly preferable to retain the PSIC and source/provenance columns as well.
+
+### 1.6 Road-network preparation
+
+For ordinary area-mode analysis, no user road file is required. SIGMA uses a managed road source derived from the same shared Geofabrik Philippines PBF.
+
+The managed-road procedure is:
+
+1. resolve the selected area boundary;
+2. select an appropriate local metre-based UTM CRS;
+3. buffer the boundary by 5 km;
+4. scan the PBF for the pinned motor-road classes in the vicinity;
+5. project the selected road geometry;
+6. clip the roads to the exact buffered polygon; and
+7. build the routable road network used by spatial algorithms.
+
+Relevant stage:
+
+```text
+transport.roads
+```
+
+A user-supplied projected road file remains available as an expert override, but it is not the expected workflow.
+
+### 1.7 Network-constrained clustering
+
+Classified establishments are normalized to the selected economic sector identity and clustered over the road-network context. Clustering is type-wise: each economic type may form one or more geographically distinct clusters.
+
+Relevant stages:
+
+```text
+spatial.points
+spatial.clusters
+spatial.centers
+spatial.point_distances
+spatial.partitions
+```
+
+The outputs define localized business ecosystems as combinations of:
+
+- economic type;
+- cluster identity;
+- network center;
+- road-network accessibility; and
+- spatial partition.
+
+These clusters and partitions form the base MSME ecosystem map.
+
+---
+
+## 2. Network Influence Scoring
+
+SIGMA then evaluates the structural importance of ecosystem nodes.
+
+Each spatial-economic node is identified by the pair:
+
+```text
+(economic type, spatial cluster)
+```
+
+SIGMA constructs the X graph, computes network centrality, and propagates cluster influence to individual establishments through a distance-tempered point score.
+
+Relevant stages:
+
+```text
+analysis.x
+analysis.centrality
+analysis.scores
+```
+
+The current centrality implementation uses a weighted undirected projection of the X graph for eigenvector centrality. Point scores are then tempered by a business's road-network distance from its cluster center.
+
+Conceptually:
+
+```text
+cluster influence
+    ×
+proximity to cluster center
+    =
+point-level acquisition influence score
+```
+
+This directly supports the project's **Network Influence Score** objective: identify businesses and ecosystem nodes that are structurally positioned to act as anchors, connectors, or high-leverage acquisition entry points.
+
+---
+
+## 3. Graph Link Prediction as Cluster-to-Cluster Structural Link Inference
+
+Within SIGMA, the project milestone called **Graph Link Prediction** is implemented as **cluster-to-cluster structural link generation** in the X graph.
+
+This is not a black-box probability model. Instead, SIGMA infers a directed connection from one ecosystem node to another when three conditions jointly support the link:
+
+1. the source and target economic sectors have a positive directed relationship in the input-output economic graph;
+2. their spatial partitions have positive-area overlap; and
+3. their cluster centers are connected through the road network.
+
+For each qualifying pair, SIGMA computes the exact shortest road path between cluster centers and instantiates a directed X-graph edge.
+
+The edge retains:
+
+```text
+source economic type
+source cluster
+target economic type
+target cluster
+technical coefficient
+road distance
+road path
+combined edge weight
+```
+
+The canonical combined edge weight is:
+
+```text
+technical coefficient × road distance
+```
+
+This produces a **multi-relational or multiplex-like ecosystem graph**: economic dependence, spatial co-location, and transport connectivity are represented together. The implementation uses a directed graph (`DiGraph`) rather than a literal `MultiDiGraph`, but the analytical interpretation is multigraph-like because each connection is supported by multiple relationship dimensions.
+
+Relevant economic stages:
+
+```text
+economy.definition
+economy.transactions.raw
+economy.transactions.effective
+economy.coefficients
+economy.graph
+```
+
+Relevant combined stage:
+
+```text
+analysis.x
+```
+
+This operationalizes the project's link-prediction objective by estimating **which localized economic ecosystems are structurally capable of linking to which other ecosystems, in which economic direction, and through what road path**.
+
+---
+
+## 4. Strategic Insights
+
+The final milestone translates the analytical products into decision-support outputs.
+
+SIGMA produces the components needed to identify:
+
+- priority acquisition zones;
+- high-density MSME ecosystems;
+- influential ecosystem nodes;
+- high-priority establishments;
+- directed cluster-to-cluster relationships;
+- economically related neighboring ecosystems;
+- shortest-road paths connecting linked ecosystems;
+- disconnected or unsupported candidate relationships; and
+- spatial contexts for ecosystem-level product and acquisition strategy design.
+
+The software does not prescribe a specific bank product. Instead, it provides the analytical structure on which Business Banking, Data Science, and strategy teams can design and validate ecosystem-specific acquisition and product bundles.
+
+---
+
+# End-to-End SIGMA Workflow
+
+The complete conceptual workflow is:
+
+```text
+Select Philippine area
+        ↓
+Resolve exact boundary
+        ↓
+Ensure shared Geofabrik Philippines PBF
+        ↓
+Acquire OSM places + Overture Places
+        ↓
+Reconcile duplicate observations
+        ↓
+Canonical place list
+        ↓
+PSIC classification
+        ↓
+PSIC → IO/economy mapping
+        ↓
+────────────────────────────────────────────
+HUMAN MSME REVIEW BOUNDARY
+Review GeoParquet externally
+Remove irrelevant/non-MSME establishments
+Preserve IDs, geometry, CRS, PSIC/economy fields
+────────────────────────────────────────────
+        ↓
+Extract managed Geofabrik roads
+        ↓
+Network-constrained clustering by economic type
+        ↓
+Cluster centers + point distances + partitions
+        ↓
+Directed input-output economic graph
+        ↓
+Cluster-to-cluster structural link inference (X graph)
+        ↓
+Centrality / Network Influence Score
+        ↓
+Point-level distance-tempered influence score
+        ↓
+GIS + tables + paths + manifests
+        ↓
+Strategic interpretation:
+priority zones, anchor MSMEs, ecosystem links,
+acquisition sequencing, product-bundle design
+```
+
+---
+
+# Human-in-the-Loop Review Workflow
+
+SIGMA now has an explicit three-part user lifecycle:
+
+```text
+install SIGMA
+    ↓
+sigma init
+    ↓
+prepare and review places
+    ↓
+run analysis
+```
+
+## 1. Required initialization
+
+Before any workflow command, run:
+
+```powershell
+sigma init
+```
+
+SIGMA shows the shared data location before downloading anything and asks for confirmation. The default is intentionally visible:
+
+```text
+%USERPROFILE%\Documents\SIGMA
+```
+
+Initialization downloads the Philippines Geofabrik OSM PBF once. The same national source contains the OSM objects used for **places and roads**. Area-specific Overture Places are acquired later by place preparation.
+
+All workflow commands are verbose by default and prefix progress with elapsed wall-clock time. Use the global quiet mode only when desired:
+
+```powershell
+sigma --quiet places prepare quezon_city --workspace ".\workspaces\quezon_city"
+sigma --quiet run quezon_city --workspace ".\workspaces\quezon_city"
+```
+
+## 2. Prepare, triangulate/reconcile, and label places
+
+```powershell
+sigma places prepare quezon_city `
+  --workspace ".\workspaces\quezon_city"
+```
+
+This command owns the place branch only: OSM + Overture acquisition, reconciliation into canonical places, PSIC classification, and mapping to the selected economy. It then publishes the explicit handoff:
+
+```text
+<workspace>\places\places.parquet
+```
+
+The GeoParquet is deliberately user-visible and editable. A reviewer may open it in QGIS, ArcGIS Pro, Python, or another data tool, filter rows, remove irrelevant/non-MSME establishments, and save it **in place**. Preserve at least:
+
+```text
+canonical_id
+geometry
+CRS
+economy_code
+```
+
+SIGMA preserves the original immutable managed place artifacts separately, so editing the handoff does not destroy provenance.
+
+## 3. Run the analysis from that handoff
+
+Only after the prepared GeoParquet exists:
+
+```powershell
+sigma run quezon_city `
+  --workspace ".\workspaces\quezon_city"
+```
+
+`run` no longer acquires Overture or classifies places. It consumes the exact current bytes of `<workspace>\places\places.parquet`, prepares/reuses roads, runs spatial clustering/centers/partitions, builds the economic and X graphs, computes centrality/scores, and exports results. If the GeoParquet has been filtered, the filtered file is the analysis input and its content hash invalidates the necessary descendants.
+
+If `sigma run` is invoked before `sigma places prepare`, it stops immediately and tells the user which GeoParquet is missing.
+
+For ordinary area mode, managed roads are extracted on demand from the already initialized Philippines PBF. No second road download is required.
+
+---
+
+# Normal User Workflow
+
+```powershell
+# Once per installation / shared-data location
+sigma init
+
+# Once per area or whenever place sources/classification should be refreshed
+sigma places prepare quezon_city `
+  --workspace ".\workspaces\quezon_city"
+
+# Optional human review/filtering of:
+# .\workspaces\quezon_city\places\places.parquet
+
+# Analysis and export
+sigma run quezon_city `
+  --workspace ".\workspaces\quezon_city"
+```
+
+Default analysis behavior remains PSA 2018 IO80, `transaction_preprocessing=none`, managed Geofabrik roads, deterministic PSIC classification during place preparation, and no LLM requirement.
+
+---
+
+# Full CLI Command Surface
+
+The current CLI is organized into coarse workflow commands plus exact-stage controls.
+
+## General inspection and validation
+
+### Version
+
+```powershell
+sigma --version
+```
+
+### Environment and dependency check
+
+```powershell
+sigma doctor
+sigma doctor --json
+```
+
+### Classification-resource integrity check
+
+```powershell
+sigma classification-check
+sigma classification-check --json
+```
+
+---
+
+## Area catalog
+
+### List areas
+
+```powershell
+sigma areas list
+sigma areas list --search "Quezon City"
+sigma areas list --kind locality
+sigma areas list --areas-file ".\custom_areas.yml"
+sigma areas list --json
+```
+
+Options:
+
+```text
+--kind
+--search
+--areas-file
+--json
+```
+
+### Show one area
+
+```powershell
+sigma areas show quezon_city
+sigma areas show quezon_city --areas-file ".\custom_areas.yml"
+```
+
+---
+
+## Place preparation and classification
+
+```powershell
+sigma places prepare AREA --workspace PATH
+```
+
+Available options:
+
+```text
+--workspace PATH                 required
+--output-dir PATH                 optional; set durable export location at workspace creation
+--areas-file FILE
+--economy SPEC
+--refresh-geofabrik
+--refresh-overture
+--clip / --no-clip
+--llm / --no-llm
+--top-n INTEGER
+--min-score FLOAT
+--min-margin FLOAT
+--force
+--json
+```
+
+This stops after `places.classified` and publishes the editable handoff at `<workspace>/places/places.parquet`. It does not run the spatial/economic analysis.
+
+---
+
+## Road/network preparation
+
+```powershell
+sigma network prepare AREA --workspace PATH
+```
+
+Available options:
+
+```text
+--workspace PATH                 required
+--roads FILE                     optional specialist override
+--managed-roads                  explicit spelling of managed default
+--roads-layer NAME
+--economy SPEC
+--force
+--json
+```
+
+For ordinary area-mode use, omitting `--roads` selects the managed Geofabrik road source.
+
+---
+
+## Spatial analysis
+
+```powershell
+sigma spatial run AREA --workspace PATH
+```
+
+Available options:
+
+```text
+--workspace PATH                 required
+--roads FILE
+--managed-roads
+--roads-layer NAME
+--economy SPEC
+--min-cluster-size INTEGER
+--min-samples INTEGER
+--classification VALUE
+--classification-column NAME
+--io80-column NAME
+--io16-column NAME
+--allow-single-cluster
+--voronoi-resolution FLOAT
+--force
+--json
+```
+
+This prepares the spatial branch through:
+
+```text
+spatial.centers
+spatial.point_distances
+spatial.partitions
+```
+
+with `spatial.points` and `spatial.clusters` as prerequisites.
+
+---
+
+## Economy graph
+
+```powershell
+sigma economy graph AREA --workspace PATH
+```
+
+Available options:
+
+```text
+--workspace PATH                 required
+--economy SPEC
+--transaction-preprocessing VALUE
+--equivalent
+--mwas-method VALUE
+--force
+--json
+```
+
+Canonical default:
+
+```text
+--transaction-preprocessing none
+```
+
+Optional sparse balancing:
+
+```text
+--transaction-preprocessing mwas_ras_fast
+```
+
+---
+
+## Combined analysis
+
+```powershell
+sigma analysis run AREA --workspace PATH
+```
+
+Available options:
+
+```text
+--workspace PATH                 required
+--roads FILE
+--managed-roads
+--roads-layer NAME
+--economy SPEC
+--transaction-preprocessing VALUE
+--equivalent
+--mwas-method VALUE
+--centrality-direction VALUE
+--distance-tempering FLOAT
+--min-cluster-size INTEGER
+--min-samples INTEGER
+--allow-single-cluster
+--voronoi-resolution FLOAT
+--force
+--json
+```
+
+This runs through:
+
+```text
+analysis.x
+analysis.centrality
+analysis.scores
+```
+
+---
+
+## Analysis/export run
+
+```powershell
+sigma run AREA --workspace PATH
+```
+
+`places prepare` is a required predecessor. `run` consumes the editable prepared-place GeoParquet and never performs place acquisition or classification implicitly.
+
+Available options:
+
+```text
+--workspace PATH                 required
+--roads FILE
+--managed-roads
+--roads-layer NAME
+--output-dir PATH                must match the durable workspace setting
+--areas-file FILE
+--economy SPEC
+--transaction-preprocessing VALUE
+--equivalent
+--mwas-method VALUE
+--min-cluster-size INTEGER
+--min-samples INTEGER
+--allow-single-cluster
+--voronoi-resolution FLOAT
+--centrality-direction VALUE
+--distance-tempering FLOAT
+--force
+--json
+```
+
+---
+
+## Export an existing/ensured analysis
+
+```powershell
+sigma export AREA --workspace PATH
+```
+
+Available options:
+
+```text
+--workspace PATH                 required
+--roads FILE
+--managed-roads
+--roads-layer NAME
+--output-dir PATH
+--economy SPEC
+--transaction-preprocessing VALUE
+--equivalent
+--mwas-method VALUE
+--force
+--json
+```
+
+---
+
+## Inspect workflow status
+
+```powershell
+sigma status AREA --workspace PATH
+sigma status AREA --workspace PATH --json
+```
+
+Available options:
+
+```text
+--workspace PATH                 required
+--roads FILE
+--managed-roads
+--roads-layer NAME
+--economy SPEC
+--transaction-preprocessing VALUE
+--json
+```
+
+`status` is inspection-only and does not intentionally acquire or refresh sources merely to report status.
+
+---
+
+## Ensure one exact stage
+
+```powershell
+sigma stage AREA STAGE --workspace PATH
+```
+
+Available options:
+
+```text
+--workspace PATH                 required
+--roads FILE
+--managed-roads
+--roads-layer NAME
+--economy SPEC
+--transaction-preprocessing VALUE
+--equivalent
+--mwas-method VALUE
+--force
+--json
+```
+
+Example:
+
+```powershell
+sigma stage quezon_city places.classified `
+  --workspace ".\workspaces\quezon_city"
+```
+
+or:
+
+```powershell
+sigma stage quezon_city analysis.x `
+  --workspace ".\workspaces\quezon_city"
+```
+
+---
+
+## Force recomputation of one stage
+
+```powershell
+sigma recompute AREA STAGE --workspace PATH
+```
+
+Available options:
+
+```text
+--workspace PATH                 required
+--roads FILE
+--managed-roads
+--roads-layer NAME
+--economy SPEC
+--transaction-preprocessing VALUE
+--json
+```
+
+SIGMA recomputes the requested stage while preserving reusable prerequisites whose identities have not changed.
+
+---
+
+## Restart from previously computed spatial products
+
+```powershell
+sigma from-partitions `
+  --workspace PATH `
+  --partitions FILE `
+  --centers FILE `
+  --points-with-center-distance FILE `
+  --roads FILE
+```
+
+Available options:
+
+```text
+--workspace PATH                         required
+--partitions FILE                        required
+--centers FILE                           required
+--points-with-center-distance FILE       required
+--roads FILE                             required
+--roads-layer NAME
+--output-dir PATH
+--economy SPEC
+--mwas-method VALUE
+--json
+```
+
+This command is primarily a compatibility/restart boundary and intentionally requires explicit road input.
+
+---
+
+# Managed Stage Catalog
+
+The principal managed stages that may be inspected, ensured, or recomputed are:
+
+```text
+area.definition
+area.boundary
+
+source.geofabrik_pbf
+source.osm_national_pois
+source.osm_area_index
+source.overture_snapshot
+
+places.osm_area
+places.overture_area
+places.canonical
+classification.taxonomy
+classification.tagging_references
+places.psic
+places.classified
+
+transport.roads
+
+spatial.points
+spatial.clusters
+spatial.centers
+spatial.point_distances
+spatial.partitions
+
+economy.definition
+economy.transactions.raw
+economy.transactions.effective
+economy.coefficients
+economy.graph
+economy.graph.legacy_mwas
+
+analysis.x
+analysis.centrality
+analysis.scores
+
+export.bundle
+```
+
+Not every stage is available in every execution mode. For example, restart/custom-input modes expose only the stages supported by their supplied inputs.
+
+---
+
+# Principal Exported Outputs
+
+A complete area-mode export may include:
+
+```text
+pois.parquet
+ATTRIBUTION.txt
+DATABASE_LICENSE.txt
+run.json
+
+sigma_clustered_points.parquet
+sigma_network_centers.parquet
+sigma_points_with_center_distance.parquet
+sigma_partitions.parquet
+
+sigma_economic_graph.csv
+# or sigma_io_dag.csv under the legacy-equivalent profile
+
+sigma_X_nodes.csv
+sigma_X_edges.csv
+sigma_disconnected_overlap_pairs.csv
+sigma_points_centrality.parquet
+sigma_spatial_outputs.gpkg
+
+sigma_run_metadata.json
+sigma_manifest.json
+OUTPUTS.txt
+```
+
+### Interpretation
+
+- `pois.parquet` — canonical classified place list suitable for human review.
+- `sigma_clustered_points.parquet` — establishments with ecosystem/type-cluster assignment.
+- `sigma_network_centers.parquet` — network center for each `(type, cluster)` ecosystem node.
+- `sigma_points_with_center_distance.parquet` — establishment-to-center road distances.
+- `sigma_partitions.parquet` — spatial ecosystem partitions.
+- `sigma_economic_graph.csv` — directed sector-level economic relationships.
+- `sigma_X_nodes.csv` — cluster-level spatial-economic nodes and graph measures.
+- `sigma_X_edges.csv` — inferred directed cluster-to-cluster links with economic and road-distance weights.
+- `sigma_disconnected_overlap_pairs.csv` — candidate links that failed road-network connectivity.
+- `sigma_points_centrality.parquet` — point-level Network Influence Score inputs/results.
+- `sigma_spatial_outputs.gpkg` — GIS-ready spatial outputs, including partitions, X nodes, and paths.
+- `sigma_manifest.json` — reproducible lineage of the exported bundle.
+
+---
+
+# Methodology-to-Output Traceability
+
+| Methodology milestone | Core SIGMA stages | Main outputs | Business interpretation |
+|---|---|---|---|
+| Geospatial Ecosystem Discovery | `places.*`, `transport.roads`, `spatial.points`, `spatial.clusters`, `spatial.centers`, `spatial.partitions` | classified POIs, clusters, centers, partitions | Where are the localized MSME ecosystems? |
+| Network Influence Scoring | `analysis.x`, `analysis.centrality`, `analysis.scores` | X nodes, point centrality/scores | Which ecosystem nodes and establishments are influential acquisition entry points? |
+| Graph Link Prediction / Structural Link Inference | `economy.graph`, `analysis.x` | X edges, road paths, disconnected-pair audit | Which ecosystems are structurally linked, in what direction, and by what spatial-economic pathway? |
+| Strategic Insights | `export.bundle` | GeoPackage, GeoParquet, CSVs, manifests | Which zones and MSMEs should be prioritized, and what ecosystem relationships should strategy teams investigate? |
+
+---
+
+# Recommended Project Interpretation
+
+SIGMA should be described as an **end-to-end geocomputation toolkit for MSME ecosystem discovery, network influence analysis, and spatial-economic graph modeling**.
+
+The system's distinctive contribution is not any single clustering or centrality algorithm. It is the integration of:
+
+```text
+place evidence
++ economic classification
++ road-network geography
++ spatial clustering
++ input-output structure
++ cluster-to-cluster link inference
++ influence scoring
++ reproducible artifact lineage
+```
+
+into one coherent, restartable analytical workflow.
+
+The human analyst remains part of that workflow. In particular, the point between **PSIC/economy classification** and **ecosystem analysis** is an appropriate review gate for deciding which establishments are actually relevant MSMEs before they influence clustering, graph construction, and acquisition scores.

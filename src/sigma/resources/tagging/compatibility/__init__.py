@@ -1,0 +1,1 @@
+"""Packaged SIGMA reference resources."""

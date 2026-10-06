@@ -1,0 +1,47 @@
+{
+  "default_method": "fast_greedy",
+  "exact": {
+    "edges": [
+      [
+        "A",
+        "B",
+        20.0
+      ],
+      [
+        "B",
+        "C",
+        30.0
+      ]
+    ],
+    "exact": true,
+    "method": "exact_milp",
+    "optimal": true,
+    "removed_weight": 10.0,
+    "retained_edge_count": 2,
+    "retained_weight": 50.0,
+    "self_loop_weight": 0.0,
+    "source_edge_count": 3
+  },
+  "fast": {
+    "edges": [
+      [
+        "A",
+        "B",
+        20.0
+      ],
+      [
+        "B",
+        "C",
+        30.0
+      ]
+    ],
+    "exact": false,
+    "method": "fast_greedy",
+    "optimal": false,
+    "removed_weight": 10.0,
+    "retained_edge_count": 2,
+    "retained_weight": 50.0,
+    "self_loop_weight": 0.0,
+    "source_edge_count": 3
+  }
+}

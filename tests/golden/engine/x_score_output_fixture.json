@@ -1,0 +1,207 @@
+{
+  "centrality": {
+    "degenerate_dag": false,
+    "direction": "undirected",
+    "note": "Centrality is weighted eigenvector centrality on the positive-weight undirected projection of X. Directed X edges remain unchanged in audit outputs; the legacy centrality-direction option is accepted for compatibility but does not alter the result.",
+    "values": {
+      "type=A::cluster=0": 0.7071067811865476,
+      "type=B::cluster=0": 0.7071067811865476
+    }
+  },
+  "diagnostics_columns": [
+    "type1",
+    "cluster1",
+    "type2",
+    "cluster2",
+    "status"
+  ],
+  "diagnostics_rows": [],
+  "gpkg_layers": {
+    "clusters": {
+      "columns": [
+        "type",
+        "cluster",
+        "cluster_no",
+        "cluster_id",
+        "geometry"
+      ],
+      "crs": "EPSG:4326",
+      "geometry_types": [
+        "MultiPolygon"
+      ],
+      "row_count": 2
+    },
+    "nodes": {
+      "columns": [
+        "node_id",
+        "type",
+        "cluster",
+        "cluster_no",
+        "lat",
+        "lon",
+        "in_degree",
+        "out_degree",
+        "centrality",
+        "geometry"
+      ],
+      "crs": "EPSG:4326",
+      "geometry_types": [
+        "Point"
+      ],
+      "row_count": 2
+    },
+    "paths": {
+      "columns": [
+        "from_id",
+        "from_type",
+        "from_cluster",
+        "to_id",
+        "to_type",
+        "to_cluster",
+        "source_type",
+        "source_cluster",
+        "target_type",
+        "target_cluster",
+        "technical_coefficient",
+        "road_distance",
+        "edge_weight",
+        "geometry"
+      ],
+      "crs": "EPSG:4326",
+      "geometry_types": [
+        "LineString"
+      ],
+      "row_count": 1
+    }
+  },
+  "score_columns": [
+    "point_id",
+    "type",
+    "cluster",
+    "cluster_centrality",
+    "distance_to_cluster_median",
+    "cluster_distance_p90",
+    "normalized_cluster_distance",
+    "distance_tempering",
+    "sigma_score",
+    "canonical_id",
+    "geometry"
+  ],
+  "scores": [
+    {
+      "canonical_id": "p0",
+      "cluster": 0,
+      "cluster_centrality": 2.0,
+      "cluster_distance_p90": 72.0,
+      "distance_tempering": 0.15,
+      "distance_to_cluster_median": 0.0,
+      "normalized_cluster_distance": 0.0,
+      "point_id": "p0",
+      "sigma_score": 2.0,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p1",
+      "cluster": 0,
+      "cluster_centrality": 2.0,
+      "cluster_distance_p90": 72.0,
+      "distance_tempering": 0.15,
+      "distance_to_cluster_median": 10.0,
+      "normalized_cluster_distance": 0.1388888888888889,
+      "point_id": "p1",
+      "sigma_score": 1.9583333333333333,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p2",
+      "cluster": 0,
+      "cluster_centrality": 2.0,
+      "cluster_distance_p90": 72.0,
+      "distance_tempering": 0.15,
+      "distance_to_cluster_median": 20.0,
+      "normalized_cluster_distance": 0.2777777777777778,
+      "point_id": "p2",
+      "sigma_score": 1.9166666666666667,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p3",
+      "cluster": 0,
+      "cluster_centrality": 2.0,
+      "cluster_distance_p90": 72.0,
+      "distance_tempering": 0.15,
+      "distance_to_cluster_median": 30.0,
+      "normalized_cluster_distance": 0.4166666666666667,
+      "point_id": "p3",
+      "sigma_score": 1.875,
+      "type": "A"
+    },
+    {
+      "canonical_id": "p4",
+      "cluster": 0,
+      "cluster_centrality": 2.0,
+      "cluster_distance_p90": 72.0,
+      "distance_tempering": 0.15,
+      "distance_to_cluster_median": 100.0,
+      "normalized_cluster_distance": 1.0,
+      "point_id": "p4",
+      "sigma_score": 1.7,
+      "type": "A"
+    }
+  ],
+  "x_edge_columns": [
+    "source_type",
+    "source_cluster",
+    "target_type",
+    "target_cluster",
+    "technical_coefficient",
+    "road_distance",
+    "edge_weight"
+  ],
+  "x_edges": [
+    {
+      "edge_weight": 48.0,
+      "road_distance": 16.0,
+      "source_cluster": 0,
+      "source_type": "A",
+      "target_cluster": 0,
+      "target_type": "B",
+      "technical_coefficient": 3.0
+    }
+  ],
+  "x_node_columns": [
+    "node_id",
+    "type",
+    "cluster",
+    "cluster_no",
+    "lat",
+    "lon",
+    "in_degree",
+    "out_degree",
+    "centrality"
+  ],
+  "x_nodes": [
+    {
+      "centrality": 0.7071067811865476,
+      "cluster": 0,
+      "cluster_no": 0,
+      "in_degree": 0,
+      "lat": 0.0,
+      "lon": 1.7966305682390428e-05,
+      "node_id": "type=A::cluster=0",
+      "out_degree": 1,
+      "type": "A"
+    },
+    {
+      "centrality": 0.7071067811865476,
+      "cluster": 0,
+      "cluster_no": 0,
+      "in_degree": 1,
+      "lat": 0.0,
+      "lon": 0.00016169675114151383,
+      "node_id": "type=B::cluster=0",
+      "out_degree": 0,
+      "type": "B"
+    }
+  ]
+}

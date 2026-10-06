@@ -1,0 +1,13 @@
+id: psa-2018-io80
+label: Philippine PSA 2018 IO80
+version: '2018'
+reference_year: 2018
+sectors:
+  file: sectors.csv
+transactions:
+  file: transactions.csv
+  orientation: rows_to_columns
+  units: current-price transaction values
+total_output:
+  file: total_output.csv
+source_url: https://psa.gov.ph/content/psa-releases-2018-input-output-tables
