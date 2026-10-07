@@ -1,6 +1,6 @@
 # References
 
-This bibliography consolidates the methodological references carried by the current SIGMA implementation and the reference discussions in `net-hdbscan`, `net-voronoi`, and `net-center`, plus the directed sender-receiver centrality literature used to motivate SIGMA's balanced Katz construction.
+This bibliography consolidates the published literature supporting the methods used by the current SIGMA implementation, including the directed sender-receiver centrality literature used to motivate SIGMA's balanced Katz construction.
 
 ## Density clustering and network distance
 
@@ -110,9 +110,6 @@ GEOS / JTS Topology Suite (Martin Davis and contributors), used through Shapely 
 
 NumPy, pandas, GeoPandas, Shapely, Pyogrio, PyArrow, NetworkX, SciPy, and scikit-learn provide core numerical, graph, and geospatial infrastructure used by the implementation.
 
-## Implementation provenance
-
-SIGMA consolidates methodological lineage from network-distance HDBSCAN*, network Voronoi partitioning, and classical network-location methods. The published literature supporting those methods is consolidated above. SIGMA does not depend on separate reference repositories at runtime.
 ## Centrality provenance note
 
 Sharkey's 2017 result supplies the strongest direct precedent for requiring both Katz receiver and sender roles through their componentwise product. SIGMA's geometric mean

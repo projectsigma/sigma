@@ -15,6 +15,6 @@ This page is the shortest defensible description of provenance.
 | Point score | — | cluster-p90 bounded linear distance tempering |
 | Place reconciliation | standard geographic/name-record linkage ingredients | exact thresholds, candidate-strength weighting, greedy deterministic match policy |
 
-## A note on `net-hdbscan`, `net-voronoi`, and `net-center`
+## Self-contained implementation
 
-Those repositories were used as methodological reference implementations and contain fuller standalone discussions of their respective methods. Unified SIGMA contains its own internal implementation and does not need them as runtime dependencies. Where SIGMA deliberately uses a narrower method—for example the network-node 1-median rather than every center problem implemented by `net-center`—this book describes the narrower SIGMA behavior.
+SIGMA implements the required methods internally. Methodological attribution is to the published literature cited in the table above and in the bibliography. No external reference repository is required by the runtime or by the methodological specification.

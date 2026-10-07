@@ -19,14 +19,14 @@ docs/book/_build/html/index.html
 
 ## Publish on GitHub
 
-Commit and push the repository to `miraflor/sigma` on branch `main`.
+Commit and push the repository to `projectsigma/sigma` on branch `main`.
 
 Then, once for the repository:
 
 1. Open **Settings** → **Pages**.
 2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
 3. Open the **Actions** tab and run **Build and deploy SIGMA documentation** if the push did not already trigger it.
-4. After a successful deployment, the site will be available at `https://miraflor.github.io/sigma/`.
+4. After a successful deployment, the site will be available at `https://projectsigma.github.io/sigma/`.
 
 The workflow rebuilds when `docs/book/`, `src/sigma/`, `pyproject.toml`, or the documentation workflow changes, so method documentation can track code changes.
 

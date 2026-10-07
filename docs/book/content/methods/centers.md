@@ -18,7 +18,7 @@ $$
 
 This is the classical unit-weight **network-node 1-median** / minisum location problem. SIGMA computes demand-to-node shortest-path distances in batches and minimizes the column sum.
 
-The key location-theory lineage is Hakimi (1964, 1965), Handler & Mirchandani (1979), and Kariv & Hakimi (1979). The broader `net-center` repository also implements vertex and absolute 1-center theory, but those are **not** the center used by the current SIGMA pipeline.
+The key location-theory lineage is Hakimi (1964, 1965), Handler & Mirchandani (1979), and Kariv & Hakimi (1979). The current SIGMA pipeline uses the network-node 1-median objective; vertex and absolute 1-center objectives are outside the current pipeline.
 
 ## Interpretation
 

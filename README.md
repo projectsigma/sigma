@@ -1,8 +1,8 @@
 # Spatial Intelligence and Graph Modeling for MSME Acquisition (SIGMA)
 
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://miraflor.github.io/sigma/)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://projectsigma.github.io/sigma/)
 
-Methodological documentation: **[SIGMA Jupyter Book](https://miraflor.github.io/sigma/)** · publishing instructions: [`GITHUB_PAGES.md`](GITHUB_PAGES.md).
+Methodological documentation: **[SIGMA Jupyter Book](https://projectsigma.github.io/sigma/)** · publishing instructions: [`GITHUB_PAGES.md`](GITHUB_PAGES.md).
 
 
 ## Project Summary

@@ -38,7 +38,7 @@ A node of the final graph is not an individual establishment. It is a **spatial 
 
 ## Reading the book
 
-If you want to run SIGMA first, start with [Quickstart](quickstart.md). If you want the model specification, read [End-to-end workflow](../workflow/end_to_end.md) and then the method chapters in order. The [Method lineage](../reference/method_lineage.md) page distinguishes published algorithms from SIGMA-specific implementation rules; the [References](../reference/references.md) page consolidates the literature used here and in `net-hdbscan`, `net-voronoi`, and `net-center`.
+If you want to run SIGMA first, start with [Quickstart](quickstart.md). If you want the model specification, read [End-to-end workflow](../workflow/end_to_end.md) and then the method chapters in order. The [Method lineage](../reference/method_lineage.md) page distinguishes published algorithms from SIGMA-specific implementation rules; the [References](../reference/references.md) page consolidates the published literature supporting the methods used by SIGMA.
 
 ## Scope of the mathematical specification
 
