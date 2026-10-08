@@ -110,12 +110,12 @@ GEOS / JTS Topology Suite (Martin Davis and contributors), used through Shapely 
 
 NumPy, pandas, GeoPandas, Shapely, Pyogrio, PyArrow, NetworkX, SciPy, and scikit-learn provide core numerical, graph, and geospatial infrastructure used by the implementation.
 
-## Centrality provenance note
+## Centrality methodological context
 
-Sharkey's 2017 result supplies the strongest direct precedent for requiring both Katz receiver and sender roles through their componentwise product. SIGMA's geometric mean
+Sharkey (2017) provides a precedent for combining Katz receiver and sender roles through their componentwise product. The geometric-mean transformation
 
 $$
 \sqrt{K_i^{in}K_i^{out}}
 $$
 
-is a monotone square-root transformation of that nonnegative product. Everett & Schoch (2022) independently reinforce the broader idea that directed centrality can couple in- and out-roles, while Kleinberg (1999) supplies the canonical hub/authority analogy. SIGMA therefore cites these as **methodological grounding**, while treating the exact geometric-mean plus one-final-L2 rule as its own model specification.
+is a monotone square-root rescaling of that nonnegative product. Everett & Schoch (2022) provide further context for combining in- and out-roles in directed centrality, while Kleinberg (1999) establishes the hub/authority analogy. The analytical workflow applies the geometric mean followed by a final L2 normalization as its computational convention.

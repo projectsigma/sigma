@@ -1,20 +1,20 @@
-# Method lineage: what is published and what is SIGMA-specific?
+# Methodological Foundations and Adjustments
 
-This page is the shortest defensible description of provenance.
+This page summarizes the methodological foundations of the analytical workflow and the adjustments used in their practical application. The latter concern data representation, computational procedures, parameterization, numerical safeguards, and fallback behavior. The cited literature provides the theoretical context, with further details available in the method pages and bibliography.
 
-| SIGMA step | Method lineage | SIGMA-specific part |
+| Analytical component | Methodological foundations | Methodological adjustments |
 |---|---|---|
-| Road shortest paths | Dijkstra (1959); SciPy implementation (Virtanen et al., 2020) | projected-road policy, shared-vertex topology, batching, guards |
-| Network clustering | HDBSCAN* (Campello et al., 2013, 2015); network clustering precedent Yiu & Mamoulis (2004), Wang et al. (2019) | bounded sparse neighbor engine, adaptive-radius diagnostic, deterministic tie treatment, fallbacks |
-| Cluster center | network median/location theory (Hakimi, 1964, 1965; Handler & Mirchandani, 1979; Kariv & Hakimi, 1979) | current pipeline restricts candidate center to road nodes; centroid recovery path |
-| Network territories | graph/network Voronoi (Erwig, 2000; Hakimi, Labbé & Schmeichel, 1992; Okabe et al., 2008; Okabe & Sugihara, 2012) | boundary grid rendering, refinement policy, Euclidean fallback |
-| IO coefficients | standard input-output coefficient convention $a_{ij}=z_{ij}/x_j$ | economy packaging and validation contracts |
-| Optional sparse transaction support | maximum-weight acyclic-subgraph idea + RAS/IPF balancing | deterministic fast MWAS heuristic, feasibility repair order, exact support contract |
-| Directed Katz | Katz (1953) | common safe alpha scaling and exact software conventions |
-| Sender/receiver coupling | Sharkey (2017); related directed in/out coupling Everett & Schoch (2022); HITS precedent Kleinberg (1999) | $\sqrt{K^{in}K^{out}}$ monotone rescaling and one final L2 normalization |
-| Point score | — | cluster-p90 bounded linear distance tempering |
-| Place reconciliation | standard geographic/name-record linkage ingredients | exact thresholds, candidate-strength weighting, greedy deterministic match policy |
+| Road shortest paths | Dijkstra (1959); SciPy (Virtanen et al., 2020) | Projected road representation, shared-vertex topology, batched routing, and validity checks. |
+| Network clustering | HDBSCAN* (Campello et al., 2013, 2015); network-space clustering (Yiu & Mamoulis, 2004; Wang et al., 2019) | Bounded sparse-neighborhood search, adaptive-radius diagnostics, deterministic tie handling, and fallback procedures. |
+| Cluster centers | Network median and location theory (Hakimi, 1964, 1965; Handler & Mirchandani, 1979; Kariv & Hakimi, 1979) | Road-node candidate restriction for network-median selection, with centroid recovery where required. |
+| Network territories | Graph and network Voronoi methods (Erwig, 2000; Hakimi, Labbé & Schmeichel, 1992; Okabe et al., 2008; Okabe & Sugihara, 2012) | Grid-based boundary rendering, spatial refinement, and Euclidean fallback where network partitioning is unavailable. |
+| Input-output coefficients | Standard input-output coefficient convention, $a_{ij}=z_{ij}/x_j$ | Economy-data configuration and validation procedures. |
+| Optional transaction sparsification | Maximum-weight acyclic-subgraph formulation; RAS / iterative proportional fitting | Fast deterministic MWAS heuristic, ordered feasibility repairs, and transaction-support constraints. |
+| Directed Katz centrality | Katz (1953) | Attenuation scaling, numerical safeguards, and consistent computational conventions. |
+| Sender–receiver coupling | Sharkey (2017); directed in/out-role coupling (Everett & Schoch, 2022); HITS precedent (Kleinberg, 1999) | Componentwise geometric mean, $\sqrt{K^{in}K^{out}}$, followed by a final L2 normalization. |
+| Establishment scoring | Distance-based score tempering | Cluster-level 90th-percentile distance reference and bounded linear distance tempering. |
+| Place reconciliation | Geographic and name-based record-linkage methods | Matching thresholds, candidate-evidence weighting, and deterministic greedy matching. |
 
-## Self-contained implementation
+## Implementation notes
 
-SIGMA implements the required methods internally. Methodological attribution is to the published literature cited in the table above and in the bibliography. No external reference repository is required by the runtime or by the methodological specification.
+The table is a concise reference to the methods and computational settings used in the workflow. Detailed method pages and canonical defaults describe the applicable conventions and parameter settings. Computational adjustments can be reviewed or revised according to data characteristics and analytical requirements.
