@@ -62,3 +62,9 @@ Useful columns are:
 - normalized cluster distance;
 - `distance_tempering`; and
 - `sigma_score`.
+
+## Explore published results in a browser
+
+`SIGMA Explorer` visualizes the published `sigma_points.parquet`, the cluster polygons and paths in `sigma_spatial_outputs.gpkg`, and the `sigma_X_nodes.csv`/`sigma_X_edges.csv` network. Launch it with `sigma view AREA` after the corresponding SIGMA run. A derived `explorer/` directory stores browser-ready data without modifying the analytical files. `sigma export-web AREA --public` creates a reduced-data `explorer-public/` bundle for **review**, not automatically safe public release.
+
+A selected establishment is mapped to its `(type, cluster)` X node; edges are cluster-to-cluster modeled spatial-economic relationships, not confirmed individual buyer–supplier transactions. The browser graph and the QGIS project are complementary ways to inspect the same results. See [SIGMA Explorer](../intro/explorer.md).

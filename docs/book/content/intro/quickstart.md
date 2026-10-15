@@ -45,12 +45,14 @@ The default run uses:
 - balanced sender-receiver weighted Katz; and
 - distance tempering `lambda = 0.15`.
 
-## 4. Inspect and export
+## 4. Inspect the published results
 
 ```bash
 sigma status pasig
-sigma export pasig --out output/pasig
+sigma view pasig
 ```
+
+`view` opens **[SIGMA Explorer](explorer.md)**, a local browser map synchronized with the directed cluster network and exact road paths. The analysis is not rerun. For traditional GIS inspection, open `pasig.qgz` in the workspace output directory. To generate a portable static bundle, use `sigma export-web pasig`; `--public` omits establishment-level records but still requires publication review.
 
 The artifact DAG means a repeated run does not blindly rerun every computation. A stage is reused when the recipe fingerprint and stored files still match the requested inputs, parameters, source identities, and implementation version.
 

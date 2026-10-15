@@ -17,6 +17,21 @@ SIGMA is designed so that the computational pipeline and the business decision l
 
 ---
 
+## SIGMA Explorer — interactive results in your browser
+
+**[SIGMA Explorer](SIGMA_EXPLORER.md)** lets you inspect existing SIGMA results on an interactive map and a synchronized **directed cluster-network diagram**, without opening QGIS or rerunning analysis. Select an establishment to see its assigned `(type, cluster)` network neighborhood, inspect incoming and outgoing connections, expand to two hops, and highlight the **actual computed road paths** for X edges.
+
+After running SIGMA for an area, launch the visualizer locally:
+
+```powershell
+sigma run pasig
+sigma view pasig
+```
+
+The browser opens at `http://127.0.0.1:8765/` by default. Use `sigma view pasig --refresh` after changing published outputs, or `sigma view pasig --no-browser` to print the URL without launching a browser. To prepare a portable static site from published results, use `sigma export-web pasig`; see the [Explorer guide](SIGMA_EXPLORER.md) and [illustrated workflow in the documentation book](docs/book/content/intro/explorer.md).
+
+**Interpretation:** Each X node represents an **economic-type cluster**, not one firm. An edge is a **modeled spatial-economic relationship**, not evidence that two establishments actually trade. The default Explorer bundle contains individual establishment locations and should remain private unless data rights, attribution, and publication risks have been reviewed. A reduced `--public` export omits establishment-level records but is **not a guarantee of anonymity**. The separate [SIGMA documentation website](https://projectsigma.github.io/sigma/) explains the methods; it does not automatically host your local Explorer data.
+
 ## Objectives
 
 The main objective of SIGMA is to enable the design of **ecosystem-specific MSME acquisition strategies** by identifying spatially concentrated business systems, estimating how those systems are connected, and ranking influential businesses within them.
@@ -120,6 +135,8 @@ sigma areas --help
 sigma areas list --help
 sigma load --help
 sigma run --help
+sigma view --help
+sigma export-web --help
 sigma status --help
 sigma analysis run --help
 ```
@@ -530,6 +547,19 @@ sigma_points.parquet
 
 It combines the useful establishment attributes from clustering, center-distance, balanced Katz, and scoring stages, including `katz_in_raw`, `katz_out_raw`, `centrality`, and `sigma_score` when applicable.
 
+### Explore the same results in a browser
+
+Run `sigma view pasig` to open **SIGMA Explorer**, an interactive counterpart to the `.qgz` output. It reuses the published point layer, cluster polygons, network nodes and edges, and exact road-path geometries. Click a mapped establishment or cluster center to see its **directed cluster-network neighborhood** on the map and in a linked network diagram. You can switch between incoming, outgoing and combined exploration, change network depth, and enlarge the diagram to theater view.
+
+```powershell
+sigma view pasig                # local browser view; uses existing exports
+sigma view pasig --refresh      # refresh the derived visualization bundle
+sigma export-web pasig          # write <output>\explorer for portable hosting
+sigma export-web pasig --public # reduced-data bundle in <output>\explorer-public
+```
+
+The local view uses a loopback-only HTTP server. `Ctrl+C` stops it. The full browser bundle includes establishment locations: **do not publish it by default**. The reduced public profile removes individual establishment records but still requires licensing and disclosure review. See [SIGMA Explorer](SIGMA_EXPLORER.md).
+
 ---
 
 ## Step 8 — A complete Pasig example
@@ -556,6 +586,9 @@ sigma status pasig
 
 # 7. Open final GIS project
 # %USERPROFILE%\Documents\SIGMA\workspaces\pasig\output\pasig.qgz
+
+# 8. Or inspect the same results interactively in a browser
+sigma view pasig
 ```
 
 For a metropolitan composite, the workflow is the same:
@@ -582,6 +615,10 @@ sigma run metro_manila
 | Inspect one area | `sigma areas show pasig` |
 | Build editable place handoff | `sigma load pasig` |
 | Run full analysis/export | `sigma run pasig` |
+| Explore results in a local browser | `sigma view pasig` |
+| Rebuild Explorer from latest exports | `sigma view pasig --refresh` |
+| Export browser-ready results | `sigma export-web pasig` |
+| Export reduced-data public review bundle | `sigma export-web pasig --public` |
 | Inspect cache/stage state | `sigma status pasig` |
 | Run only road preparation | `sigma network prepare ...` |
 | Run only spatial branch | `sigma spatial run ...` |
@@ -1341,6 +1378,25 @@ Available options:
 
 ---
 
+## Browser visualization (`view` and `export-web`)
+
+These commands **read already-published SIGMA output files**. They do not run clustering, IO modeling, X-graph construction, or point scoring. Run `sigma run AREA` first, or supply another valid published output directory.
+
+```powershell
+sigma view pasig                     # serve <output>\explorer locally
+sigma view pasig --refresh           # force refresh before serving
+sigma view pasig --no-browser        # serve without opening a browser
+sigma view pasig --port 8766         # choose preferred local port
+sigma export-web pasig               # generate a static local-profile bundle
+sigma export-web pasig --public      # omit individual establishment records
+```
+
+Both commands accept `--workspace PATH`, `--source-dir PATH` (published SIGMA outputs), `--output-dir PATH` (web bundle), and `--roads/--no-roads`. `view` supports `--refresh`, `--port`, `--no-browser`, and `--public`; `export-web` supports `--force` and `--public`. Use `--help` for the complete options. `view` binds to localhost (`127.0.0.1`) rather than exposing data on the local network. The site must be served over HTTP, not opened using `file://`.
+
+The full local profile contains individual establishment positions and attributes. The `--public` profile is a **reduction of exposed data**, not a certification that a dataset is safe to publish. Publishing externally requires separate attribution, source-license, confidentiality, and inference-risk checks. [Full Explorer documentation](SIGMA_EXPLORER.md).
+
+---
+
 ## Inspect workflow status
 
 ```powershell
@@ -1533,6 +1589,8 @@ sigma_run_metadata.json
 sigma_manifest.json
 OUTPUTS.txt
 ```
+
+`sigma view AREA` and `sigma export-web AREA` additionally create a derived `explorer/` or `explorer-public/` browser bundle under the output directory. These are **visualization products**, not new analytical stages, and do not replace the GeoPackage or QGIS project. See the [Explorer guide](SIGMA_EXPLORER.md).
 
 All published GIS layers are normalized to **EPSG:4326 / WGS 84**. Internal routing, snapping, clustering distance, center, and network calculations continue to use an appropriate metric projected CRS where required.
 

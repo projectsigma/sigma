@@ -93,3 +93,7 @@ A downstream score therefore cannot be interpreted independently of the upstream
 ## Human review boundary
 
 SIGMA supports a deliberate human review step after deterministic place classification. The safest review artifact removes out-of-scope establishments while preserving at least `canonical_id`, geometry/CRS, and the selected economy code. Downstream clustering acts on the rows it receives; an unused flag is not equivalent to filtering the input.
+
+## Post-analysis visualization
+
+After `sigma run AREA`, use `sigma view AREA` to browse the published points, partitions, cluster-level X links, and shortest-road-path geometries through [SIGMA Explorer](../intro/explorer.md). This is a **read-only presentation step after export**, not an additional model stage. The generated QGIS project remains available for conventional GIS inspection.

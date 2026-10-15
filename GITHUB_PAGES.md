@@ -41,3 +41,7 @@ The workflow rebuilds when `docs/book/`, `src/sigma/`, `pyproject.toml`, or the 
 - consolidated references.
 
 The mathematical pages describe the implementation rather than a hypothetical design. Recovery paths and SIGMA-specific rules are labeled explicitly.
+
+## Explorer is separate from the documentation site
+
+The documentation build publishes the Jupyter Book only. **SIGMA Explorer** is a separate static browser visualization built per analyzed area from published SIGMA outputs (`sigma view AREA` locally, or `sigma export-web AREA` to generate a web bundle). Enabling GitHub Pages for the book **does not** publish Explorer or any SIGMA establishment dataset. Before hosting any Explorer bundle publicly, review source licenses, attribution, and disclosure risks; even the reduced `--public` export is not a guarantee of anonymity. See [SIGMA_EXPLORER.md](SIGMA_EXPLORER.md).

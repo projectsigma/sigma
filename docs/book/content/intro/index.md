@@ -4,6 +4,8 @@ SIGMA is a reproducible pipeline for turning observed establishments, a road net
 
 This book documents the model as it is implemented. Its purpose is not merely to tell you which command to run. It spells out the transformations, equations, assumptions, fallbacks, and provenance of the methods so that a SIGMA result can be inspected as a chain of explicit analytical decisions.
 
+For hands-on exploration after a run, **[SIGMA Explorer](explorer.md)** provides a browser map connected to the directed cluster-level X graph. Select a mapped establishment to examine the network neighborhood of its assigned economic-type cluster and highlight SIGMA's computed road paths; Explorer visualizes already-published results and does not alter the model.
+
 The canonical workflow is
 
 ```text
