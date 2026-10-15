@@ -1,0 +1,33 @@
+﻿name: SIGMA Explorer JavaScript Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  explorer-javascript:
+    name: Explorer JS Regression Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/sigma/web/static/network-model.js
+          node --check src/sigma/web/static/app.js
+          node --check tests/test_explorer_network.js
+
+      - name: Run directed-network regression tests
+        run: node tests/test_explorer_network.js
