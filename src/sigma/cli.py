@@ -939,5 +939,89 @@ def doctor(json_output: bool = typer.Option(False, "--json")) -> None:
         raise typer.Exit(code=1)
 
 
+# SIGMA_EXPLORER_OVERLAY_V3_START
+def _explorer_paths(
+    area: str, workspace: Path | None, source_dir: Path | None, output_dir: Path | None
+) -> tuple[Path, Path]:
+    from .web import resolve_output_directory
+
+    source = source_dir if source_dir is not None else resolve_output_directory(_workspace_for(area, workspace))
+    destination = output_dir if output_dir is not None else Path(source) / "explorer"
+    return Path(source), Path(destination)
+
+
+@app.command("export-web")
+def export_web_command(
+    area: str,
+    workspace: Path | None = typer.Option(None, "--workspace", file_okay=False),
+    source_dir: Path | None = typer.Option(None, "--source-dir", file_okay=False, help="Published SIGMA output directory."),
+    output_dir: Path | None = typer.Option(None, "--output-dir", file_okay=False, help="Explorer bundle directory."),
+    roads: bool | None = typer.Option(
+        None, "--roads/--no-roads", help="Include SIGMA's published roads. Default: include unless very large."
+    ),
+    force: bool = typer.Option(False, "--force", help="Replace an existing SIGMA Explorer bundle."),
+    public: bool = typer.Option(False, "--public", help="Omit establishment-level identities and locations for public review."),
+) -> None:
+    """Create a static Explorer bundle from existing published outputs; never recompute SIGMA."""
+    try:
+        from .web import build_web_bundle
+
+        source, destination = _explorer_paths(area, workspace, source_dir, output_dir)
+        if public and output_dir is None:
+            destination = source / "explorer-public"
+        result = build_web_bundle(source, destination, include_roads=roads, force=force,
+                                  profile="public" if public else "local")
+        for warning in result.get("warnings", []):
+            typer.echo(f"Note: {warning}")
+        typer.echo(f"SIGMA Explorer created: {result['destination']}")
+        if not public:
+            typer.echo("WARNING: includes individual establishment locations; do not publish without reviewing data rights.")
+        hint = "sigma view " + area + (f" --workspace {workspace}" if workspace is not None else "")
+        if output_dir is not None:
+            hint += f' --output-dir "{destination}"'
+        elif public:
+            hint += " --public"
+        typer.echo("To view it locally: " + hint)
+    except (SigmaError, OSError, ValueError, KeyError) as exc:
+        _handle_error(exc)
+
+
+@app.command("view")
+def view_command(
+    area: str,
+    workspace: Path | None = typer.Option(None, "--workspace", file_okay=False),
+    source_dir: Path | None = typer.Option(None, "--source-dir", file_okay=False, help="Published SIGMA output directory."),
+    output_dir: Path | None = typer.Option(None, "--output-dir", file_okay=False, help="Explorer bundle directory."),
+    port: int = typer.Option(8765, "--port", min=0, max=65535, help="Local port; the next free port is used if it is taken."),
+    no_browser: bool = typer.Option(False, "--no-browser"),
+    refresh: bool = typer.Option(False, "--refresh", help="Rebuild even when the bundle matches the latest outputs."),
+    roads: bool | None = typer.Option(
+        None, "--roads/--no-roads", help="Include SIGMA's published roads. Default: include unless very large."
+    ),
+    public: bool = typer.Option(False, "--public", help="View the public-profile bundle (explorer-public)."),
+) -> None:
+    """Open a local-only Explorer for an area; it is rebuilt automatically after new SIGMA runs."""
+    try:
+        from .web import build_web_bundle, bundle_is_current, bundle_profile, serve_bundle
+
+        source, destination = _explorer_paths(area, workspace, source_dir, output_dir)
+        if public and output_dir is None:
+            destination = source / "explorer-public"
+        # A public bundle stays public: never rebuild it with establishment-level data.
+        public = public or destination.name == "explorer-public" or bundle_profile(destination) == "public"
+        profile = "public" if public else "local"
+        if refresh or not bundle_is_current(source, destination, include_roads=roads, profile=profile):
+            result = build_web_bundle(source, destination, include_roads=roads, force=True, profile=profile)
+            for warning in result.get("warnings", []):
+                typer.echo(f"Note: {warning}")
+            typer.echo(f"Explorer data built from the latest SIGMA outputs: {result['destination']}")
+        else:
+            typer.echo("Explorer data already match the latest SIGMA outputs.")
+        serve_bundle(destination, port=port, open_browser=not no_browser)
+    except (SigmaError, OSError, ValueError, KeyError) as exc:
+        _handle_error(exc)
+# SIGMA_EXPLORER_OVERLAY_V3_END
+
+
 if __name__ == "__main__":
     app()

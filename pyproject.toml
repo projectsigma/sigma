@@ -47,6 +47,7 @@ docs = [
 where = ["src"]
 
 [tool.setuptools.package-data]
+"sigma.web" = ["static/*.html", "static/*.css", "static/*.js", "static/vendor/*"]
 "sigma.resources" = ["*.txt"]
 "sigma.resources.areas" = ["data/*.yml", "data/boundaries/*.gpkg"]
 "sigma.resources.economy.psa_2018_io80" = ["*.csv", "*.yml"]
