@@ -179,7 +179,7 @@
     const isFocus = ['==', ['get', 'node_id'], focus];
     map.setPaintProperty('establishments', 'circle-opacity', ids ? ['case', isFocus, 0.95, inNet, 0.85, 0.07] : 0.78);
     map.setPaintProperty('establishments', 'circle-stroke-opacity', ids ? ['case', inNet, 1, 0] : 1);
-    map.setPaintProperty('establishments', 'circle-stroke-width', ids ? ['case', isFocus, 1.6, 0.6] : 0.6);
+    map.setPaintProperty('establishments', 'circle-stroke-width', ids ? ['case', isFocus, 0.9, 0.35] : 0.35);
     map.setPaintProperty('establishments', 'circle-stroke-color', ids ? ['case', isFocus, COLOR.focus, '#ffffff'] : '#ffffff');
     const centerIn = ['in', ['get', 'id'], ['literal', ids || []]];
     map.setPaintProperty('centers', 'icon-opacity', ids ? ['case', centerIn, 1, 0.12] : 1);
@@ -200,17 +200,17 @@
       const filter = ['any', isFocus, ['all', ['in', ['get', 'node_id'], ['literal', [...network.ring.keys()]]], notHidden()]];
       map.setFilter('partition-fill', filter);
       map.setFilter('partition-line', filter);
-      map.setPaintProperty('partition-fill', 'fill-opacity', ['case', isFocus, 0.16, 0.03]);
+      map.setPaintProperty('partition-fill', 'fill-opacity', ['case', isFocus, 0.1, 0.025]);
       map.setPaintProperty('partition-line', 'line-color', ['case', isFocus, COLOR.focus, color]);
-      map.setPaintProperty('partition-line', 'line-width', ['case', isFocus, 2.6, 1.1]);
-      map.setPaintProperty('partition-line', 'line-opacity', ['case', isFocus, 1, 0.75]);
+      map.setPaintProperty('partition-line', 'line-width', ['case', isFocus, 1.15, 0.55]);
+      map.setPaintProperty('partition-line', 'line-opacity', ['case', isFocus, 0.8, 0.55]);
     } else {
       map.setFilter('partition-fill', notHidden());
       map.setFilter('partition-line', notHidden());
-      map.setPaintProperty('partition-fill', 'fill-opacity', 0.04);
+      map.setPaintProperty('partition-fill', 'fill-opacity', 0.022);
       map.setPaintProperty('partition-line', 'line-color', color);
-      map.setPaintProperty('partition-line', 'line-width', 0.8);
-      map.setPaintProperty('partition-line', 'line-opacity', 0.7);
+      map.setPaintProperty('partition-line', 'line-width', 0.45);
+      map.setPaintProperty('partition-line', 'line-opacity', 0.5);
     }
   }
 
@@ -558,7 +558,7 @@
       if (!ctx) throw new Error('Cannot render cluster centers: 2D canvas is unavailable.');
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = outline;
-      ctx.lineWidth = 3.5;
+      ctx.lineWidth = 2.1;
       ctx.lineJoin = 'round';
       ctx.beginPath();
       ctx.moveTo(5, 6);
@@ -590,33 +590,33 @@
     if (data.boundary) {
       map.addSource('boundary', {type: 'geojson', data: data.boundary});
       map.addLayer({id: 'boundary-fill', type: 'fill', source: 'boundary', paint: {'fill-color': '#ffffff', 'fill-opacity': 1}});
-      map.addLayer({id: 'boundary-line', type: 'line', source: 'boundary', paint: {'line-color': '#35473e', 'line-width': 1.6}});
+      map.addLayer({id: 'boundary-line', type: 'line', source: 'boundary', paint: {'line-color': '#71847b', 'line-width': 0.8, 'line-opacity': 0.75}});
     }
     map.addSource('clusters', {type: 'geojson', data: data.clusters});
     map.addLayer({id: 'partition-fill', type: 'fill', source: 'clusters', layout: {visibility: 'none'}, paint: {'fill-color': sectorColorExpr, 'fill-opacity': 0.1}});
-    // Draw roads ABOVE translucent partitions so their gray is not washed out.
-    // This is visual context only; exact X-route styling remains unchanged.
+    // Quiet geographic context: thin, opaque gray, above translucent polygons.
     if (data.roads) {
       map.addSource('roads', {type: 'geojson', data: data.roads});
       map.addLayer({id: 'roads-line', type: 'line', source: 'roads',
-        paint: {'line-color': '#858585', 'line-opacity': 1,
-          'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.4, 15, 0.9, 18, 1.6]}});
+        layout: {'line-join': 'round', 'line-cap': 'round'},
+        paint: {'line-color': '#949b9b', 'line-opacity': 1,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.22, 15, 0.5, 18, 0.85]}});
     }
     map.addLayer({id: 'partition-line', type: 'line', source: 'clusters', layout: {visibility: 'none'}, paint: {'line-color': sectorColorExpr, 'line-width': 1}});
     map.addSource('routes', {type: 'geojson', data: EMPTY()});
     const width = (a, b) => ['interpolate', ['linear'], ['get', 'wn'], 0, a, 1, b];
     map.addLayer({id: 'routes-casing', type: 'line', source: 'routes', layout: {'line-join': 'round', 'line-cap': 'round'},
-      paint: {'line-color': '#ffffff', 'line-width': width(3.5, 9.5), 'line-opacity': 0.85}});
+      paint: {'line-color': '#ffffff', 'line-width': width(1.35, 3.25), 'line-opacity': 0.85}});
     map.addLayer({id: 'routes', type: 'line', source: 'routes', filter: ['==', ['get', 'kind'], 'outgoing'],
       layout: {'line-join': 'round', 'line-cap': 'round'},
-      paint: {'line-color': COLOR.outgoing, 'line-width': width(1.5, 7), 'line-opacity': 0.88}});
+      paint: {'line-color': COLOR.outgoing, 'line-width': width(0.7, 2.2), 'line-opacity': 0.86}});
     map.addLayer({id: 'routes-in', type: 'line', source: 'routes', filter: ['==', ['get', 'kind'], 'incoming'],
       layout: {'line-join': 'round', 'line-cap': 'round'},
-      paint: {'line-color': COLOR.incoming, 'line-width': width(1.5, 7), 'line-opacity': 0.88,
+      paint: {'line-color': COLOR.incoming, 'line-width': width(0.7, 2.2), 'line-opacity': 0.86,
         'line-dasharray': [2, 1]}});
     map.addSource('route-hover', {type: 'geojson', data: EMPTY()});
     map.addLayer({id: 'route-hover', type: 'line', source: 'route-hover', layout: {'line-join': 'round', 'line-cap': 'round'},
-      paint: {'line-color': '#f2b705', 'line-width': 8, 'line-opacity': 0.9}});
+      paint: {'line-color': '#d99d2c', 'line-width': 3.2, 'line-opacity': 0.92}});
     const overview = data.overview || EMPTY();
     const busiest = overview.features.reduce((m, f) => Math.max(m, f.properties.count || 0), 1);
     map.addSource('overview', {type: 'geojson', data: overview});
@@ -631,7 +631,7 @@
     map.addLayer({id: 'establishments', type: 'circle', source: 'points', paint: {
       'circle-color': sectorColorExpr,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, scaled(1.6, 5), 14, scaled(2.6, 9), 17, scaled(4, 14)],
-      'circle-opacity': 0.78, 'circle-stroke-width': 0.6, 'circle-stroke-color': '#ffffff'}});
+      'circle-opacity': 0.82, 'circle-stroke-width': 0.35, 'circle-stroke-color': '#ffffff'}});
     map.addSource('centers', {type: 'geojson', data: data.centers});
     map.addLayer({id: 'centers', type: 'symbol', source: 'centers',
       layout: {
@@ -643,10 +643,10 @@
       paint: {'icon-opacity': 1}});
     map.addSource('selected-center', {type: 'geojson', data: EMPTY()});
     map.addLayer({id: 'selected-center', type: 'circle', source: 'selected-center',
-      paint: {'circle-color': 'rgba(255,255,255,0)', 'circle-radius': 12, 'circle-stroke-width': 4, 'circle-stroke-color': COLOR.focus}});
+      paint: {'circle-color': 'rgba(255,255,255,0)', 'circle-radius': 12, 'circle-stroke-width': 1.5, 'circle-stroke-color': COLOR.focus}});
     map.addSource('selected-point', {type: 'geojson', data: EMPTY()});
     map.addLayer({id: 'selected-point', type: 'circle', source: 'selected-point',
-      paint: {'circle-color': 'rgba(255,255,255,0)', 'circle-radius': 10, 'circle-stroke-width': 3, 'circle-stroke-color': '#f2b705'}});
+      paint: {'circle-color': 'rgba(255,255,255,0)', 'circle-radius': 10, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#d99d2c'}});
   }
 
   function bindControls() {
@@ -696,15 +696,15 @@
     if (window.innerWidth < 1100) document.querySelector('.sector-panel').open = false;
 
     cy = cytoscape({container: $('network'), elements: [], layout: {name: 'preset'}, style: [
-      {selector: 'node', style: {'background-color': 'data(color)', 'width': 15, 'height': 15, 'border-width': 1, 'border-color': '#ffffff', 'label': ''}},
+      {selector: 'node', style: {'background-color': 'data(color)', 'width': 15, 'height': 15, 'border-width': 0.6, 'border-color': '#ffffff', 'label': ''}},
       {selector: 'node.labelled', style: {'label': 'data(label)', 'font-size': 9, 'color': '#334a3c', 'text-valign': 'bottom', 'text-margin-y': 3,
         'text-background-color': '#ffffff', 'text-background-opacity': 0.8, 'text-background-padding': 1}},
       {selector: 'node[ring >= 2]', style: {'width': 11, 'height': 11, 'opacity': 0.85}},
-      {selector: 'node.focus', style: {'width': 34, 'height': 34, 'border-width': 4, 'border-color': COLOR.focus, 'label': 'data(label)',
+      {selector: 'node.focus', style: {'width': 34, 'height': 34, 'border-width': 1.6, 'border-color': COLOR.focus, 'label': 'data(label)',
         'font-size': 10, 'font-weight': 'bold', 'color': '#ffffff', 'text-valign': 'center', 'text-margin-y': 0,
-        'text-outline-color': COLOR.focus, 'text-outline-width': 1.5, 'text-background-opacity': 0, 'z-index': 10}},
-      {selector: 'edge', style: {'width': 'mapData(wn, 0, 1, 0.7, 5)', 'line-color': COLOR.other, 'opacity': 0.35, 'curve-style': 'bezier', 'control-point-step-size': 22,
-        'target-arrow-color': COLOR.other, 'source-arrow-color': COLOR.other, 'arrow-scale': 0.8}},
+        'text-outline-color': COLOR.focus, 'text-outline-width': 0.7, 'text-background-opacity': 0, 'z-index': 10}},
+      {selector: 'edge', style: {'width': 'mapData(wn, 0, 1, 0.4, 1.7)', 'line-color': COLOR.other, 'opacity': 0.42, 'curve-style': 'bezier', 'control-point-step-size': 22,
+        'target-arrow-color': COLOR.other, 'source-arrow-color': COLOR.other, 'arrow-scale': 0.65}},
       {selector: 'edge', style: {'target-arrow-shape': 'triangle'}},
       {selector: 'edge.focus-edge', style: {'opacity': 0.85, 'z-index': 5}},
       {selector: 'edge.focus-edge.reciprocal', style: {'opacity': 0.95}},
@@ -730,7 +730,7 @@
 
     popup = new maplibregl.Popup({closeButton: false, closeOnClick: false, offset: 10, maxWidth: '300px'});
     map = new maplibregl.Map({container: 'map', attributionControl: {compact: true},
-      style: {version: 8, sources: {}, layers: [{id: 'background', type: 'background', paint: {'background-color': '#edf2ee'}}]},
+      style: {version: 8, sources: {}, layers: [{id: 'background', type: 'background', paint: {'background-color': '#f4f6f5'}}]},
       bounds: [[meta.bounds[0], meta.bounds[1]], [meta.bounds[2], meta.bounds[3]]], fitBoundsOptions: {padding: 40}});
     map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
     map.addControl(new maplibregl.ScaleControl({unit: 'metric'}), 'bottom-right');
