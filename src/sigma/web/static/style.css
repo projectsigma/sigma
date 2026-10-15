@@ -44,7 +44,11 @@ main { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1.6fr)
 .map-legend { display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; position:absolute; bottom:24px; left:10px; right:110px; max-width:620px; background:rgba(255,255,255,.96); padding:6px 9px; border-radius:6px; font-size:11px; box-shadow:0 1px 5px rgba(60,80,70,.18); }
 .map-legend span { display:flex; align-items:center; gap:5px; white-space:nowrap; }
 .legend-dot { width:10px; height:10px; border-radius:50%; display:inline-block; background:#d34b73; border:1px solid #fff; }
-.legend-dot.center { background:#fff; border:2px solid #4a7a62; }
+/* Miniature inverted triangle, matching the white/sector-outline map symbols. */
+.legend-dot.center { position:relative; width:16px; height:16px; border:0; border-radius:0;
+  background:#4a7a62; clip-path:polygon(0 0, 100% 0, 50% 100%); }
+.legend-dot.center::after { content:''; position:absolute; inset:3px 3px 4px;
+  background:#fff; clip-path:polygon(0 0, 100% 0, 50% 100%); }
 .legend-line { display:inline-block; width:20px; border-top:4px solid; border-radius:2px; }
 .legend-line.outgoing { color:var(--out); } .legend-line.incoming { color:var(--in); border-top-style:dashed; }
 .legend-note { color:var(--muted); }

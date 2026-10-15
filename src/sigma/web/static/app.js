@@ -182,8 +182,7 @@
     map.setPaintProperty('establishments', 'circle-stroke-width', ids ? ['case', isFocus, 1.6, 0.6] : 0.6);
     map.setPaintProperty('establishments', 'circle-stroke-color', ids ? ['case', isFocus, COLOR.focus, '#ffffff'] : '#ffffff');
     const centerIn = ['in', ['get', 'id'], ['literal', ids || []]];
-    map.setPaintProperty('centers', 'circle-opacity', ids ? ['case', centerIn, 1, 0.12] : 1);
-    map.setPaintProperty('centers', 'circle-stroke-opacity', ids ? ['case', centerIn, 1, 0.12] : 1);
+    map.setPaintProperty('centers', 'icon-opacity', ids ? ['case', centerIn, 1, 0.12] : 1);
     map.setFilter('establishments', notHidden());
     map.setFilter('centers', ['any', ['==', ['get', 'id'], focus], notHidden()]);
     updatePartitions();
@@ -546,6 +545,40 @@
   }
 
   // ------------------------------------------------------------------ setup
+  // A white inverted triangle with a sector-colored outline for each economic type.
+  // Canvas images are registered once after MapLibre's style has loaded.
+  function centerIconExpression() {
+    const size = 32;
+    const fallback = 'sigma-center-default';
+    const addTriangle = (name, outline) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Cannot render cluster centers: 2D canvas is unavailable.');
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 3.5;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(5, 6);
+      ctx.lineTo(27, 6);
+      ctx.lineTo(16, 27);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      map.addImage(name, ctx.getImageData(0, 0, size, size));
+    };
+    const pairs = [];
+    for (const [code, sector] of sectors) {
+      const name = `sigma-center-${pairs.length / 2}`;
+      addTriangle(name, sector.color || '#657f78');
+      pairs.push(code, name);
+    }
+    addTriangle(fallback, '#657f78');
+    return ['match', ['get', 'type'], ...pairs, fallback];
+  }
+
   function addLayers(data) {
     const [minimum, maximum] = meta.score_range || [null, null];
     const scaled = (a, b) => (isNum(minimum) && isNum(maximum) && minimum < maximum)
@@ -559,13 +592,16 @@
       map.addLayer({id: 'boundary-fill', type: 'fill', source: 'boundary', paint: {'fill-color': '#ffffff', 'fill-opacity': 1}});
       map.addLayer({id: 'boundary-line', type: 'line', source: 'boundary', paint: {'line-color': '#35473e', 'line-width': 1.6}});
     }
+    map.addSource('clusters', {type: 'geojson', data: data.clusters});
+    map.addLayer({id: 'partition-fill', type: 'fill', source: 'clusters', layout: {visibility: 'none'}, paint: {'fill-color': sectorColorExpr, 'fill-opacity': 0.1}});
+    // Draw roads ABOVE translucent partitions so their gray is not washed out.
+    // This is visual context only; exact X-route styling remains unchanged.
     if (data.roads) {
       map.addSource('roads', {type: 'geojson', data: data.roads});
       map.addLayer({id: 'roads-line', type: 'line', source: 'roads',
-        paint: {'line-color': '#f3a6b2', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.5, 15, 1.4, 18, 3]}});
+        paint: {'line-color': '#858585', 'line-opacity': 1,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.4, 15, 0.9, 18, 1.6]}});
     }
-    map.addSource('clusters', {type: 'geojson', data: data.clusters});
-    map.addLayer({id: 'partition-fill', type: 'fill', source: 'clusters', layout: {visibility: 'none'}, paint: {'fill-color': sectorColorExpr, 'fill-opacity': 0.1}});
     map.addLayer({id: 'partition-line', type: 'line', source: 'clusters', layout: {visibility: 'none'}, paint: {'line-color': sectorColorExpr, 'line-width': 1}});
     map.addSource('routes', {type: 'geojson', data: EMPTY()});
     const width = (a, b) => ['interpolate', ['linear'], ['get', 'wn'], 0, a, 1, b];
@@ -597,8 +633,14 @@
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, scaled(1.6, 5), 14, scaled(2.6, 9), 17, scaled(4, 14)],
       'circle-opacity': 0.78, 'circle-stroke-width': 0.6, 'circle-stroke-color': '#ffffff'}});
     map.addSource('centers', {type: 'geojson', data: data.centers});
-    map.addLayer({id: 'centers', type: 'circle', source: 'centers', paint: {'circle-color': '#ffffff',
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.5, 15, 6.5], 'circle-stroke-width': 2.2, 'circle-stroke-color': sectorColorExpr}});
+    map.addLayer({id: 'centers', type: 'symbol', source: 'centers',
+      layout: {
+        'icon-image': centerIconExpression(),
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.55, 15, 0.8, 18, 1],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true
+      },
+      paint: {'icon-opacity': 1}});
     map.addSource('selected-center', {type: 'geojson', data: EMPTY()});
     map.addLayer({id: 'selected-center', type: 'circle', source: 'selected-center',
       paint: {'circle-color': 'rgba(255,255,255,0)', 'circle-radius': 12, 'circle-stroke-width': 4, 'circle-stroke-color': COLOR.focus}});
