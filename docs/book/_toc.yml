@@ -4,6 +4,7 @@ parts:
   - caption: Start here
     chapters:
       - file: content/intro/quickstart
+      - file: content/intro/explorer
       - file: content/workflow/end_to_end
       - file: content/workflow/notation
   - caption: Geospatial ecosystem construction

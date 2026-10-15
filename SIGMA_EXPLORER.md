@@ -2,15 +2,26 @@
 
 This additive module renders **existing published SIGMA results** as a static browser site. No SIGMA spatial, economic, classification, or network computations are rerun. The QGIS `.qgz` and all published analytical artifacts are left unchanged.
 
-## Installation (PowerShell)
+## Get started
 
-Extract the supplied ZIP. In the active SIGMA Python/conda environment run:
+Install SIGMA from its current source checkout in your active Python environment (Python 3.11+):
 
 ```powershell
-& "$HOME\Downloads\sigma_explorer_v3.1.1_final_overlay\Apply-SigmaExplorerOverlay.ps1"
+python -m pip install -e .
 ```
 
-The installer defaults to `C:\Users\James Matthew\Documents\GitHub\sigma`. Supply `-Repo 'D:\path\sigma'` for another checkout. It replaces the clearly owned Explorer section in `src/sigma/cli.py`, updates the `sigma.web` package-data entry in `pyproject.toml`, adds `src/sigma/web`, tests, and this documentation, reinstalls the editable package, and runs tests when available. Review `git diff` before committing. It can be reapplied over the previous Explorer overlays.
+Run the normal SIGMA analysis once, or reuse previously published results:
+
+```powershell
+sigma run pasig
+sigma view pasig
+```
+
+`view` generates or refreshes a derived `explorer/` site from SIGMA's existing output files, then starts a **local-only** HTTP server and normally opens your default browser. Press `Ctrl+C` in that terminal to stop the server. No separate QGIS installation, Node.js installation, or Explorer ZIP patch is required for ordinary use. The browser visualization does not recompute the analytical model.
+
+For a run stored in a nondefault workspace or output location, pass `--workspace`, `--source-dir`, or `--output-dir` (see `sigma view --help`). The output directory must already contain a complete published SIGMA export.
+
+The [README walkthrough](README.md) and [Explorer chapter in the SIGMA Jupyter Book](docs/book/content/intro/explorer.md) provide short entry points. The Jupyter Book website is documentation, not an automatic public deployment of any Explorer bundle.
 
 ## Commands
 
@@ -53,22 +64,23 @@ The site uses bundled MapLibre GL JS (4.7.1) and Cytoscape.js (3.30.4) with lice
 
 ```powershell
 python -m pytest -q tests/test_web_explorer.py
-node tests/test_explorer_network.js
+python -m pytest -q
 python -m compileall -q src/sigma/web
 ```
 
-The Python suite requires all normal SIGMA dependencies, including `pyarrow`. It includes a **genuine synthetic SIGMA run** integration test (which can take longer than the small fixture tests). The Node test checks direction-specific multi-hop traversal and reciprocal edges. Browser behaviour was checked with headless Chromium on two genuine SIGMA exports of synthetic cities (1,513 establishments / 70 clusters / 1,736 X edges, and 15,826 / 826 / 27,290); see FINAL_PASS_NOTES.md in the overlay ZIP. A check on real Pasig outputs is still recommended before release.
-
-## Upgrade, remove, safety
-
-The installer replaces only Explorer-owned files and a marked CLI section plus its package-data entry. It does not change SIGMA algorithms or underlying outputs. Inspect before committing:
+JavaScript regressions use Node.js when available:
 
 ```powershell
-git diff --check
-git diff -- src/sigma/cli.py pyproject.toml
-git status --short
+node --check src/sigma/web/static/network-model.js
+node tests/test_explorer_network.js
 ```
 
-To remove, restore the affected CLI and pyproject lines and delete `src/sigma/web/`, `tests/test_web_explorer.py`, `tests/test_explorer_network.js`, and `SIGMA_EXPLORER.md`. No SIGMA artifacts or workspaces need removal.
+The repository also includes `.github/workflows/explorer_js.yml` to run these JavaScript checks on GitHub pushes and pull requests. Real Pasig results have been generated and the principal browser interactions checked manually; local data content and rendering may still differ across areas or environments.
 
-The Explorer protects against publishing on top of the source output root or its ancestors. Within source outputs it uses only the dedicated `explorer/` and `explorer-public/` children; replacing an existing site requires an ownership marker and `index.html`. Avoid manually modifying markers or running `--force` on unreviewed paths.
+## Safety, upgrades, and publication
+
+Explorer is part of the `sigma.web` Python package in this repository. Normal SIGMA package upgrades carry the visualizer with them; no overlay installer is needed. Generated browser files are separate from the managed analytical outputs, and the builder stages replacements so a failed build does not overwrite the prior valid site. Browser bundles are subject to source-file integrity checks.
+
+The full local export contains individual establishment locations; do not upload it to GitHub Pages or other public hosting without independent review of data rights, source licenses, confidentiality, and inference risks. `--public` writes a reduced-data bundle, but cluster centers, polygons, and small aggregate counts can still create disclosure risks. A public-marked bundle is not silently replaced with a full local bundle. Publishing a reviewed static site is an **explicit separate step**; `sigma view` never creates an internet-facing server.
+
+The output directory must not overwrite the SIGMA source export directory or its ancestors. Avoid manually modifying the generated `.sigma-explorer` ownership marker or force-replacing unknown directories.
