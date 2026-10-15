@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>SIGMA Explorer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%232d664a%27/%3E%3Ctext x=%2716%27 y=%2724%27 font-size=%2722%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Georgia,serif%27%3E%CE%A3%3C/text%3E%3C/svg%3E">
+<link href="vendor/maplibre-gl.css" rel="stylesheet">
+<link href="style.css" rel="stylesheet">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark">Σ</span><span><b>SIGMA</b> <span class="explorer">Explorer</span></span></div>
+  <div id="area" class="area">Published results</div>
+  <div class="top-right"><span id="counts"></span><a href="DATA_NOTICE.txt" target="_blank" rel="noopener">Data notice</a></div>
+</header>
+<section class="toolbar" aria-label="Map and network controls">
+  <label title="Cluster partition polygons. Each sector has its own partition, so all sectors together overlap.">Partitions
+    <select id="partitions">
+      <option value="network" selected>Selected network</option>
+      <option value="all">All shown sectors</option>
+      <option value="off">Off</option>
+    </select></label>
+  <label><input type="checkbox" id="show-centers" checked> Cluster centers</label>
+  <label><input type="checkbox" id="show-roads" checked> Roads</label>
+  <label><input type="checkbox" id="show-basemap"> OpenStreetMap background</label>
+  <span class="divider" aria-hidden="true"></span>
+  <label title="Direction used to discover reachable clusters. The graph also retains directed links (including reciprocal links) between clusters already on screen. An edge i to j means sector i supplies inputs to sector j.">Links
+    <select id="direction">
+      <option value="both">Both directions</option>
+      <option value="outgoing">Supplies inputs to</option>
+      <option value="incoming">Uses inputs from</option>
+    </select></label>
+  <label>Depth
+    <select id="depth">
+      <option value="1">Direct links</option>
+      <option value="2">Two steps</option>
+      <option value="all">All reachable</option>
+    </select></label>
+  <label title="Keep only the links with the largest technical coefficient for each cluster.">Strongest
+    <select id="top">
+      <option value="all">All links</option>
+      <option value="5">5 per cluster</option>
+      <option value="10">10 per cluster</option>
+      <option value="20">20 per cluster</option>
+    </select></label>
+  <button id="reset" type="button" title="Esc">Clear selection</button>
+</section>
+<main>
+  <section class="map-panel">
+    <div id="map" role="region" aria-label="Geographic map"></div>
+    <div id="map-status" class="map-status">Loading SIGMA results…</div>
+    <details class="sector-panel" open>
+      <summary>Sectors <small id="sector-count"></small></summary>
+      <div class="sector-actions"><button type="button" id="sectors-all">Show all</button><button type="button" id="sectors-none">Hide all</button></div>
+      <div id="sector-list" class="sector-list"></div>
+    </details>
+    <div class="map-legend" aria-label="Map legend">
+      <span><i class="legend-dot"></i>Establishment (size = SIGMA score)</span>
+      <span><i class="legend-dot center"></i>Cluster center</span>
+      <span><i class="legend-line outgoing"></i>Supplies inputs to (solid)</span>
+      <span><i class="legend-line incoming"></i>Uses inputs from (dashed)</span>
+      <span class="legend-note">A link in both directions shows both lines on one road. Line width = coefficient relative to the strongest shown link.</span>
+    </div>
+  </section>
+  <aside class="side">
+    <section class="selection">
+      <div class="section-head"><h2>Selected location</h2><span id="selected-code" class="muted"></span></div>
+      <h3 id="place-name">No selection</h3>
+      <p id="place-description" class="muted">Click an establishment or a cluster center on the map. Its cluster and the clusters linked to it in network X are then shown on the map and below.</p>
+      <div class="stats" id="stats"></div>
+      <div class="actions" id="selection-actions" hidden><button type="button" id="zoom-network">Zoom to network</button></div>
+    </section>
+    <section class="graph-section">
+      <div class="section-head"><h2>Cluster network</h2><small id="graph-count"></small></div>
+      <div class="graph-actions"><button type="button" id="graph-fit">Fit graph</button><button type="button" id="theater-toggle" aria-pressed="false">Theater view</button></div>
+      <div class="network-wrap">
+        <div id="network" role="region" aria-label="Cluster network diagram"></div>
+        <div id="graph-tip" class="graph-tip" hidden></div>
+        <p id="network-empty" class="network-empty">The network of the selected cluster appears here.</p>
+      </div>
+      <p class="hint">Center: selected cluster. Rings: clusters one and two links away. Arrowheads point to the sector that uses the inputs. Click a node to move to that cluster.</p>
+    </section>
+    <section class="connections-section" id="connections-section" hidden>
+      <div class="section-head"><h2>Linked clusters</h2><small id="edge-count"></small></div>
+      <p class="hint">a = technical coefficient: input from the supplying sector per unit of output of the using sector.</p>
+      <div id="connections" class="connections"></div>
+    </section>
+    <section class="central-section" id="central-section">
+      <div class="section-head"><h2>Most central clusters</h2><small>by published centrality</small></div>
+      <div id="central" class="connections"></div>
+    </section>
+  </aside>
+</main>
+<footer>Network X holds modeled, directed cluster-level spatial-economic relationships, not verified supplier–customer transactions. Map lines are SIGMA's exact shortest road paths for direct links; links further away appear only in the network diagram.</footer>
+<div id="error" role="alert" hidden></div>
+<script src="vendor/maplibre-gl.js"></script>
+<script src="vendor/cytoscape.min.js"></script>
+<script src="network-model.js" defer></script>
+<script src="app.js" defer></script>
+</body>
+</html>

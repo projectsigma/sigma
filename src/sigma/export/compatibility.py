@@ -70,7 +70,7 @@ def _clip_roads_to_boundary(
     clip_boundary = boundary if roads.crs == boundary.crs else boundary.to_crs(roads.crs)
     clipped = gpd.clip(roads, clip_boundary, keep_geom_type=True)
     clipped = clipped.loc[
-        clipped.geometry.notna() & ~clipped.geometry.is_empty
+        ~clipped.geometry.isna() & ~clipped.geometry.is_empty
     ].copy()
     return clipped.reset_index(drop=True)
 

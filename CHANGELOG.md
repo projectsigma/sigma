@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — SIGMA Explorer
+
+- Added local browser exploration of published SIGMA establishments, clusters, directed X-network edges, and exact road paths.
+- Added `sigma view` and `sigma export-web`, bundled offline map/graph libraries, and an explicitly reduced public-review profile.
+- Added Explorer regression/integration tests and protections for source integrity and generated bundle replacement.
+
 ## 0.1.0.dev0
 
 Initial unified SIGMA development release.

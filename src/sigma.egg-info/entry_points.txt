@@ -1,2 +1,0 @@
-[console_scripts]
-sigma = sigma.cli:app
