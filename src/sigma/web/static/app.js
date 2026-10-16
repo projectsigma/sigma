@@ -32,6 +32,8 @@
   const pairIndex = new Map();   // node id -> Map(other id -> {other, out, in})
   const sectors = new Map();     // sector code -> {code, label, color, points, clusters}
   const selectedIconByType = new Map(); // explicit sector => filled triangle icon
+  const centerIconByType = new Map(); // normal white-face icons
+  const linkedCenterIconByType = new Map(); // sector-filled, blue-outlined icons
   const hidden = new Set();      // sector codes switched off in the sector panel
   const state = {direction: 'both', depth: '1', top: 'all', partitions: 'network'};
   let selection = null;          // {id, point}
@@ -183,7 +185,13 @@
     map.setPaintProperty('establishments', 'circle-stroke-width', ids ? ['case', isFocus, 0.9, 0.35] : 0.35);
     map.setPaintProperty('establishments', 'circle-stroke-color', ids ? ['case', isFocus, COLOR.focus, '#ffffff'] : '#ffffff');
     const centerIn = ['in', ['get', 'id'], ['literal', ids || []]];
-    map.setPaintProperty('centers', 'icon-opacity', ids ? ['case', ['==', ['get', 'id'], focus], 0, centerIn, 1, 0.16] : 1);
+    // Linked clusters are sector-filled with thin blue outlines. The focused
+    // triangle is handled by the larger selected-center symbol above this layer.
+    map.setLayoutProperty('centers', 'icon-image', ids ?
+      ['case', centerIn, ['get', 'linked_center_icon'], ['get', 'center_icon']] :
+      ['get', 'center_icon']);
+    map.setPaintProperty('centers', 'icon-opacity', ids ?
+      ['case', ['==', ['get', 'id'], focus], 0, centerIn, 1, 0.16] : 1);
     map.setFilter('establishments', notHidden());
     map.setFilter('centers', ['any', ['==', ['get', 'id'], focus], notHidden()]);
     if (map.getLayer('roads-line')) map.setPaintProperty('roads-line', 'line-opacity', ids ? 0.48 : 1);
@@ -567,14 +575,15 @@
   // Canvas images are registered once after MapLibre's style has loaded.
   function centerIconExpression() {
     const size = 32;
-    const fallback = 'sigma-center-default';
-    const addTriangle = (name, outline) => {
+    const baseFallback = 'sigma-center-default';
+    const linkedFallback = 'sigma-center-linked-default';
+    const addTriangle = (name, fill, outline) => {
       const canvas = document.createElement('canvas');
       canvas.width = size;
       canvas.height = size;
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Cannot render cluster centers: 2D canvas is unavailable.');
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = fill;
       ctx.strokeStyle = outline;
       ctx.lineWidth = 2.1;
       ctx.lineJoin = 'round';
@@ -587,14 +596,23 @@
       ctx.stroke();
       map.addImage(name, ctx.getImageData(0, 0, size, size));
     };
-    const pairs = [];
+    centerIconByType.clear();
+    linkedCenterIconByType.clear();
+    let index = 0;
     for (const [code, sector] of sectors) {
-      const name = `sigma-center-${pairs.length / 2}`;
-      addTriangle(name, sector.color || '#657f78');
-      pairs.push(code, name);
+      const key = String(code);
+      const sectorFill = sector.color || '#657f78';
+      const name = `sigma-center-${index}`;
+      const linkedName = `sigma-center-linked-${index}`;
+      addTriangle(name, '#ffffff', sectorFill);
+      addTriangle(linkedName, sectorFill, COLOR.incoming);
+      centerIconByType.set(key, name);
+      linkedCenterIconByType.set(key, linkedName);
+      index++;
     }
-    addTriangle(fallback, '#657f78');
-    return ['match', ['get', 'type'], ...pairs, fallback];
+    addTriangle(baseFallback, '#ffffff', '#657f78');
+    addTriangle(linkedFallback, '#657f78', COLOR.incoming);
+    return ['get', 'center_icon'];
   }
 
   // Selected cluster: sector-filled downward triangle with a fine blue outline.
@@ -698,6 +716,14 @@
       'circle-color': sectorColorExpr,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, scaled(1.6, 5), 14, scaled(2.6, 9), 17, scaled(4, 14)],
       'circle-opacity': 0.82, 'circle-stroke-width': 0.35, 'circle-stroke-color': '#ffffff'}});
+    // Assign browser-only icon identifiers by normalized sector code. This
+    // avoids a numeric/string `match` mismatch and preserves palette fidelity.
+    for (const feature of data.centers.features || []) {
+      if (!feature.properties) feature.properties = {};
+      const type = String(feature.properties.type);
+      feature.properties.center_icon = centerIconByType.get(type) || 'sigma-center-default';
+      feature.properties.linked_center_icon = linkedCenterIconByType.get(type) || 'sigma-center-linked-default';
+    }
     map.addSource('centers', {type: 'geojson', data: data.centers});
     map.addLayer({id: 'centers', type: 'symbol', source: 'centers',
       layout: {
