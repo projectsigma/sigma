@@ -718,6 +718,9 @@
       'circle-opacity': 0.82, 'circle-stroke-width': 0.35, 'circle-stroke-color': '#ffffff'}});
     // Assign browser-only icon identifiers by normalized sector code. This
     // avoids a numeric/string `match` mismatch and preserves palette fidelity.
+    // Register sector icons BEFORE assigning their names to center features.
+    // Otherwise every feature receives a fallback, erasing palette colors.
+    const centerIconLayout = centerIconExpression();
     for (const feature of data.centers.features || []) {
       if (!feature.properties) feature.properties = {};
       const type = String(feature.properties.type);
@@ -727,7 +730,7 @@
     map.addSource('centers', {type: 'geojson', data: data.centers});
     map.addLayer({id: 'centers', type: 'symbol', source: 'centers',
       layout: {
-        'icon-image': centerIconExpression(),
+        'icon-image': centerIconLayout,
         'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.55, 15, 0.8, 18, 1],
         'icon-allow-overlap': true,
         'icon-ignore-placement': true

@@ -1,4 +1,4 @@
-﻿name: SIGMA Explorer JavaScript Tests
+name: SIGMA Explorer JavaScript Tests
 
 on:
   push:
@@ -31,3 +31,6 @@ jobs:
 
       - name: Run directed-network regression tests
         run: node tests/test_explorer_network.js
+
+      - name: Test centroid sector palette and selection styling
+        run: node tests/test_explorer_centroid_palette.js
