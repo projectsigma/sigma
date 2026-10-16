@@ -177,14 +177,15 @@
     const focus = network ? network.focus : '';
     const inNet = ['in', ['get', 'node_id'], ['literal', ids || []]];
     const isFocus = ['==', ['get', 'node_id'], focus];
-    map.setPaintProperty('establishments', 'circle-opacity', ids ? ['case', isFocus, 0.95, inNet, 0.85, 0.30] : 0.78);
-    map.setPaintProperty('establishments', 'circle-stroke-opacity', ids ? ['case', inNet, 1, 0.30] : 1);
+    map.setPaintProperty('establishments', 'circle-opacity', ids ? ['case', isFocus, 0.95, inNet, 0.85, 0.075] : 0.78);
+    map.setPaintProperty('establishments', 'circle-stroke-opacity', ids ? ['case', inNet, 1, 0.08] : 1);
     map.setPaintProperty('establishments', 'circle-stroke-width', ids ? ['case', isFocus, 0.9, 0.35] : 0.35);
     map.setPaintProperty('establishments', 'circle-stroke-color', ids ? ['case', isFocus, COLOR.focus, '#ffffff'] : '#ffffff');
     const centerIn = ['in', ['get', 'id'], ['literal', ids || []]];
-    map.setPaintProperty('centers', 'icon-opacity', ids ? ['case', centerIn, 1, 0.45] : 1);
+    map.setPaintProperty('centers', 'icon-opacity', ids ? ['case', centerIn, 1, 0.16] : 1);
     map.setFilter('establishments', notHidden());
     map.setFilter('centers', ['any', ['==', ['get', 'id'], focus], notHidden()]);
+    if (map.getLayer('roads-line')) map.setPaintProperty('roads-line', 'line-opacity', ids ? 0.48 : 1);
     updatePartitions();
   }
 
@@ -193,21 +194,33 @@
     const show = mode === 'all' || (mode === 'network' && !!network);
     visibility('partition-fill', show);
     visibility('partition-line', show);
+    // Foreground geometry is split into separate layers: a selected polygon
+    // always draws ABOVE linked polygons, which draw above nearly-white context.
+    const foreground = mode === 'network' && !!network;
+    for (const layer of ['partition-linked-fill', 'partition-linked-line',
+                         'partition-focus-fill', 'partition-focus-line']) {
+      visibility(layer, foreground);
+    }
     if (!show) return;
     const color = ['match', ['get', 'type'], ...sectorMatchPairs(), '#657f78'];
     if (mode === 'network') {
-      const isFocus = ['==', ['get', 'node_id'], network.focus];
-      const inNet = ['in', ['get', 'node_id'], ['literal', [...network.ring.keys()]]];
-      // Show out-of-network clusters with gentle dimming rather than removing them.
-      map.setFilter('partition-fill', notHidden());
-      map.setFilter('partition-line', notHidden());
-      map.setPaintProperty('partition-fill', 'fill-opacity',
-        ['case', isFocus, 0.11, inNet, 0.045, 0.014]);
-      map.setPaintProperty('partition-line', 'line-color', ['case', isFocus, COLOR.focus, color]);
-      map.setPaintProperty('partition-line', 'line-width',
-        ['case', isFocus, 1.15, inNet, 0.55, 0.35]);
-      map.setPaintProperty('partition-line', 'line-opacity',
-        ['case', isFocus, 0.82, inNet, 0.55, 0.23]);
+      const focus = ['==', ['get', 'node_id'], network.focus];
+      const inside = ['in', ['get', 'node_id'], ['literal', [...network.ring.keys()]]];
+      const outside = ['all', notHidden(), ['!', inside]];
+      const linked = ['all', notHidden(), inside, ['!', focus]];
+      // Context: paper-white fill, extremely faint neutral boundaries.
+      map.setFilter('partition-fill', outside);
+      map.setFilter('partition-line', outside);
+      map.setPaintProperty('partition-fill', 'fill-opacity', 0);
+      map.setPaintProperty('partition-line', 'line-color', '#cad6cf');
+      map.setPaintProperty('partition-line', 'line-width', 0.32);
+      map.setPaintProperty('partition-line', 'line-opacity', 0.22);
+      // Linked clusters stay legible in their sector colors.
+      map.setFilter('partition-linked-fill', linked);
+      map.setFilter('partition-linked-line', linked);
+      // The selected cluster is always drawn last, even with overlapping sectors.
+      map.setFilter('partition-focus-fill', focus);
+      map.setFilter('partition-focus-line', focus);
     } else {
       map.setFilter('partition-fill', notHidden());
       map.setFilter('partition-line', notHidden());
@@ -641,6 +654,18 @@
           'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.22, 15, 0.5, 18, 0.85]}});
     }
     map.addLayer({id: 'partition-line', type: 'line', source: 'clusters', layout: {visibility: 'none'}, paint: {'line-color': sectorColorExpr, 'line-width': 1}});
+    // Selection emphasis: separate drawing layers preserve contrast under
+    // cross-sector polygon overlaps without altering native spatial outputs.
+    map.addLayer({id: 'partition-linked-fill', type: 'fill', source: 'clusters',
+      layout: {visibility: 'none'}, paint: {'fill-color': sectorColorExpr, 'fill-opacity': 0.105}});
+    map.addLayer({id: 'partition-linked-line', type: 'line', source: 'clusters',
+      layout: {visibility: 'none'}, paint: {'line-color': sectorColorExpr,
+        'line-width': 0.7, 'line-opacity': 0.78}});
+    map.addLayer({id: 'partition-focus-fill', type: 'fill', source: 'clusters',
+      layout: {visibility: 'none'}, paint: {'fill-color': sectorColorExpr, 'fill-opacity': 0.25}});
+    map.addLayer({id: 'partition-focus-line', type: 'line', source: 'clusters',
+      layout: {visibility: 'none'}, paint: {'line-color': COLOR.focus,
+        'line-width': 1.25, 'line-opacity': 0.97}});
     map.addSource('routes', {type: 'geojson', data: EMPTY()});
     const width = (a, b) => ['interpolate', ['linear'], ['get', 'wn'], 0, a, 1, b];
     map.addLayer({id: 'routes-casing', type: 'line', source: 'routes', layout: {'line-join': 'round', 'line-cap': 'round'},
