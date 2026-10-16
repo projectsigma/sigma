@@ -31,8 +31,11 @@
   const nodeIndex = new Map();   // node id -> X node
   const pairIndex = new Map();   // node id -> Map(other id -> {other, out, in})
   const sectors = new Map();     // sector code -> {code, label, color, points, clusters}
+  const selectedIconByType = new Map(); // explicit sector => filled triangle icon
+  const centerIconByType = new Map(); // normal white-face icons
+  const linkedCenterIconByType = new Map(); // sector-filled, blue-outlined icons
   const hidden = new Set();      // sector codes switched off in the sector panel
-  const state = {direction: 'both', depth: '1', top: 'all', partitions: 'network'};
+  const state = {direction: 'both', depth: '1', top: '5', partitions: 'network'};
   let selection = null;          // {id, point}
   let network = null;
   const jsonCache = new Map();
@@ -177,15 +180,21 @@
     const focus = network ? network.focus : '';
     const inNet = ['in', ['get', 'node_id'], ['literal', ids || []]];
     const isFocus = ['==', ['get', 'node_id'], focus];
-    map.setPaintProperty('establishments', 'circle-opacity', ids ? ['case', isFocus, 0.95, inNet, 0.85, 0.07] : 0.78);
-    map.setPaintProperty('establishments', 'circle-stroke-opacity', ids ? ['case', inNet, 1, 0] : 1);
-    map.setPaintProperty('establishments', 'circle-stroke-width', ids ? ['case', isFocus, 1.6, 0.6] : 0.6);
+    map.setPaintProperty('establishments', 'circle-opacity', ids ? ['case', isFocus, 0.95, inNet, 0.85, 0.075] : 0.78);
+    map.setPaintProperty('establishments', 'circle-stroke-opacity', ids ? ['case', inNet, 1, 0.08] : 1);
+    map.setPaintProperty('establishments', 'circle-stroke-width', ids ? ['case', isFocus, 0.9, 0.35] : 0.35);
     map.setPaintProperty('establishments', 'circle-stroke-color', ids ? ['case', isFocus, COLOR.focus, '#ffffff'] : '#ffffff');
     const centerIn = ['in', ['get', 'id'], ['literal', ids || []]];
-    map.setPaintProperty('centers', 'circle-opacity', ids ? ['case', centerIn, 1, 0.12] : 1);
-    map.setPaintProperty('centers', 'circle-stroke-opacity', ids ? ['case', centerIn, 1, 0.12] : 1);
+    // Linked clusters are sector-filled with thin blue outlines. The focused
+    // triangle is handled by the larger selected-center symbol above this layer.
+    map.setLayoutProperty('centers', 'icon-image', ids ?
+      ['case', centerIn, ['get', 'linked_center_icon'], ['get', 'center_icon']] :
+      ['get', 'center_icon']);
+    map.setPaintProperty('centers', 'icon-opacity', ids ?
+      ['case', ['==', ['get', 'id'], focus], 0, centerIn, 1, 0.16] : 1);
     map.setFilter('establishments', notHidden());
     map.setFilter('centers', ['any', ['==', ['get', 'id'], focus], notHidden()]);
+    if (map.getLayer('roads-line')) map.setPaintProperty('roads-line', 'line-opacity', ids ? 0.48 : 1);
     updatePartitions();
   }
 
@@ -194,24 +203,40 @@
     const show = mode === 'all' || (mode === 'network' && !!network);
     visibility('partition-fill', show);
     visibility('partition-line', show);
+    // Foreground geometry is split into separate layers: a selected polygon
+    // always draws ABOVE linked polygons, which draw above nearly-white context.
+    const foreground = mode === 'network' && !!network;
+    for (const layer of ['partition-linked-fill', 'partition-linked-line',
+                         'partition-focus-fill', 'partition-focus-line']) {
+      visibility(layer, foreground);
+    }
     if (!show) return;
     const color = ['match', ['get', 'type'], ...sectorMatchPairs(), '#657f78'];
     if (mode === 'network') {
-      const isFocus = ['==', ['get', 'node_id'], network.focus];
-      const filter = ['any', isFocus, ['all', ['in', ['get', 'node_id'], ['literal', [...network.ring.keys()]]], notHidden()]];
-      map.setFilter('partition-fill', filter);
-      map.setFilter('partition-line', filter);
-      map.setPaintProperty('partition-fill', 'fill-opacity', ['case', isFocus, 0.16, 0.03]);
-      map.setPaintProperty('partition-line', 'line-color', ['case', isFocus, COLOR.focus, color]);
-      map.setPaintProperty('partition-line', 'line-width', ['case', isFocus, 2.6, 1.1]);
-      map.setPaintProperty('partition-line', 'line-opacity', ['case', isFocus, 1, 0.75]);
+      const focus = ['==', ['get', 'node_id'], network.focus];
+      const inside = ['in', ['get', 'node_id'], ['literal', [...network.ring.keys()]]];
+      const outside = ['all', notHidden(), ['!', inside]];
+      const linked = ['all', notHidden(), inside, ['!', focus]];
+      // Context: paper-white fill, extremely faint neutral boundaries.
+      map.setFilter('partition-fill', outside);
+      map.setFilter('partition-line', outside);
+      map.setPaintProperty('partition-fill', 'fill-opacity', 0);
+      map.setPaintProperty('partition-line', 'line-color', '#cad6cf');
+      map.setPaintProperty('partition-line', 'line-width', 0.32);
+      map.setPaintProperty('partition-line', 'line-opacity', 0.22);
+      // Linked clusters stay legible in their sector colors.
+      map.setFilter('partition-linked-fill', linked);
+      map.setFilter('partition-linked-line', linked);
+      // The selected cluster is always drawn last, even with overlapping sectors.
+      map.setFilter('partition-focus-fill', focus);
+      map.setFilter('partition-focus-line', focus);
     } else {
       map.setFilter('partition-fill', notHidden());
       map.setFilter('partition-line', notHidden());
-      map.setPaintProperty('partition-fill', 'fill-opacity', 0.04);
+      map.setPaintProperty('partition-fill', 'fill-opacity', 0.022);
       map.setPaintProperty('partition-line', 'line-color', color);
-      map.setPaintProperty('partition-line', 'line-width', 0.8);
-      map.setPaintProperty('partition-line', 'line-opacity', 0.7);
+      map.setPaintProperty('partition-line', 'line-width', 0.45);
+      map.setPaintProperty('partition-line', 'line-opacity', 0.5);
     }
   }
 
@@ -410,7 +435,7 @@
     selection = {id, point};
     refresh();
     setData('selected-center', {type: 'FeatureCollection', features: isNum(n.lon) ? [
-      {type: 'Feature', properties: {}, geometry: {type: 'Point', coordinates: [n.lon, n.lat]}}] : []});
+      {type: 'Feature', properties: {type: n.type, icon: selectedIconByType.get(String(n.type)) || 'sigma-center-selected-default'}, geometry: {type: 'Point', coordinates: [n.lon, n.lat]}}] : []});
     setData('selected-point', point && point.coordinates ? {type: 'FeatureCollection', features: [
       {type: 'Feature', properties: {}, geometry: {type: 'Point', coordinates: point.coordinates}}]} : EMPTY());
     if (options.fly && isNum(n.lon) && isNum(n.lat)) map.easeTo({center: [n.lon, n.lat], zoom: Math.max(map.getZoom(), 13.5), duration: 400});
@@ -546,41 +571,133 @@
   }
 
   // ------------------------------------------------------------------ setup
+  // A white inverted triangle with a sector-colored outline for each economic type.
+  // Canvas images are registered once after MapLibre's style has loaded.
+  function centerIconExpression() {
+    const size = 32;
+    const baseFallback = 'sigma-center-default';
+    const linkedFallback = 'sigma-center-linked-default';
+    const addTriangle = (name, fill, outline) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Cannot render cluster centers: 2D canvas is unavailable.');
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 2.1;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(5, 6);
+      ctx.lineTo(27, 6);
+      ctx.lineTo(16, 27);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      map.addImage(name, ctx.getImageData(0, 0, size, size));
+    };
+    centerIconByType.clear();
+    linkedCenterIconByType.clear();
+    let index = 0;
+    for (const [code, sector] of sectors) {
+      const key = String(code);
+      const sectorFill = sector.color || '#657f78';
+      const name = `sigma-center-${index}`;
+      const linkedName = `sigma-center-linked-${index}`;
+      addTriangle(name, '#ffffff', sectorFill);
+      addTriangle(linkedName, sectorFill, COLOR.incoming);
+      centerIconByType.set(key, name);
+      linkedCenterIconByType.set(key, linkedName);
+      index++;
+    }
+    addTriangle(baseFallback, '#ffffff', '#657f78');
+    addTriangle(linkedFallback, '#657f78', COLOR.incoming);
+    return ['get', 'center_icon'];
+  }
+
+  // Selected cluster: sector-filled downward triangle with a fine blue outline.
+  // Images are registered when the map style loads, with no external assets.
+  function selectedCenterIconExpression() {
+    const size = 36;
+    const fallback = 'sigma-center-selected-default';
+    const addTriangle = (name, fill) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Cannot render selected cluster center: 2D canvas is unavailable.');
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = COLOR.incoming;
+      ctx.lineWidth = 2.2;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(5, 6);
+      ctx.lineTo(31, 6);
+      ctx.lineTo(18, 32);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      map.addImage(name, ctx.getImageData(0, 0, size, size));
+    };
+    selectedIconByType.clear();
+    let index = 0;
+    for (const [code, sector] of sectors) {
+      const name = `sigma-center-selected-${index++}`;
+      // The sector's own palette color is painted into the triangle canvas.
+      addTriangle(name, sector.color || '#657f78');
+      selectedIconByType.set(String(code), name);
+    }
+    addTriangle(fallback, '#657f78');
+    return ['get', 'icon'];
+  }
+
   function addLayers(data) {
     const [minimum, maximum] = meta.score_range || [null, null];
     const scaled = (a, b) => (isNum(minimum) && isNum(maximum) && minimum < maximum)
       ? ['interpolate', ['linear'], ['coalesce', ['get', 'score'], minimum], minimum, a, maximum, b] : (a + b) / 2;
     const sectorColorExpr = ['match', ['get', 'type'], ...sectorMatchPairs(), '#657f78'];
-    map.addSource('osm', {type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'});
-    map.addLayer({id: 'basemap', type: 'raster', source: 'osm', layout: {visibility: 'none'}, paint: {'raster-opacity': 0.8}});
     if (data.boundary) {
       map.addSource('boundary', {type: 'geojson', data: data.boundary});
       map.addLayer({id: 'boundary-fill', type: 'fill', source: 'boundary', paint: {'fill-color': '#ffffff', 'fill-opacity': 1}});
-      map.addLayer({id: 'boundary-line', type: 'line', source: 'boundary', paint: {'line-color': '#35473e', 'line-width': 1.6}});
-    }
-    if (data.roads) {
-      map.addSource('roads', {type: 'geojson', data: data.roads});
-      map.addLayer({id: 'roads-line', type: 'line', source: 'roads',
-        paint: {'line-color': '#f3a6b2', 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.5, 15, 1.4, 18, 3]}});
+      map.addLayer({id: 'boundary-line', type: 'line', source: 'boundary', paint: {'line-color': '#71847b', 'line-width': 0.8, 'line-opacity': 0.75}});
     }
     map.addSource('clusters', {type: 'geojson', data: data.clusters});
     map.addLayer({id: 'partition-fill', type: 'fill', source: 'clusters', layout: {visibility: 'none'}, paint: {'fill-color': sectorColorExpr, 'fill-opacity': 0.1}});
+    // Quiet geographic context: thin, opaque gray, above translucent polygons.
+    if (data.roads) {
+      map.addSource('roads', {type: 'geojson', data: data.roads});
+      map.addLayer({id: 'roads-line', type: 'line', source: 'roads',
+        layout: {'line-join': 'round', 'line-cap': 'round'},
+        paint: {'line-color': '#949b9b', 'line-opacity': 1,
+          'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.22, 15, 0.5, 18, 0.85]}});
+    }
     map.addLayer({id: 'partition-line', type: 'line', source: 'clusters', layout: {visibility: 'none'}, paint: {'line-color': sectorColorExpr, 'line-width': 1}});
+    // Selection emphasis: separate drawing layers preserve contrast under
+    // cross-sector polygon overlaps without altering native spatial outputs.
+    map.addLayer({id: 'partition-linked-fill', type: 'fill', source: 'clusters',
+      layout: {visibility: 'none'}, paint: {'fill-color': sectorColorExpr, 'fill-opacity': 0.105}});
+    map.addLayer({id: 'partition-linked-line', type: 'line', source: 'clusters',
+      layout: {visibility: 'none'}, paint: {'line-color': sectorColorExpr,
+        'line-width': 0.7, 'line-opacity': 0.78}});
+    map.addLayer({id: 'partition-focus-fill', type: 'fill', source: 'clusters',
+      layout: {visibility: 'none'}, paint: {'fill-color': sectorColorExpr, 'fill-opacity': 0.25}});
+    map.addLayer({id: 'partition-focus-line', type: 'line', source: 'clusters',
+      layout: {visibility: 'none'}, paint: {'line-color': COLOR.focus,
+        'line-width': 1.25, 'line-opacity': 0.97}});
     map.addSource('routes', {type: 'geojson', data: EMPTY()});
     const width = (a, b) => ['interpolate', ['linear'], ['get', 'wn'], 0, a, 1, b];
     map.addLayer({id: 'routes-casing', type: 'line', source: 'routes', layout: {'line-join': 'round', 'line-cap': 'round'},
-      paint: {'line-color': '#ffffff', 'line-width': width(3.5, 9.5), 'line-opacity': 0.85}});
+      paint: {'line-color': '#ffffff', 'line-width': width(1.35, 3.25), 'line-opacity': 0.85}});
     map.addLayer({id: 'routes', type: 'line', source: 'routes', filter: ['==', ['get', 'kind'], 'outgoing'],
       layout: {'line-join': 'round', 'line-cap': 'round'},
-      paint: {'line-color': COLOR.outgoing, 'line-width': width(1.5, 7), 'line-opacity': 0.88}});
+      paint: {'line-color': COLOR.outgoing, 'line-width': width(0.7, 2.2), 'line-opacity': 0.86}});
     map.addLayer({id: 'routes-in', type: 'line', source: 'routes', filter: ['==', ['get', 'kind'], 'incoming'],
       layout: {'line-join': 'round', 'line-cap': 'round'},
-      paint: {'line-color': COLOR.incoming, 'line-width': width(1.5, 7), 'line-opacity': 0.88,
+      paint: {'line-color': COLOR.incoming, 'line-width': width(0.7, 2.2), 'line-opacity': 0.86,
         'line-dasharray': [2, 1]}});
     map.addSource('route-hover', {type: 'geojson', data: EMPTY()});
     map.addLayer({id: 'route-hover', type: 'line', source: 'route-hover', layout: {'line-join': 'round', 'line-cap': 'round'},
-      paint: {'line-color': '#f2b705', 'line-width': 8, 'line-opacity': 0.9}});
+      paint: {'line-color': '#d99d2c', 'line-width': 3.2, 'line-opacity': 0.92}});
     const overview = data.overview || EMPTY();
     const busiest = overview.features.reduce((m, f) => Math.max(m, f.properties.count || 0), 1);
     map.addSource('overview', {type: 'geojson', data: overview});
@@ -595,26 +712,45 @@
     map.addLayer({id: 'establishments', type: 'circle', source: 'points', paint: {
       'circle-color': sectorColorExpr,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, scaled(1.6, 5), 14, scaled(2.6, 9), 17, scaled(4, 14)],
-      'circle-opacity': 0.78, 'circle-stroke-width': 0.6, 'circle-stroke-color': '#ffffff'}});
+      'circle-opacity': 0.82, 'circle-stroke-width': 0.35, 'circle-stroke-color': '#ffffff'}});
+    // Assign browser-only icon identifiers by normalized sector code. This
+    // avoids a numeric/string `match` mismatch and preserves palette fidelity.
+    // Register sector icons BEFORE assigning their names to center features.
+    // Otherwise every feature receives a fallback, erasing palette colors.
+    const centerIconLayout = centerIconExpression();
+    for (const feature of data.centers.features || []) {
+      if (!feature.properties) feature.properties = {};
+      const type = String(feature.properties.type);
+      feature.properties.center_icon = centerIconByType.get(type) || 'sigma-center-default';
+      feature.properties.linked_center_icon = linkedCenterIconByType.get(type) || 'sigma-center-linked-default';
+    }
     map.addSource('centers', {type: 'geojson', data: data.centers});
-    map.addLayer({id: 'centers', type: 'circle', source: 'centers', paint: {'circle-color': '#ffffff',
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.5, 15, 6.5], 'circle-stroke-width': 2.2, 'circle-stroke-color': sectorColorExpr}});
+    map.addLayer({id: 'centers', type: 'symbol', source: 'centers',
+      layout: {
+        'icon-image': centerIconLayout,
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.55, 15, 0.8, 18, 1],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true
+      },
+      paint: {'icon-opacity': 1}});
     map.addSource('selected-center', {type: 'geojson', data: EMPTY()});
-    map.addLayer({id: 'selected-center', type: 'circle', source: 'selected-center',
-      paint: {'circle-color': 'rgba(255,255,255,0)', 'circle-radius': 12, 'circle-stroke-width': 4, 'circle-stroke-color': COLOR.focus}});
+    map.addLayer({id: 'selected-center', type: 'symbol', source: 'selected-center',
+      layout: {
+        'icon-image': selectedCenterIconExpression(),
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.8, 15, 1.08, 18, 1.2],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true
+      },
+      paint: {'icon-opacity': 1}});
     map.addSource('selected-point', {type: 'geojson', data: EMPTY()});
     map.addLayer({id: 'selected-point', type: 'circle', source: 'selected-point',
-      paint: {'circle-color': 'rgba(255,255,255,0)', 'circle-radius': 10, 'circle-stroke-width': 3, 'circle-stroke-color': '#f2b705'}});
+      paint: {'circle-color': 'rgba(255,255,255,0)', 'circle-radius': 10, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#d99d2c'}});
   }
 
   function bindControls() {
     $('partitions').addEventListener('change', e => { state.partitions = e.target.value; updatePartitions(); });
     $('show-centers').addEventListener('change', e => visibility('centers', e.target.checked));
     $('show-roads').addEventListener('change', e => visibility('roads-line', e.target.checked));
-    $('show-basemap').addEventListener('change', e => {
-      visibility('basemap', e.target.checked);
-      if (map.getLayer('boundary-fill')) map.setPaintProperty('boundary-fill', 'fill-opacity', e.target.checked ? 0 : 1);
-    });
     for (const key of ['direction', 'depth', 'top']) {
       $(key).addEventListener('change', e => { state[key] = e.target.value; refresh(); });
     }
@@ -654,15 +790,15 @@
     if (window.innerWidth < 1100) document.querySelector('.sector-panel').open = false;
 
     cy = cytoscape({container: $('network'), elements: [], layout: {name: 'preset'}, style: [
-      {selector: 'node', style: {'background-color': 'data(color)', 'width': 15, 'height': 15, 'border-width': 1, 'border-color': '#ffffff', 'label': ''}},
+      {selector: 'node', style: {'background-color': 'data(color)', 'width': 15, 'height': 15, 'border-width': 0.6, 'border-color': '#ffffff', 'label': ''}},
       {selector: 'node.labelled', style: {'label': 'data(label)', 'font-size': 9, 'color': '#334a3c', 'text-valign': 'bottom', 'text-margin-y': 3,
         'text-background-color': '#ffffff', 'text-background-opacity': 0.8, 'text-background-padding': 1}},
       {selector: 'node[ring >= 2]', style: {'width': 11, 'height': 11, 'opacity': 0.85}},
-      {selector: 'node.focus', style: {'width': 34, 'height': 34, 'border-width': 4, 'border-color': COLOR.focus, 'label': 'data(label)',
+      {selector: 'node.focus', style: {'width': 34, 'height': 34, 'border-width': 1.6, 'border-color': COLOR.focus, 'label': 'data(label)',
         'font-size': 10, 'font-weight': 'bold', 'color': '#ffffff', 'text-valign': 'center', 'text-margin-y': 0,
-        'text-outline-color': COLOR.focus, 'text-outline-width': 1.5, 'text-background-opacity': 0, 'z-index': 10}},
-      {selector: 'edge', style: {'width': 'mapData(wn, 0, 1, 0.7, 5)', 'line-color': COLOR.other, 'opacity': 0.35, 'curve-style': 'bezier', 'control-point-step-size': 22,
-        'target-arrow-color': COLOR.other, 'source-arrow-color': COLOR.other, 'arrow-scale': 0.8}},
+        'text-outline-color': COLOR.focus, 'text-outline-width': 0.7, 'text-background-opacity': 0, 'z-index': 10}},
+      {selector: 'edge', style: {'width': 'mapData(wn, 0, 1, 0.4, 1.7)', 'line-color': COLOR.other, 'opacity': 0.42, 'curve-style': 'bezier', 'control-point-step-size': 22,
+        'target-arrow-color': COLOR.other, 'source-arrow-color': COLOR.other, 'arrow-scale': 0.65}},
       {selector: 'edge', style: {'target-arrow-shape': 'triangle'}},
       {selector: 'edge.focus-edge', style: {'opacity': 0.85, 'z-index': 5}},
       {selector: 'edge.focus-edge.reciprocal', style: {'opacity': 0.95}},
@@ -688,7 +824,7 @@
 
     popup = new maplibregl.Popup({closeButton: false, closeOnClick: false, offset: 10, maxWidth: '300px'});
     map = new maplibregl.Map({container: 'map', attributionControl: {compact: true},
-      style: {version: 8, sources: {}, layers: [{id: 'background', type: 'background', paint: {'background-color': '#edf2ee'}}]},
+      style: {version: 8, sources: {}, layers: [{id: 'background', type: 'background', paint: {'background-color': '#f4f6f5'}}]},
       bounds: [[meta.bounds[0], meta.bounds[1]], [meta.bounds[2], meta.bounds[3]]], fitBoundsOptions: {padding: 40}});
     map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
     map.addControl(new maplibregl.ScaleControl({unit: 'metric'}), 'bottom-right');

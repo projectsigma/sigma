@@ -41,6 +41,8 @@ By default `sigma view` reads the SIGMA workspace's published output directory, 
 
 ## Interface
 
+The initial network view uses **Direct links** with the **5 per cluster** strongest-link limit. Both can be changed from the toolbar. The optional OpenStreetMap raster background has been removed; the published SIGMA roads remain available.
+
 - MapLibre GL JS map: sector-colored establishments, partitions, centers, boundary and optional published roads. Click an establishment or cluster center to select the corresponding X node.
 - Cytoscape.js directed graph: direct, two-step or all reachable neighborhoods; outgoing, incoming, or both directions; top-N strongest connections per visited cluster. Direction controls how the neighborhood is discovered; the diagram shows all permitted directed edges among those discovered clusters, including edges between clusters at the maximum selected depth and reciprocal pairs. Arrowheads and coefficients follow the published X edge direction.
 - **Theater view:** expand the network to a full-screen work surface; `Esc` returns to the normal layout, `Fit graph` restores the extent.
@@ -58,7 +60,7 @@ The bundle builder compares file content hashes, checks the listed SHA-256 hashe
 
 Explorer's generated data files contain only the fields explicitly selected by the builder; extra columns from SIGMA's source point dataset are not copied. Coordinates in browser geometries are rounded to six decimal places **only in the derived visualization**. Native SIGMA files remain unchanged.
 
-The site uses bundled MapLibre GL JS (4.7.1) and Cytoscape.js (3.30.4) with licenses. It makes no network request unless the optional OpenStreetMap raster background is enabled. Open through `sigma view` or an HTTP server, not `file://`.
+The site uses bundled MapLibre GL JS (4.7.1) and Cytoscape.js (3.30.4) with licenses. It does not use third-party background-map tiles: the map shows published SIGMA roads and local Explorer data. Open through `sigma view` or an HTTP server, not `file://`.
 
 ## Testing
 
