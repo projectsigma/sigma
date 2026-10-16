@@ -34,3 +34,6 @@ jobs:
 
       - name: Test centroid sector palette and selection styling
         run: node tests/test_explorer_centroid_palette.js
+
+      - name: Verify Explorer controls and offline map
+        run: node tests/test_explorer_ui_defaults.js

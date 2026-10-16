@@ -35,7 +35,7 @@
   const centerIconByType = new Map(); // normal white-face icons
   const linkedCenterIconByType = new Map(); // sector-filled, blue-outlined icons
   const hidden = new Set();      // sector codes switched off in the sector panel
-  const state = {direction: 'both', depth: '1', top: 'all', partitions: 'network'};
+  const state = {direction: 'both', depth: '1', top: '5', partitions: 'network'};
   let selection = null;          // {id, point}
   let network = null;
   const jsonCache = new Map();
@@ -656,9 +656,6 @@
     const scaled = (a, b) => (isNum(minimum) && isNum(maximum) && minimum < maximum)
       ? ['interpolate', ['linear'], ['coalesce', ['get', 'score'], minimum], minimum, a, maximum, b] : (a + b) / 2;
     const sectorColorExpr = ['match', ['get', 'type'], ...sectorMatchPairs(), '#657f78'];
-    map.addSource('osm', {type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'});
-    map.addLayer({id: 'basemap', type: 'raster', source: 'osm', layout: {visibility: 'none'}, paint: {'raster-opacity': 0.8}});
     if (data.boundary) {
       map.addSource('boundary', {type: 'geojson', data: data.boundary});
       map.addLayer({id: 'boundary-fill', type: 'fill', source: 'boundary', paint: {'fill-color': '#ffffff', 'fill-opacity': 1}});
@@ -754,10 +751,6 @@
     $('partitions').addEventListener('change', e => { state.partitions = e.target.value; updatePartitions(); });
     $('show-centers').addEventListener('change', e => visibility('centers', e.target.checked));
     $('show-roads').addEventListener('change', e => visibility('roads-line', e.target.checked));
-    $('show-basemap').addEventListener('change', e => {
-      visibility('basemap', e.target.checked);
-      if (map.getLayer('boundary-fill')) map.setPaintProperty('boundary-fill', 'fill-opacity', e.target.checked ? 0 : 1);
-    });
     for (const key of ['direction', 'depth', 'top']) {
       $(key).addEventListener('change', e => { state[key] = e.target.value; refresh(); });
     }

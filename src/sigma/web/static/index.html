@@ -24,7 +24,6 @@
     </select></label>
   <label><input type="checkbox" id="show-centers" checked> Cluster centers</label>
   <label><input type="checkbox" id="show-roads" checked> Roads</label>
-  <label><input type="checkbox" id="show-basemap"> OpenStreetMap background</label>
   <span class="divider" aria-hidden="true"></span>
   <label title="Direction used to discover reachable clusters. The graph also retains directed links (including reciprocal links) between clusters already on screen. An edge i to j means sector i supplies inputs to sector j.">Links
     <select id="direction">
@@ -34,14 +33,14 @@
     </select></label>
   <label>Depth
     <select id="depth">
-      <option value="1">Direct links</option>
+      <option value="1" selected>Direct links</option>
       <option value="2">Two steps</option>
       <option value="all">All reachable</option>
     </select></label>
   <label title="Keep only the links with the largest technical coefficient for each cluster.">Strongest
     <select id="top">
       <option value="all">All links</option>
-      <option value="5">5 per cluster</option>
+      <option value="5" selected>5 per cluster</option>
       <option value="10">10 per cluster</option>
       <option value="20">20 per cluster</option>
     </select></label>
