@@ -177,12 +177,12 @@
     const focus = network ? network.focus : '';
     const inNet = ['in', ['get', 'node_id'], ['literal', ids || []]];
     const isFocus = ['==', ['get', 'node_id'], focus];
-    map.setPaintProperty('establishments', 'circle-opacity', ids ? ['case', isFocus, 0.95, inNet, 0.85, 0.07] : 0.78);
-    map.setPaintProperty('establishments', 'circle-stroke-opacity', ids ? ['case', inNet, 1, 0] : 1);
+    map.setPaintProperty('establishments', 'circle-opacity', ids ? ['case', isFocus, 0.95, inNet, 0.85, 0.30] : 0.78);
+    map.setPaintProperty('establishments', 'circle-stroke-opacity', ids ? ['case', inNet, 1, 0.30] : 1);
     map.setPaintProperty('establishments', 'circle-stroke-width', ids ? ['case', isFocus, 0.9, 0.35] : 0.35);
     map.setPaintProperty('establishments', 'circle-stroke-color', ids ? ['case', isFocus, COLOR.focus, '#ffffff'] : '#ffffff');
     const centerIn = ['in', ['get', 'id'], ['literal', ids || []]];
-    map.setPaintProperty('centers', 'icon-opacity', ids ? ['case', centerIn, 1, 0.12] : 1);
+    map.setPaintProperty('centers', 'icon-opacity', ids ? ['case', centerIn, 1, 0.45] : 1);
     map.setFilter('establishments', notHidden());
     map.setFilter('centers', ['any', ['==', ['get', 'id'], focus], notHidden()]);
     updatePartitions();
@@ -197,13 +197,17 @@
     const color = ['match', ['get', 'type'], ...sectorMatchPairs(), '#657f78'];
     if (mode === 'network') {
       const isFocus = ['==', ['get', 'node_id'], network.focus];
-      const filter = ['any', isFocus, ['all', ['in', ['get', 'node_id'], ['literal', [...network.ring.keys()]]], notHidden()]];
-      map.setFilter('partition-fill', filter);
-      map.setFilter('partition-line', filter);
-      map.setPaintProperty('partition-fill', 'fill-opacity', ['case', isFocus, 0.1, 0.025]);
+      const inNet = ['in', ['get', 'node_id'], ['literal', [...network.ring.keys()]]];
+      // Show out-of-network clusters with gentle dimming rather than removing them.
+      map.setFilter('partition-fill', notHidden());
+      map.setFilter('partition-line', notHidden());
+      map.setPaintProperty('partition-fill', 'fill-opacity',
+        ['case', isFocus, 0.11, inNet, 0.045, 0.014]);
       map.setPaintProperty('partition-line', 'line-color', ['case', isFocus, COLOR.focus, color]);
-      map.setPaintProperty('partition-line', 'line-width', ['case', isFocus, 1.15, 0.55]);
-      map.setPaintProperty('partition-line', 'line-opacity', ['case', isFocus, 0.8, 0.55]);
+      map.setPaintProperty('partition-line', 'line-width',
+        ['case', isFocus, 1.15, inNet, 0.55, 0.35]);
+      map.setPaintProperty('partition-line', 'line-opacity',
+        ['case', isFocus, 0.82, inNet, 0.55, 0.23]);
     } else {
       map.setFilter('partition-fill', notHidden());
       map.setFilter('partition-line', notHidden());
@@ -409,7 +413,7 @@
     selection = {id, point};
     refresh();
     setData('selected-center', {type: 'FeatureCollection', features: isNum(n.lon) ? [
-      {type: 'Feature', properties: {}, geometry: {type: 'Point', coordinates: [n.lon, n.lat]}}] : []});
+      {type: 'Feature', properties: {type: n.type}, geometry: {type: 'Point', coordinates: [n.lon, n.lat]}}] : []});
     setData('selected-point', point && point.coordinates ? {type: 'FeatureCollection', features: [
       {type: 'Feature', properties: {}, geometry: {type: 'Point', coordinates: point.coordinates}}]} : EMPTY());
     if (options.fly && isNum(n.lon) && isNum(n.lat)) map.easeTo({center: [n.lon, n.lat], zoom: Math.max(map.getZoom(), 13.5), duration: 400});
@@ -579,6 +583,40 @@
     return ['match', ['get', 'type'], ...pairs, fallback];
   }
 
+  // Selected cluster: sector-filled downward triangle with a fine blue outline.
+  // Images are registered when the map style loads, with no external assets.
+  function selectedCenterIconExpression() {
+    const size = 36;
+    const fallback = 'sigma-center-selected-default';
+    const addTriangle = (name, fill) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Cannot render selected cluster center: 2D canvas is unavailable.');
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = COLOR.incoming;
+      ctx.lineWidth = 2.2;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(6, 7);
+      ctx.lineTo(30, 7);
+      ctx.lineTo(18, 30);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      map.addImage(name, ctx.getImageData(0, 0, size, size));
+    };
+    const pairs = [];
+    for (const [code, sector] of sectors) {
+      const name = `sigma-center-selected-${pairs.length / 2}`;
+      addTriangle(name, sector.color || '#657f78');
+      pairs.push(code, name);
+    }
+    addTriangle(fallback, '#657f78');
+    return ['match', ['get', 'type'], ...pairs, fallback];
+  }
+
   function addLayers(data) {
     const [minimum, maximum] = meta.score_range || [null, null];
     const scaled = (a, b) => (isNum(minimum) && isNum(maximum) && minimum < maximum)
@@ -642,8 +680,14 @@
       },
       paint: {'icon-opacity': 1}});
     map.addSource('selected-center', {type: 'geojson', data: EMPTY()});
-    map.addLayer({id: 'selected-center', type: 'circle', source: 'selected-center',
-      paint: {'circle-color': 'rgba(255,255,255,0)', 'circle-radius': 12, 'circle-stroke-width': 1.5, 'circle-stroke-color': COLOR.focus}});
+    map.addLayer({id: 'selected-center', type: 'symbol', source: 'selected-center',
+      layout: {
+        'icon-image': selectedCenterIconExpression(),
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.72, 15, 0.96, 18, 1.12],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true
+      },
+      paint: {'icon-opacity': 1}});
     map.addSource('selected-point', {type: 'geojson', data: EMPTY()});
     map.addLayer({id: 'selected-point', type: 'circle', source: 'selected-point',
       paint: {'circle-color': 'rgba(255,255,255,0)', 'circle-radius': 10, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#d99d2c'}});
