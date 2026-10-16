@@ -31,6 +31,7 @@
   const nodeIndex = new Map();   // node id -> X node
   const pairIndex = new Map();   // node id -> Map(other id -> {other, out, in})
   const sectors = new Map();     // sector code -> {code, label, color, points, clusters}
+  const selectedIconByType = new Map(); // explicit sector => filled triangle icon
   const hidden = new Set();      // sector codes switched off in the sector panel
   const state = {direction: 'both', depth: '1', top: 'all', partitions: 'network'};
   let selection = null;          // {id, point}
@@ -182,7 +183,7 @@
     map.setPaintProperty('establishments', 'circle-stroke-width', ids ? ['case', isFocus, 0.9, 0.35] : 0.35);
     map.setPaintProperty('establishments', 'circle-stroke-color', ids ? ['case', isFocus, COLOR.focus, '#ffffff'] : '#ffffff');
     const centerIn = ['in', ['get', 'id'], ['literal', ids || []]];
-    map.setPaintProperty('centers', 'icon-opacity', ids ? ['case', centerIn, 1, 0.16] : 1);
+    map.setPaintProperty('centers', 'icon-opacity', ids ? ['case', ['==', ['get', 'id'], focus], 0, centerIn, 1, 0.16] : 1);
     map.setFilter('establishments', notHidden());
     map.setFilter('centers', ['any', ['==', ['get', 'id'], focus], notHidden()]);
     if (map.getLayer('roads-line')) map.setPaintProperty('roads-line', 'line-opacity', ids ? 0.48 : 1);
@@ -426,7 +427,7 @@
     selection = {id, point};
     refresh();
     setData('selected-center', {type: 'FeatureCollection', features: isNum(n.lon) ? [
-      {type: 'Feature', properties: {type: n.type}, geometry: {type: 'Point', coordinates: [n.lon, n.lat]}}] : []});
+      {type: 'Feature', properties: {type: n.type, icon: selectedIconByType.get(String(n.type)) || 'sigma-center-selected-default'}, geometry: {type: 'Point', coordinates: [n.lon, n.lat]}}] : []});
     setData('selected-point', point && point.coordinates ? {type: 'FeatureCollection', features: [
       {type: 'Feature', properties: {}, geometry: {type: 'Point', coordinates: point.coordinates}}]} : EMPTY());
     if (options.fly && isNum(n.lon) && isNum(n.lat)) map.easeTo({center: [n.lon, n.lat], zoom: Math.max(map.getZoom(), 13.5), duration: 400});
@@ -612,22 +613,24 @@
       ctx.lineWidth = 2.2;
       ctx.lineJoin = 'round';
       ctx.beginPath();
-      ctx.moveTo(6, 7);
-      ctx.lineTo(30, 7);
-      ctx.lineTo(18, 30);
+      ctx.moveTo(5, 6);
+      ctx.lineTo(31, 6);
+      ctx.lineTo(18, 32);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
       map.addImage(name, ctx.getImageData(0, 0, size, size));
     };
-    const pairs = [];
+    selectedIconByType.clear();
+    let index = 0;
     for (const [code, sector] of sectors) {
-      const name = `sigma-center-selected-${pairs.length / 2}`;
+      const name = `sigma-center-selected-${index++}`;
+      // The sector's own palette color is painted into the triangle canvas.
       addTriangle(name, sector.color || '#657f78');
-      pairs.push(code, name);
+      selectedIconByType.set(String(code), name);
     }
     addTriangle(fallback, '#657f78');
-    return ['match', ['get', 'type'], ...pairs, fallback];
+    return ['get', 'icon'];
   }
 
   function addLayers(data) {
@@ -708,7 +711,7 @@
     map.addLayer({id: 'selected-center', type: 'symbol', source: 'selected-center',
       layout: {
         'icon-image': selectedCenterIconExpression(),
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.72, 15, 0.96, 18, 1.12],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.8, 15, 1.08, 18, 1.2],
         'icon-allow-overlap': true,
         'icon-ignore-placement': true
       },
