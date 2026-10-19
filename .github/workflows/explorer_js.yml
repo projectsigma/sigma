@@ -37,3 +37,21 @@ jobs:
 
       - name: Verify Explorer controls and offline map
         run: node tests/test_explorer_ui_defaults.js
+
+      - name: Toolbar UI
+        run: node tests/test_explorer_toolbar_ui.js
+
+      - name: Refinement UI
+        run: node tests/test_explorer_refinement_ui.js
+
+      - name: Depth and defaults
+        run: node tests/test_explorer_final_ui.js
+
+      - name: Theme UI
+        run: node tests/test_explorer_theme_ui.js
+
+      - name: Visual polish
+        run: node tests/test_explorer_polish_ui.js
+
+      - name: Dark graph styling
+        run: node tests/test_explorer_dark_graph_ui.js
