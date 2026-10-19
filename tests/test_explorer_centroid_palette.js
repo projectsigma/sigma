@@ -26,6 +26,8 @@ const sectors = new Map([
 ]);
 const centerIconByType = new Map();
 const linkedCenterIconByType = new Map();
+const darkCenterIconByType = new Map();
+const darkLinkedIconByType = new Map();
 const selectedIconByType = new Map();
 const colors = {incoming: '#1f6fb2', focus: '#16382a'};
 const document = {
@@ -57,10 +59,12 @@ const isNum = v => typeof v === 'number' && Number.isFinite(v);
 const EMPTY = () => ({type: 'FeatureCollection', features: []});
 const sectorMatchPairs = () => [...sectors].flatMap(([key, value]) => [key, value.color]);
 const funcs = new Function('document', 'sectors', 'map', 'COLOR', 'centerIconByType',
-  'linkedCenterIconByType', 'selectedIconByType', 'meta', 'isNum', 'sectorMatchPairs', 'EMPTY',
+  'linkedCenterIconByType', 'darkCenterIconByType', 'darkLinkedIconByType',
+  'selectedIconByType', 'meta', 'isNum', 'sectorMatchPairs', 'EMPTY',
   `${helperSource}\n${selectedSource}\n${layerSource}\nreturn {addLayers};`)(
   document, sectors, map, colors, centerIconByType, linkedCenterIconByType,
-  selectedIconByType, meta, isNum, sectorMatchPairs, EMPTY);
+  darkCenterIconByType, darkLinkedIconByType, selectedIconByType,
+  meta, isNum, sectorMatchPairs, EMPTY);
 
 // Numeric codes are common in GeoJSON while metadata may carry strings.
 const data = {clusters: {type: 'FeatureCollection', features: []},
@@ -78,12 +82,18 @@ for (const feature of centers) {
   const expected = sectors.get(code).color;
   const normal = images.get(feature.properties.center_icon);
   const linked = images.get(feature.properties.linked_center_icon);
+  const darkNormal = images.get(feature.properties.dark_center_icon);
+  const darkLinked = images.get(feature.properties.dark_linked_center_icon);
   const selected = images.get(selectedIconByType.get(code));
-  assert(normal && linked && selected, `${code}: icon registration must precede feature assignment`);
+  assert(normal && linked && darkNormal && darkLinked && selected, `${code}: light/dark icon registration must precede feature assignment`);
   assert.equal(normal.fill, '#ffffff', `${code}: unselected fill must be white`);
   assert.equal(normal.stroke, expected, `${code}: unselected outline must match sector`);
   assert.equal(linked.fill, expected, `${code}: linked fill must match sector`);
   assert.equal(linked.stroke, colors.incoming, `${code}: linked outline must be blue`);
+  assert.equal(darkNormal.fill, '#21392b', `${code}: dark normal icon interior`);
+  assert.equal(darkNormal.stroke, expected, `${code}: dark normal icon sector outline`);
+  assert.equal(darkLinked.fill, expected, `${code}: dark linked icon sector fill`);
+  assert.equal(darkLinked.stroke, '#8cc8e9', `${code}: dark linked icon contrast outline`);
   assert.equal(selected.fill, expected, `${code}: selected fill must match sector`);
   assert.equal(selected.stroke, colors.incoming, `${code}: selected outline must be blue`);
   assert.notEqual(feature.properties.center_icon, 'sigma-center-default', `${code}: no fallbacks`);
@@ -105,7 +115,9 @@ function evaluate(expr, props) {
 }
 const network = {ring: new Map([['63:2', 0], ['55:0', 1], ['70:1', 1]]), focus: '63:2'};
 const getEmphasis = new Function('map','network','COLOR','notHidden','updatePartitions',
-  `${emphasisSource}\nreturn applyEmphasis;`)(map, network, colors, () => true, () => {});
+  'themeMode','updateCenterVisibility','applyTheme',
+  `${emphasisSource}\nreturn applyEmphasis;`)(
+    map, network, colors, () => true, () => {}, 'light', () => {}, () => {});
 getEmphasis();
 const iconExpr = layoutUpdates.get('centers.icon-image');
 const opacityExpr = paintUpdates.get('centers.icon-opacity');

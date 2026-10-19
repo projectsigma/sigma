@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,38 +13,47 @@
 <header class="top">
   <div class="brand"><span class="mark">Σ</span><span><b>SIGMA</b> <span class="explorer">Explorer</span></span></div>
   <div id="area" class="area">Published results</div>
-  <div class="top-right"><span id="counts"></span><a href="DATA_NOTICE.txt" target="_blank" rel="noopener">Data notice</a></div>
+  <div class="top-right"><span id="counts"></span><label class="theme-picker" for="theme-mode">Theme<select id="theme-mode" aria-label="Color theme"><option value="light" selected>Light</option><option value="dark">Dark</option></select></label><a class="docs-link" href="https://projectsigma.github.io/sigma/content/intro/index.html" target="_blank" rel="noopener noreferrer" title="SIGMA documentation: models, methodology, pipeline, and assumptions">Documentation ↗</a><a href="DATA_NOTICE.txt" target="_blank" rel="noopener">Data notice</a></div>
 </header>
+<!-- sigma-explorer-toolbar-20261019-v1 -->
+<!-- sigma-explorer-refinement-20261019-v2 -->
+<!-- sigma-explorer-final-20261019-v3 -->
+<!-- sigma-explorer-theme-20261019-v4 -->
+<!-- sigma-explorer-polish-20261019-v5 -->
 <section class="toolbar" aria-label="Map and network controls">
-  <label title="Cluster partition polygons. Each sector has its own partition, so all sectors together overlap.">Partitions
+  <span class="toolbar-control"><label>Partitions
     <select id="partitions">
       <option value="network" selected>Selected network</option>
       <option value="all">All shown sectors</option>
       <option value="off">Off</option>
-    </select></label>
-  <label><input type="checkbox" id="show-centers" checked> Cluster centers</label>
-  <label><input type="checkbox" id="show-roads" checked> Roads</label>
+    </select></label> <span class="control-help" role="note" tabindex="0" aria-label="Help: Partitions. Partition polygons are geographic cluster areas, not administrative boundaries. Selected network highlights the chosen cluster and its reached clusters; All shown sectors draws every visible sector; Off hides polygons. Partitions from different sectors may overlap." data-tip="Partition polygons are geographic cluster areas, not administrative boundaries. Selected network highlights the chosen cluster and its reached clusters; All shown sectors draws every visible sector; Off hides polygons. Partitions from different sectors may overlap.">?</span></span>
+  <span class="toolbar-control"><label><input type="checkbox" id="show-centers"> <span class="toolbar-center-triangle" aria-hidden="true"></span> Cluster centers</label> <span class="control-help" role="note" tabindex="0" aria-label="Help: Cluster centers. Downward triangles mark cluster centers. Off by default: selecting an establishment or cluster still shows triangles for the selected network only, in sectors you have left visible. Turn on to see centers throughout the map." data-tip="Downward triangles mark cluster centers. Off by default: selecting an establishment or cluster still shows triangles for the selected network only, in sectors you have left visible. Turn on to see centers throughout the map.">?</span></span>
+  <span class="toolbar-control"><label><input type="checkbox" id="show-roads" checked> Roads</label> <span class="control-help" role="note" tabindex="0" aria-label="Help: Roads. Show or hide the published road network as faint map context. Colored connection lines are separate SIGMA network paths; Roads does not change which links exist." data-tip="Show or hide the published road network as faint map context. Colored connection lines are separate SIGMA network paths; Roads does not change which links exist.">?</span></span>
   <span class="divider" aria-hidden="true"></span>
-  <label title="Direction used to discover reachable clusters. The graph also retains directed links (including reciprocal links) between clusters already on screen. An edge i to j means sector i supplies inputs to sector j.">Links
+  <span class="toolbar-control"><label>Links
     <select id="direction">
       <option value="both">Both directions</option>
       <option value="outgoing">Supplies inputs to</option>
       <option value="incoming">Uses inputs from</option>
-    </select></label>
-  <label>Depth
+    </select></label> <span class="control-help" role="note" tabindex="0" aria-label="Help: Links. An arrow points from the supplying sector to the sector using its inputs. Both directions explores suppliers and users; Supplies inputs to explores outgoing links; Uses inputs from explores incoming links." data-tip="An arrow points from the supplying sector to the sector using its inputs. Both directions explores suppliers and users; Supplies inputs to explores outgoing links; Uses inputs from explores incoming links.">?</span></span>
+  <span class="toolbar-control"><label>Depth
     <select id="depth">
       <option value="1" selected>Direct links</option>
       <option value="2">Two steps</option>
-      <option value="all">All reachable</option>
-    </select></label>
-  <label title="Keep only the links with the largest technical coefficient for each cluster.">Strongest
+      <option value="3">Three steps</option>
+      <option value="custom">Custom…</option>
+    </select></label> <span class="control-help" role="note" tabindex="0" aria-label="Help: Depth. How far to traverse the cluster network from the selected cluster: direct, two or three steps, or a custom number of link steps (1–20). Map road paths are shown for direct links; farther relationships appear in the network diagram." data-tip="How far to traverse the cluster network from the selected cluster: direct, two or three steps, or a custom number of link steps (1–20). Map road paths are shown for direct links; farther relationships appear in the network diagram.">?</span></span>
+  <input id="depth-custom" class="top-custom depth-custom" type="number" min="1" max="20" step="1" value="4" inputmode="numeric" aria-label="Custom depth in network steps, from 1 to 20" hidden disabled>
+  <span class="toolbar-control"><label>Strongest
     <select id="top">
       <option value="all">All links</option>
       <option value="5" selected>5 per cluster</option>
       <option value="10">10 per cluster</option>
       <option value="20">20 per cluster</option>
+      <option value="custom">Custom…</option>
     </select></label>
-  <button id="reset" type="button" title="Esc">Clear selection</button>
+  <input id="top-custom" class="top-custom" type="number" min="1" max="10000" step="1" value="7" inputmode="numeric" aria-label="Custom number of strongest links per cluster" hidden disabled> <span class="control-help" role="note" tabindex="0" aria-label="Help: Strongest links. Strongest means the largest input-output technical coefficient (a): input from the supplying sector per unit of output of the using sector. For each cluster explored, keep up to N links ranked by the larger coefficient among permitted directions. It is not physical distance, establishment size, or evidence of an actual supplier-customer transaction." data-tip="Strongest means the largest input-output technical coefficient (a): input from the supplying sector per unit of output of the using sector. For each cluster explored, keep up to N links ranked by the larger coefficient among permitted directions. It is not physical distance, establishment size, or evidence of an actual supplier-customer transaction.">?</span></span>
+  <span class="toolbar-control"><button id="reset" type="button" title="Esc">Clear selection</button> <span class="control-help" role="note" tabindex="0" aria-label="Help: Clear selection. Clear the selected establishment or cluster, and its highlighted network. Sector visibility, road settings, and other control choices are preserved." data-tip="Clear the selected establishment or cluster, and its highlighted network. Sector visibility, road settings, and other control choices are preserved.">?</span></span>
 </section>
 <main>
   <section class="map-panel">
@@ -52,8 +61,9 @@
     <div id="map-status" class="map-status">Loading SIGMA results…</div>
     <details class="sector-panel" open>
       <summary>Sectors <small id="sector-count"></small></summary>
-      <div class="sector-actions"><button type="button" id="sectors-all">Show all</button><button type="button" id="sectors-none">Hide all</button></div>
-      <div id="sector-list" class="sector-list"></div>
+      <span class="control-help sector-head-help" tabindex="0" role="note" aria-label="Help: Sector ordering. Sector order: with a selected cluster, sectors directly linked to it come first, in descending order of their strongest currently displayed input-output technical coefficient a. Remaining sectors are ordered by their maximum coefficient anywhere in the published X graph. Without a selection (or when all sectors are hidden), sectors are sorted by sector code. The decimal beside a sector is its relevant maximum input–output coefficient; the far-right integer is its establishment count, not road distance. Unchecked sectors are hidden, not faded." data-tip="Sector order: with a selected cluster, sectors directly linked to it come first, in descending order of their strongest currently displayed input-output technical coefficient a. Remaining sectors are ordered by their maximum coefficient anywhere in the published X graph. Without a selection (or when all sectors are hidden), sectors are sorted by sector code. The decimal beside a sector is its relevant maximum input–output coefficient; the far-right integer is its establishment count, not road distance. Unchecked sectors are hidden, not faded.">?</span>
+      <div class="sector-actions"><button type="button" id="sectors-all">Show all</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Show all sectors. Turn on all sector checkboxes. The map and network will again include every available sector." data-tip="Turn on all sector checkboxes. The map and network will again include every available sector.">?</span><button type="button" id="sectors-none">Hide all</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Hide all sectors. Turn off all sector checkboxes. Hidden sectors are excluded rather than merely faded." data-tip="Turn off all sector checkboxes. Hidden sectors are excluded rather than merely faded.">?</span></div>
+      <div id="sector-list" class="sector-list" aria-label="Sectors ordered by strongest visible link after a selection; otherwise by sector code"></div>
     </details>
     <div class="map-legend" aria-label="Map legend">
       <span><i class="legend-dot"></i>Establishment (size = SIGMA score)</span>
@@ -65,29 +75,29 @@
   </section>
   <aside class="side">
     <section class="selection">
-      <div class="section-head"><h2>Selected location</h2><span id="selected-code" class="muted"></span></div>
+      <div class="section-head"><h2>Selected location <span class="control-help " tabindex="0" role="note" aria-label="Help: Selected location. The establishment or cluster you clicked. Clicking an establishment selects its underlying sector-cluster node in network X. The values below describe the published point and node, not inferred transactions." data-tip="The establishment or cluster you clicked. Clicking an establishment selects its underlying sector-cluster node in network X. The values below describe the published point and node, not inferred transactions.">?</span></h2><span id="selected-code" class="muted"></span></div>
       <h3 id="place-name">No selection</h3>
       <p id="place-description" class="muted">Click an establishment or a cluster center on the map. Its cluster and the clusters linked to it in network X are then shown on the map and below.</p>
       <div class="stats" id="stats"></div>
-      <div class="actions" id="selection-actions" hidden><button type="button" id="zoom-network">Zoom to network</button></div>
+      <div class="actions" id="selection-actions" hidden><button type="button" id="zoom-network">Zoom to network</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Zoom to network. Adjust the map to fit the currently displayed network cluster centers. Does not change the network or sector filters." data-tip="Adjust the map to fit the currently displayed network cluster centers. Does not change the network or sector filters.">?</span></div>
     </section>
     <section class="graph-section">
-      <div class="section-head"><h2>Cluster network</h2><small id="graph-count"></small></div>
-      <div class="graph-actions"><button type="button" id="graph-fit">Fit graph</button><button type="button" id="theater-toggle" aria-pressed="false">Theater view</button></div>
+      <div class="section-head"><h2>Cluster network <span class="control-help " tabindex="0" role="note" aria-label="Help: Cluster network. Diagram of the clusters reached from the selected cluster, according to Links, Depth, Strongest, and the sectors still visible. Arrows point from the supplying cluster to the cluster using its inputs. Click a node to make it the new selection." data-tip="Diagram of the clusters reached from the selected cluster, according to Links, Depth, Strongest, and the sectors still visible. Arrows point from the supplying cluster to the cluster using its inputs. Click a node to make it the new selection.">?</span></h2><small id="graph-count"></small></div>
+      <div class="graph-actions"><button type="button" id="graph-fit">Fit graph</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Fit graph. Fit and center the network diagram in its current pane without changing the graph." data-tip="Fit and center the network diagram in its current pane without changing the graph.">?</span><button type="button" id="theater-toggle" aria-pressed="false">Theater view</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Theater view. Expand the network diagram for closer inspection. Use Exit theater or Escape to return." data-tip="Expand the network diagram for closer inspection. Use Exit theater or Escape to return.">?</span></div>
       <div class="network-wrap">
         <div id="network" role="region" aria-label="Cluster network diagram"></div>
         <div id="graph-tip" class="graph-tip" hidden></div>
         <p id="network-empty" class="network-empty">The network of the selected cluster appears here.</p>
       </div>
-      <p class="hint">Center: selected cluster. Rings: clusters one and two links away. Arrowheads point to the sector that uses the inputs. Click a node to move to that cluster.</p>
+      <p class="hint">Center: selected cluster. Rings: network steps from the selected cluster (set by Depth). Arrowheads point to the sector that uses the inputs. Click a node to move to that cluster.</p>
     </section>
     <section class="connections-section" id="connections-section" hidden>
-      <div class="section-head"><h2>Linked clusters</h2><small id="edge-count"></small></div>
+      <div class="section-head"><h2>Linked clusters <span class="control-help " tabindex="0" role="note" aria-label="Help: Linked clusters. The selected cluster&#x27;s direct connections after the current Links, Strongest and visible-sector filters. Technical coefficients measure modeled input requirements, not road distance or actual sales." data-tip="The selected cluster&#x27;s direct connections after the current Links, Strongest and visible-sector filters. Technical coefficients measure modeled input requirements, not road distance or actual sales.">?</span></h2><small id="edge-count"></small></div>
       <p class="hint">a = technical coefficient: input from the supplying sector per unit of output of the using sector.</p>
       <div id="connections" class="connections"></div>
     </section>
     <section class="central-section" id="central-section">
-      <div class="section-head"><h2>Most central clusters</h2><small>by published centrality</small></div>
+      <div class="section-head"><h2>Most central clusters <span class="control-help " tabindex="0" role="note" aria-label="Help: Most central clusters. The top 12 clusters by the centrality values published in this SIGMA bundle, among visible sectors. Centrality is a node-level network measure, not the technical-coefficient ranking used by Strongest." data-tip="The top 12 clusters by the centrality values published in this SIGMA bundle, among visible sectors. Centrality is a node-level network measure, not the technical-coefficient ranking used by Strongest.">?</span></h2><small>by published centrality</small></div>
       <div id="central" class="connections"></div>
     </section>
   </aside>

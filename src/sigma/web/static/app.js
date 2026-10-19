@@ -12,7 +12,7 @@
   const $ = id => document.getElementById(id);
   const EMPTY = () => ({type: 'FeatureCollection', features: []});
   const COLOR = {both: '#7b3fa0', outgoing: '#c0392b', incoming: '#1f6fb2', focus: '#16382a', other: '#9aa8a0'};
-  const LIMIT = {graphNodes: 300, graphEdges: 1500, tableRows: 250, labelledNodes: 30};
+  const LIMIT = {graphNodes: 300, graphEdges: 1500, tableRows: 250, labelledNodes: 12};
   const showError = error => {
     $('error').hidden = false;
     $('error').textContent = `SIGMA Explorer: ${String((error && error.message) || error)}`;
@@ -34,13 +34,97 @@
   const selectedIconByType = new Map(); // explicit sector => filled triangle icon
   const centerIconByType = new Map(); // normal white-face icons
   const linkedCenterIconByType = new Map(); // sector-filled, blue-outlined icons
+  const darkCenterIconByType = new Map(); // dark-face center icons
+  const darkLinkedIconByType = new Map(); // dark linked center icons
   const hidden = new Set();      // sector codes switched off in the sector panel
+  const globalSectorStrength = new Map(); // max incident IO coefficient per sector
   const state = {direction: 'both', depth: '1', top: '5', partitions: 'network'};
   let selection = null;          // {id, point}
   let network = null;
   const jsonCache = new Map();
   let tileEpoch = 0, routeEpoch = 0, hoverEpoch = 0;
   let ready = false;             // map layers exist
+
+  // Explicit light default: no OS dark-mode inheritance and no stored setting.
+  let themeMode = 'light';
+  function applyTheme(choice) {
+    themeMode = choice === 'dark' ? 'dark' : 'light';
+    const dark = themeMode === 'dark';
+    document.documentElement.dataset.theme = themeMode;
+    $('theme-mode').value = themeMode;
+    if (ready && map && map.getLayer && map.getLayer('centers')) {
+      const ids = network ? [...network.ring.keys()] : null;
+      const inNetwork = ['in', ['get', 'id'], ['literal', ids || []]];
+      const face = themeMode === 'dark' ? 'dark_center_icon' : 'center_icon';
+      const linked = themeMode === 'dark' ? 'dark_linked_center_icon' : 'linked_center_icon';
+      map.setLayoutProperty('centers', 'icon-image', ids ?
+        ['case', inNetwork, ['get', linked], ['get', face]] : ['get', face]);
+    }
+    // MapLibre paints are independent of HTML/CSS; restyle geographic context.
+    if (map && map.getLayer) {
+      const paint = (layer, key, value) => {
+        if (map.getLayer(layer)) map.setPaintProperty(layer, key, value);
+      };
+      paint('background', 'background-color', dark ? '#15231c' : '#f4f6f5');
+      paint('boundary-fill', 'fill-color', dark ? '#22352a' : '#ffffff');
+      paint('boundary-line', 'line-color', dark ? '#678a78' : '#71847b');
+      paint('roads-line', 'line-color', dark ? '#9eb6a6' : '#949b9b');
+      paint('roads-line', 'line-opacity', network ? (dark ? 0.29 : 0.18) : (dark ? 0.53 : 0.38));
+      paint('partition-focus-line', 'line-color', dark ? '#b0dfc1' : COLOR.focus);
+      paint('routes-casing', 'line-color', dark ? '#17281f' : '#ffffff');
+      // Against a dark map, muted/dark strokes avoid bright halos around
+      // thousands of colored establishments. Preserve the focus outline.
+      paint('establishments', 'circle-stroke-color', network ?
+        ['case', ['==', ['get', 'node_id'], network.focus], dark ? '#81c5a1' : COLOR.focus,
+          dark ? '#20372a' : '#ffffff'] : (dark ? '#20372a' : '#ffffff'));
+      paint('partition-linked-fill', 'fill-opacity', dark ? 0.17 : 0.105);
+      paint('partition-focus-fill', 'fill-opacity', dark ? 0.19 : 0.25);
+      paint('partition-linked-line', 'line-opacity', dark ? 0.70 : 0.78);
+      paint('partition-focus-line', 'line-color', dark ? '#85bd9e' : COLOR.focus);
+      paint('routes', 'line-color', dark ? '#ef9d8b' : COLOR.outgoing);
+      paint('routes-in', 'line-color', dark ? '#8cc8e9' : COLOR.incoming);
+      paint('selected-point', 'circle-stroke-color', dark ? '#e9aa55' : '#d99d2c');
+      if (state.partitions === 'network' && network) {
+        paint('partition-line', 'line-color', dark ? '#627d69' : '#cad6cf');
+        paint('partition-line', 'line-opacity', dark ? 0.18 : 0.22);
+      }
+    }
+    // Theme Cytoscape's canvas explicitly. No text backgrounds on any node:
+    // these used to obscure the focal circle with a bright label rectangle.
+    if (cy && cy.style) {
+      const quiet = dark ? '#79988a' : '#9eafa5';
+      const outward = dark ? '#ef9d8b' : '#b35a4f';
+      const inward = dark ? '#8cc8e9' : '#39779a';
+      cy.style()
+        .selector('node').style({
+          'border-color': dark ? '#20362b' : '#f0f4f1'
+        })
+        .selector('node.labelled').style({
+          color: dark ? '#d2e1d6' : '#4b5e53',
+          'text-background-opacity': 0,
+          'text-outline-width': 0
+        })
+        .selector('node.focus').style({
+          'background-color': dark ? '#4d9872' : '#255b45',
+          'border-color': dark ? '#a5d2b7' : '#a5c3b1',
+          color: dark ? '#e5f4e9' : '#245541',
+          'text-valign': 'bottom', 'text-margin-y': 7,
+          'text-background-opacity': 0
+        })
+        .selector('edge').style({
+          'line-color': quiet, 'target-arrow-color': quiet,
+          'source-arrow-color': quiet, opacity: dark ? 0.28 : 0.20
+        })
+        .selector('edge.focus-edge.outgoing').style({
+          'line-color': outward, 'target-arrow-color': outward,
+          'source-arrow-color': outward
+        })
+        .selector('edge.focus-edge.incoming').style({
+          'line-color': inward, 'target-arrow-color': inward,
+          'source-arrow-color': inward
+        }).update();
+    }
+  }
 
   // ------------------------------------------------------------------ helpers
   const getJSON = path => {
@@ -77,6 +161,69 @@
     if (meta.distance_unit !== 'm') return `${fmtNum(v, 1)} ${meta.distance_unit}`;
     return v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 1 : 2)} km` : `${Math.round(v)} m`;
   };
+  // Refinement overlay: all help icons use one viewport-positioned tooltip.
+  // Unlike a CSS-only tooltip, this is not clipped by the scrolling side panel.
+  const statHelp = {'SIGMA score': 'Published SIGMA score for the selected establishment, when present; point size in the map reflects this score. Not a technical coefficient.', 'Cluster centrality': 'Published centrality of the selected sector-cluster node, distinct from individual input-output link strengths.', 'Establishments in cluster': 'Number of establishments assigned to this sector-cluster in the published result.', 'Linked clusters': 'Distinct adjacent cluster nodes in the full X graph, before the current sector, direction and strongest-link filters.', 'X edges in / out': 'Published number of directed edges entering / leaving this X node, before the current screen filters.', 'PSIC': 'Philippine Standard Industrial Classification code of the selected establishment when available. A dash means unavailable.'};
+  const columnHelp = {'direct-cluster': 'Click a linked cluster to select it. The arrows indicate whether inputs flow from or toward the selected cluster.', 'out-a': "Outgoing technical coefficient a: the selected cluster supplies an input to this cluster, per unit of the receiving cluster's output.", 'in-a': "Incoming technical coefficient a: this cluster supplies an input to the selected cluster, per unit of the selected cluster's output.", 'road-distance': 'Published shortest-path road distance between cluster centers. Distance does not determine Strongest rankings.', 'central-cluster': 'Sector-cluster identifier; click to inspect its connected network.', 'centrality': 'Published centrality value. The list is ranked by this value, not by technical coefficient.', 'establishments': 'Count of establishments represented by the cluster in the published result.'};
+  function helpIcon(label, description) {
+    const tip = el('span', {className: 'control-help',
+      tabIndex: 0, textContent: '?'});
+    tip.dataset.tip = description;
+    tip.setAttribute('role', 'note');
+    tip.setAttribute('aria-label', `Help: ${label}. ${description}`);
+    return tip;
+  }
+  function thHelp(label, key) {
+    const cell = el('th', {textContent: label});
+    cell.append(helpIcon(label, columnHelp[key]));
+    return cell;
+  }
+  function initializeHelp() {
+    const popup = el('div', {id: 'sigma-help-popup', className: 'sigma-help-popup'});
+    popup.hidden = true;
+    popup.setAttribute('role', 'tooltip');
+    document.body.append(popup);
+    let active = null;
+    const closeHelp = () => {
+      if (active) active.removeAttribute('aria-describedby');
+      active = null;
+      popup.hidden = true;
+    };
+    const openHelp = target => {
+      if (!target || !target.dataset.tip) return;
+      if (active && active !== target) active.removeAttribute('aria-describedby');
+      active = target;
+      popup.textContent = target.dataset.tip;
+      popup.hidden = false;
+      target.setAttribute('aria-describedby', 'sigma-help-popup');
+      const rect = target.getBoundingClientRect();
+      const width = popup.getBoundingClientRect().width;
+      const height = popup.getBoundingClientRect().height;
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+      const below = rect.bottom + 9;
+      const top = below + height <= window.innerHeight - 8 ? below :
+        Math.max(8, rect.top - height - 9);
+      popup.style.left = `${left}px`;
+      popup.style.top = `${top}px`;
+    };
+    const closestTip = target => target && target.closest && target.closest('.control-help');
+    document.addEventListener('pointerover', e => { const tip = closestTip(e.target); if (tip) openHelp(tip); });
+    document.addEventListener('pointerout', e => {
+      const tip = closestTip(e.target);
+      if (tip && tip === active && !tip.contains(e.relatedTarget)) closeHelp();
+    });
+    document.addEventListener('focusin', e => { const tip = closestTip(e.target); if (tip) openHelp(tip); });
+    document.addEventListener('focusout', e => { if (closestTip(e.target) === active) closeHelp(); });
+    document.addEventListener('click', e => {
+      const tip = closestTip(e.target);
+      if (tip) { e.preventDefault(); e.stopPropagation(); openHelp(tip); }
+      else if (active) closeHelp();
+    }, true);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeHelp(); });
+    window.addEventListener('scroll', closeHelp, true);
+    window.addEventListener('resize', closeHelp);
+  }
+
   const sectorLabel = code => (sectors.get(code) || {}).label || code;
   const sectorColor = code => (sectors.get(code) || {}).color || '#657f78';
   const nodeLabel = n => `${sectorLabel(n.type)} · cluster ${n.cluster}`;
@@ -175,27 +322,47 @@
   }
 
   // ------------------------------------------------------------------ map emphasis
+  // SIGMA toolbar overlay: normal cluster centers are optional, but a selected
+  // network still reveals only its cluster centers (for currently visible sectors).
+  function updateCenterVisibility() {
+    if (!ready) return;
+    const all = $('show-centers').checked;
+    const ids = network ? [...network.ring.keys()] : [];
+    visibility('centers', all || ids.length > 0);
+    map.setFilter('centers', all ? notHidden() :
+      ['all', notHidden(), ['in', ['get', 'id'], ['literal', ids]]]);
+    // Keep the focused larger triangle, but obey sector visibility here too.
+    if (map.getLayer('selected-center')) map.setFilter('selected-center', notHidden());
+  }
+
   function applyEmphasis() {
     const ids = network ? [...network.ring.keys()] : null;
     const focus = network ? network.focus : '';
     const inNet = ['in', ['get', 'node_id'], ['literal', ids || []]];
     const isFocus = ['==', ['get', 'node_id'], focus];
-    map.setPaintProperty('establishments', 'circle-opacity', ids ? ['case', isFocus, 0.95, inNet, 0.85, 0.075] : 0.78);
-    map.setPaintProperty('establishments', 'circle-stroke-opacity', ids ? ['case', inNet, 1, 0.08] : 1);
+    map.setPaintProperty('establishments', 'circle-opacity', ids ? ['case', isFocus, 0.96, inNet, 0.90, 0.025] : 0.78);
+    map.setPaintProperty('establishments', 'circle-stroke-opacity', ids ? ['case', inNet, 1, 0.025] : 1);
     map.setPaintProperty('establishments', 'circle-stroke-width', ids ? ['case', isFocus, 0.9, 0.35] : 0.35);
     map.setPaintProperty('establishments', 'circle-stroke-color', ids ? ['case', isFocus, COLOR.focus, '#ffffff'] : '#ffffff');
     const centerIn = ['in', ['get', 'id'], ['literal', ids || []]];
     // Linked clusters are sector-filled with thin blue outlines. The focused
     // triangle is handled by the larger selected-center symbol above this layer.
+    // Alternate icon assets remove white triangle interiors in dark mode;
+    // linked and focused sector colors remain intact.
+    const baseIcon = themeMode === 'dark' ? 'dark_center_icon' : 'center_icon';
+    const connectedIcon = themeMode === 'dark' ? 'dark_linked_center_icon' : 'linked_center_icon';
     map.setLayoutProperty('centers', 'icon-image', ids ?
-      ['case', centerIn, ['get', 'linked_center_icon'], ['get', 'center_icon']] :
-      ['get', 'center_icon']);
+      ['case', centerIn, ['get', connectedIcon], ['get', baseIcon]] :
+      ['get', baseIcon]);
     map.setPaintProperty('centers', 'icon-opacity', ids ?
       ['case', ['==', ['get', 'id'], focus], 0, centerIn, 1, 0.16] : 1);
     map.setFilter('establishments', notHidden());
-    map.setFilter('centers', ['any', ['==', ['get', 'id'], focus], notHidden()]);
-    if (map.getLayer('roads-line')) map.setPaintProperty('roads-line', 'line-opacity', ids ? 0.48 : 1);
+    updateCenterVisibility();
+    if (map.getLayer('roads-line')) map.setPaintProperty('roads-line', 'line-opacity', ids ? 0.18 : 0.38);
+    if (map.getLayer('roads-line') && themeMode === 'dark')
+      map.setPaintProperty('roads-line', 'line-opacity', ids ? 0.29 : 0.53);
     updatePartitions();
+    applyTheme(themeMode); // Restore theme-aware paints after each selection refresh.
   }
 
   function updatePartitions() {
@@ -281,7 +448,9 @@
 
   // ------------------------------------------------------------------ side panel
   function stat(label, value) {
-    return el('div', {className: 'stat'}, el('span', {textContent: label}), el('strong', {textContent: value}));
+    const header = el('span', {className: 'stat-label'}, el('span', {textContent: label}));
+    if (statHelp[label]) header.append(helpIcon(label, statHelp[label]));
+    return el('div', {className: 'stat'}, header, el('strong', {textContent: value}));
   }
 
   function renderSelection() {
@@ -322,10 +491,10 @@
       return;
     }
     const head = el('tr', {},
-      el('th', {textContent: 'Cluster'}),
-      el('th', {textContent: '→ a', title: 'Selected cluster supplies inputs to this cluster (technical coefficient)'}),
-      el('th', {textContent: '← a', title: 'Selected cluster uses inputs from this cluster (technical coefficient)'}),
-      el('th', {textContent: 'Road', title: 'Shortest road distance between the two cluster centers'}));
+      thHelp('Cluster', 'direct-cluster'),
+      thHelp('→ a', 'out-a'),
+      thHelp('← a', 'in-a'),
+      thHelp('Road', 'road-distance'));
     const body = el('tbody');
     for (const r of rows.slice(0, LIMIT.tableRows)) {
       const n = nodeIndex.get(r.other);
@@ -359,7 +528,7 @@
       body.append(el('tr', {}, el('td', {}, button), el('td', {textContent: fmtNum(n.centrality)}), el('td', {textContent: fmtNum(n.members, 0)})));
     }
     $('central').replaceChildren(el('table', {className: 'links'},
-      el('thead', {}, el('tr', {}, el('th', {textContent: 'Cluster'}), el('th', {textContent: 'Centrality'}), el('th', {textContent: 'Establishments'}))),
+      el('thead', {}, el('tr', {}, thHelp('Cluster', 'central-cluster'), thHelp('Centrality', 'centrality'), thHelp('Establishments', 'establishments'))),
       body));
   }
 
@@ -415,6 +584,7 @@
   // ------------------------------------------------------------------ selection
   function refresh() {
     network = selection && nodeIndex.has(selection.id) ? buildNetwork(selection.id) : null;
+    renderSectors();  // Re-rank sectors when selection or Strongest changes.
     renderSelection();
     drawGraph();
     renderConnections();
@@ -477,14 +647,55 @@
     return pairs.length ? pairs : ['__none__', '#657f78'];
   }
 
+  // Sector strength is the largest published technical coefficient incident
+  // to any cluster in that sector. This fallback works before a selection.
+  function recordSectorStrength(node, coefficient) {
+    if (!node || !isNum(coefficient)) return;
+    const prior = globalSectorStrength.get(node.type);
+    if (prior === undefined || coefficient > prior) globalSectorStrength.set(node.type, coefficient);
+  }
+  function displayedSectorStrength() {
+    const scores = new Map();
+    if (!network) return scores;
+    for (const rel of network.direct) {
+      const target = nodeIndex.get(rel.other);
+      if (!target || !isNum(rel.strength)) continue;
+      const prev = scores.get(target.type);
+      if (prev === undefined || rel.strength > prev) scores.set(target.type, rel.strength);
+    }
+    return scores;
+  }
+
   function renderSectors() {
     const list = $('sector-list');
     list.replaceChildren();
-    for (const s of sectors.values()) {
+    const linked = displayedSectorStrength();
+    const codeOrder = (a, b) => String(a.code).localeCompare(String(b.code), undefined,
+      {numeric: true, sensitivity: 'base'});
+    const ordered = [...sectors.values()].sort((a, b) => {
+      if (!network || hidden.size === sectors.size) return codeOrder(a, b);
+      if (network) {
+        const aa = linked.get(a.code), bb = linked.get(b.code);
+        if ((aa !== undefined) !== (bb !== undefined)) return aa !== undefined ? -1 : 1;
+        if (aa !== undefined && aa !== bb) return bb - aa;
+      }
+      const ga = globalSectorStrength.get(a.code) ?? -1;
+      const gb = globalSectorStrength.get(b.code) ?? -1;
+      return (gb - ga) || String(a.label).localeCompare(String(b.label));
+    });
+    for (const s of ordered) {
       const box = el('input', {type: 'checkbox', checked: !hidden.has(s.code)});
       box.addEventListener('change', () => { box.checked ? hidden.delete(s.code) : hidden.add(s.code); sectorsChanged(); });
-      list.append(el('label', {className: 'sector-item', title: `${s.label}: ${s.points.toLocaleString()} establishments, ${s.clusters} clusters`},
-        box, swatch(s.code), el('span', {className: 'name', textContent: s.label}), el('span', {className: 'count', textContent: s.points.toLocaleString()})));
+      const inSelection = network && linked.has(s.code);
+      const score = inSelection ? linked.get(s.code) : globalSectorStrength.get(s.code);
+      const description = inSelection ? 'Strongest visible direct link to selected cluster' :
+        'Largest link coefficient anywhere in the published graph' ;
+      list.append(el('label', {className: 'sector-item',
+          title: `${s.label}: ${s.points.toLocaleString()} establishments, ${s.clusters} clusters. ${description}: ${isNum(score) ? fmtCoef(score) : 'not available'}`},
+        box, swatch(s.code), el('span', {className: 'name', textContent: s.label}),
+        el('span', {className: 'sector-strength', title: description,
+          textContent: isNum(score) ? fmtCoef(score) : '—'}),
+        el('span', {className: 'count', textContent: s.points.toLocaleString()})));
     }
     $('sector-count').textContent = `${sectors.size - hidden.size} of ${sectors.size} shown`;
   }
@@ -577,6 +788,8 @@
     const size = 32;
     const baseFallback = 'sigma-center-default';
     const linkedFallback = 'sigma-center-linked-default';
+    const darkFallback = 'sigma-center-dark-default';
+    const darkLinkedFallback = 'sigma-center-linked-dark-default';
     const addTriangle = (name, fill, outline) => {
       const canvas = document.createElement('canvas');
       canvas.width = size;
@@ -598,20 +811,30 @@
     };
     centerIconByType.clear();
     linkedCenterIconByType.clear();
+    darkCenterIconByType.clear();
+    darkLinkedIconByType.clear();
     let index = 0;
     for (const [code, sector] of sectors) {
       const key = String(code);
       const sectorFill = sector.color || '#657f78';
       const name = `sigma-center-${index}`;
       const linkedName = `sigma-center-linked-${index}`;
+      const darkName = `sigma-center-dark-${index}`;
+      const darkLinkedName = `sigma-center-linked-dark-${index}`;
       addTriangle(name, '#ffffff', sectorFill);
       addTriangle(linkedName, sectorFill, COLOR.incoming);
+      addTriangle(darkName, '#21392b', sectorFill);
+      addTriangle(darkLinkedName, sectorFill, '#8cc8e9');
       centerIconByType.set(key, name);
       linkedCenterIconByType.set(key, linkedName);
+      darkCenterIconByType.set(key, darkName);
+      darkLinkedIconByType.set(key, darkLinkedName);
       index++;
     }
     addTriangle(baseFallback, '#ffffff', '#657f78');
     addTriangle(linkedFallback, '#657f78', COLOR.incoming);
+    addTriangle(darkFallback, '#21392b', '#657f78');
+    addTriangle(darkLinkedFallback, '#657f78', '#8cc8e9');
     return ['get', 'center_icon'];
   }
 
@@ -653,8 +876,14 @@
 
   function addLayers(data) {
     const [minimum, maximum] = meta.score_range || [null, null];
-    const scaled = (a, b) => (isNum(minimum) && isNum(maximum) && minimum < maximum)
-      ? ['interpolate', ['linear'], ['coalesce', ['get', 'score'], minimum], minimum, a, maximum, b] : (a + b) / 2;
+    // Circle AREA, not radius, is proportional to normalized SIGMA score.
+    // Each zoom uses restrained min/max sizes so dense groups remain legible.
+    const normalizedScore = (isNum(minimum) && isNum(maximum) && minimum < maximum)
+      ? ['max', 0, ['min', 1, ['/',
+          ['-', ['coalesce', ['get', 'score'], minimum], minimum], maximum - minimum]]]
+      : 0.5;
+    const scoreRadius = (small, large) => ['sqrt', ['+', small * small,
+      ['*', large * large - small * small, normalizedScore]]];
     const sectorColorExpr = ['match', ['get', 'type'], ...sectorMatchPairs(), '#657f78'];
     if (data.boundary) {
       map.addSource('boundary', {type: 'geojson', data: data.boundary});
@@ -668,7 +897,7 @@
       map.addSource('roads', {type: 'geojson', data: data.roads});
       map.addLayer({id: 'roads-line', type: 'line', source: 'roads',
         layout: {'line-join': 'round', 'line-cap': 'round'},
-        paint: {'line-color': '#949b9b', 'line-opacity': 1,
+        paint: {'line-color': '#949b9b', 'line-opacity': 0.38,
           'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.22, 15, 0.5, 18, 0.85]}});
     }
     map.addLayer({id: 'partition-line', type: 'line', source: 'clusters', layout: {visibility: 'none'}, paint: {'line-color': sectorColorExpr, 'line-width': 1}});
@@ -711,7 +940,7 @@
     map.addSource('points', {type: 'geojson', data: EMPTY()});
     map.addLayer({id: 'establishments', type: 'circle', source: 'points', paint: {
       'circle-color': sectorColorExpr,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, scaled(1.6, 5), 14, scaled(2.6, 9), 17, scaled(4, 14)],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, scoreRadius(1.4, 5.7), 14, scoreRadius(2.0, 10.5), 17, scoreRadius(3.2, 16.5)],
       'circle-opacity': 0.82, 'circle-stroke-width': 0.35, 'circle-stroke-color': '#ffffff'}});
     // Assign browser-only icon identifiers by normalized sector code. This
     // avoids a numeric/string `match` mismatch and preserves palette fidelity.
@@ -723,10 +952,13 @@
       const type = String(feature.properties.type);
       feature.properties.center_icon = centerIconByType.get(type) || 'sigma-center-default';
       feature.properties.linked_center_icon = linkedCenterIconByType.get(type) || 'sigma-center-linked-default';
+      feature.properties.dark_center_icon = darkCenterIconByType.get(type) || 'sigma-center-dark-default';
+      feature.properties.dark_linked_center_icon = darkLinkedIconByType.get(type) || 'sigma-center-linked-dark-default';
     }
     map.addSource('centers', {type: 'geojson', data: data.centers});
     map.addLayer({id: 'centers', type: 'symbol', source: 'centers',
       layout: {
+        visibility: 'none',
         'icon-image': centerIconLayout,
         'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.55, 15, 0.8, 18, 1],
         'icon-allow-overlap': true,
@@ -749,11 +981,54 @@
 
   function bindControls() {
     $('partitions').addEventListener('change', e => { state.partitions = e.target.value; updatePartitions(); });
-    $('show-centers').addEventListener('change', e => visibility('centers', e.target.checked));
+    $('show-centers').addEventListener('change', updateCenterVisibility);
     $('show-roads').addEventListener('change', e => visibility('roads-line', e.target.checked));
-    for (const key of ['direction', 'depth', 'top']) {
-      $(key).addEventListener('change', e => { state[key] = e.target.value; refresh(); });
-    }
+    $('direction').addEventListener('change', e => { state.direction = e.target.value; refresh(); });
+    // Depth is the graph hop count (not road distance). The model accepts any
+    // positive integer; cap manual input at 20 to avoid surprise long traversals.
+    const depthSelect = $('depth');
+    const depthCustom = $('depth-custom');
+    const syncDepth = () => {
+      const raw = depthCustom.value.trim();
+      const value = Number(raw);
+      const valid = raw !== '' && Number.isSafeInteger(value) && value >= 1 && value <= 20;
+      depthCustom.setAttribute('aria-invalid', String(!valid));
+      if (!valid) return;  // Keep previous display while editing incomplete input.
+      state.depth = String(value);
+      refresh();
+    };
+    depthSelect.addEventListener('change', () => {
+      const custom = depthSelect.value === 'custom';
+      depthCustom.hidden = !custom;
+      depthCustom.disabled = !custom;
+      if (custom) { syncDepth(); depthCustom.focus(); }
+      else { depthCustom.setAttribute('aria-invalid', 'false'); state.depth = depthSelect.value; refresh(); }
+    });
+    depthCustom.addEventListener('input', () => {
+      if (depthSelect.value === 'custom') syncDepth();
+    });
+    // Presets and arbitrary positive whole-number limits share the same state.top.
+    const topSelect = $('top');
+    const topCustom = $('top-custom');
+    const syncTop = () => {
+      const raw = topCustom.value.trim();
+      const value = Number(raw);
+      const valid = raw !== '' && Number.isSafeInteger(value) && value >= 1 && value <= 10000;
+      topCustom.setAttribute('aria-invalid', String(!valid));
+      if (!valid) return;  // Preserve the previous network until the entry is valid.
+      state.top = String(value);
+      refresh();
+    };
+    topSelect.addEventListener('change', () => {
+      const custom = topSelect.value === 'custom';
+      topCustom.hidden = !custom;
+      topCustom.disabled = !custom;
+      if (custom) { syncTop(); topCustom.focus(); }
+      else { topCustom.setAttribute('aria-invalid', 'false'); state.top = topSelect.value; refresh(); }
+    });
+    topCustom.addEventListener('input', () => {
+      if (topSelect.value === 'custom') syncTop();
+    });
     $('reset').addEventListener('click', clearSelection);
     $('theater-toggle').addEventListener('click', toggleTheater);
     $('graph-fit').addEventListener('click', () => { cy.resize(); cy.fit(undefined, 35); });
@@ -768,6 +1043,9 @@
   }
 
   async function initialize() {
+    $('theme-mode').addEventListener('change', e => applyTheme(e.target.value));
+    applyTheme('light');
+    initializeHelp();
     const [metadata, graph, tiles] = await Promise.all([getJSON('data/metadata.json'), getJSON('data/graph.json'), getJSON('data/tiles.json')]);
     meta = metadata; tileIndex = tiles; tileKeys = Object.keys(tiles.tiles || {});
     if (meta.schema_version !== 3) throw new Error('This Explorer bundle was built by another version. Run "sigma view <area> --refresh".');
@@ -780,6 +1058,8 @@
       if (!b.has(e.from)) b.set(e.from, {other: e.from, out: null, in: null});
       a.get(e.to).out = e;
       b.get(e.from).in = e;
+      recordSectorStrength(nodeIndex.get(e.from), e.coefficient);
+      recordSectorStrength(nodeIndex.get(e.to), e.coefficient);
     }
     $('area').textContent = meta.area;
     $('counts').textContent = `${meta.counts.points.toLocaleString()} establishments · ${meta.counts.clusters.toLocaleString()} clusters · ${meta.counts.linked_pairs.toLocaleString()} linked pairs`;
@@ -790,20 +1070,16 @@
     if (window.innerWidth < 1100) document.querySelector('.sector-panel').open = false;
 
     cy = cytoscape({container: $('network'), elements: [], layout: {name: 'preset'}, style: [
-      {selector: 'node', style: {'background-color': 'data(color)', 'width': 15, 'height': 15, 'border-width': 0.6, 'border-color': '#ffffff', 'label': ''}},
-      {selector: 'node.labelled', style: {'label': 'data(label)', 'font-size': 9, 'color': '#334a3c', 'text-valign': 'bottom', 'text-margin-y': 3,
-        'text-background-color': '#ffffff', 'text-background-opacity': 0.8, 'text-background-padding': 1}},
-      {selector: 'node[ring >= 2]', style: {'width': 11, 'height': 11, 'opacity': 0.85}},
-      {selector: 'node.focus', style: {'width': 34, 'height': 34, 'border-width': 1.6, 'border-color': COLOR.focus, 'label': 'data(label)',
-        'font-size': 10, 'font-weight': 'bold', 'color': '#ffffff', 'text-valign': 'center', 'text-margin-y': 0,
-        'text-outline-color': COLOR.focus, 'text-outline-width': 0.7, 'text-background-opacity': 0, 'z-index': 10}},
-      {selector: 'edge', style: {'width': 'mapData(wn, 0, 1, 0.4, 1.7)', 'line-color': COLOR.other, 'opacity': 0.42, 'curve-style': 'bezier', 'control-point-step-size': 22,
-        'target-arrow-color': COLOR.other, 'source-arrow-color': COLOR.other, 'arrow-scale': 0.65}},
+      {selector: 'node', style: {'background-color': 'data(color)', 'width': 14, 'height': 14, 'border-width': 1, 'border-color': '#f0f4f1', 'opacity': 0.96, 'label': ''}},
+      {selector: 'node.labelled', style: {'label': 'data(label)', 'font-size': 10, 'font-weight': 500, 'font-family': 'system-ui, sans-serif', 'color': '#4b5e53', 'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 7, 'text-background-opacity': 0, 'text-outline-width': 0}},
+      {selector: 'node[ring >= 2]', style: {'width': 11, 'height': 11, 'opacity': 0.84}},
+      {selector: 'node.focus', style: {'width': 28, 'height': 28, 'background-color': '#255b45', 'border-width': 1.5, 'border-color': '#a5c3b1', 'opacity': 1, 'label': 'data(label)', 'font-family': 'system-ui, sans-serif', 'font-size': 11, 'font-weight': 'bold', 'color': '#245541', 'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 7, 'text-outline-width': 0, 'text-background-opacity': 0, 'z-index': 10}},
+      {selector: 'edge', style: {'width': 'mapData(wn, 0, 1, 0.3, 1.3)', 'line-color': '#9eafa5', 'opacity': 0.20, 'curve-style': 'bezier', 'control-point-step-size': 13, 'target-arrow-color': '#9eafa5', 'source-arrow-color': '#9eafa5', 'arrow-scale': 0.52}},
       {selector: 'edge', style: {'target-arrow-shape': 'triangle'}},
-      {selector: 'edge.focus-edge', style: {'opacity': 0.85, 'z-index': 5}},
-      {selector: 'edge.focus-edge.reciprocal', style: {'opacity': 0.95}},
-      {selector: 'edge.focus-edge.outgoing', style: {'line-color': COLOR.outgoing, 'target-arrow-color': COLOR.outgoing, 'source-arrow-color': COLOR.outgoing}},
-      {selector: 'edge.focus-edge.incoming', style: {'line-color': COLOR.incoming, 'target-arrow-color': COLOR.incoming, 'source-arrow-color': COLOR.incoming}},
+      {selector: 'edge.focus-edge', style: {'opacity': 0.78, 'z-index': 5}},
+      {selector: 'edge.focus-edge.reciprocal', style: {'opacity': 0.86}},
+      {selector: 'edge.focus-edge.outgoing', style: {'line-color': '#b35a4f', 'target-arrow-color': '#b35a4f', 'source-arrow-color': '#b35a4f'}},
+      {selector: 'edge.focus-edge.incoming', style: {'line-color': '#39779a', 'target-arrow-color': '#39779a', 'source-arrow-color': '#39779a'}},
     ]});
     cy.on('tap', 'node', e => selectNode(e.target.id(), null, {fly: true}));
     cy.on('mouseover', 'node', e => graphTip(e, true));
@@ -836,6 +1112,7 @@
         const data = {};
         for (const [k, v] of Object.entries(wanted)) data[k] = v ? await v : null;
         addLayers(data);
+        applyTheme(themeMode);
         ready = true;
         map.on('mousemove', onHover);
         map.on('mouseout', () => popup.remove());
