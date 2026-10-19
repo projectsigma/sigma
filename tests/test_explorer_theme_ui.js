@@ -1,0 +1,24 @@
+// SIGMA Explorer v4: one visual tooltip + explicit light/dark switch.
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const base = path.join(__dirname,'../src/sigma/web/static');
+const html = fs.readFileSync(path.join(base,'index.html'),'utf8');
+const js = fs.readFileSync(path.join(base,'app.js'),'utf8');
+const css = fs.readFileSync(path.join(base,'style.css'),'utf8');
+assert.match(html, /<html lang="en" data-theme="light">/);
+assert.match(html, /id="theme-mode"[^>]*>[\s\S]*?<option value="light" selected>Light<\/option>[\s\S]*?<option value="dark">Dark<\/option>/);
+const icons = [...html.matchAll(/<span\b[^>]*\bclass="control-help[^\"]*"[^>]*>/g)];
+assert(icons.length>=8, 'Missing ? help icons');
+for (const icon of icons) assert(!/\btitle=/.test(icon[0]), 'Native title tooltip remains on ? help icon');
+assert(!js.includes("className: 'control-help', title: description"), 'Dynamic help has native title');
+assert.match(js, /function applyTheme\(choice\)/);
+assert.match(js, /document\.documentElement\.dataset\.theme = themeMode/);
+assert.match(js, /applyTheme\('light'\)/);
+assert.match(js, /addLayers\(data\);\s*applyTheme\(themeMode\)/);
+assert.match(js, /roads-line', 'line-opacity',[\s\S]*?themeMode === 'dark'/);
+assert.match(css, /sigma-explorer-theme-20261019-v4/);
+assert.match(css, /html\[data-theme="dark"\] #network/);
+assert.match(css, /\.sigma-help-popup \{ background:#22352a/);
+console.log('PASS: one help tooltip, light default, map/diagram/dark panel theming.');

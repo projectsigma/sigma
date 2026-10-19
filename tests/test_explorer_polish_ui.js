@@ -1,0 +1,21 @@
+// SIGMA Explorer v5: only presentation is changed; network logic is preserved.
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const dir = path.resolve(__dirname, '../src/sigma/web/static');
+const html = fs.readFileSync(path.join(dir,'index.html'),'utf8');
+const js = fs.readFileSync(path.join(dir,'app.js'),'utf8');
+const css = fs.readFileSync(path.join(dir,'style.css'),'utf8');
+assert(html.includes('sigma-explorer-polish-20261019-v5'));
+assert(css.includes('sigma-explorer-polish-20261019-v5'));
+assert.match(css, /\.top \.top-right \{ display:flex; align-items:center;/);
+assert.match(js, /textContent: isNum\(score\) \? fmtCoef\(score\) : '—'/);
+assert(!js.includes('`Strength ${fmtCoef(score)}`'), 'Do not render word Strength');
+assert.match(js, /labelledNodes: 12/);
+assert.match(js, /selector: 'node.focus', style: \{'width': 28, 'height': 28/);
+assert.match(js, /'background-color': dark \? '#4d9872' : '#255b45'/);
+assert.match(js, /selector: 'edge.focus-edge', style: \{'opacity': 0\.78/);
+assert.match(js, /if \(!network \|\| hidden\.size === sectors\.size\) return codeOrder\(a, b\)/);
+assert.match(js, /function displayedSectorStrength\(\)/);
+console.log('PASS: theme aligned, coefficient numbers kept, graph nodes/labels polished.');

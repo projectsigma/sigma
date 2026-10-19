@@ -1,0 +1,27 @@
+// SIGMA Explorer final v3 overlay: UI defaults, custom depth, sorting and sizes.
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname,'..');
+const base = path.join(root, 'src/sigma/web/static');
+const html = fs.readFileSync(path.join(base,'index.html'),'utf8');
+const js = fs.readFileSync(path.join(base,'app.js'),'utf8');
+const css = fs.readFileSync(path.join(base,'style.css'),'utf8');
+assert.match(html, /sigma-explorer-final-20261019-v3/);
+assert.match(html, /<option value="1" selected>Direct links<\/option>/);
+assert.match(html, /<option value="2">Two steps<\/option>/);
+assert.match(html, /<option value="3">Three steps<\/option>/);
+assert.match(html, /<option value="custom">Custom…<\/option>/);
+assert.match(html, /id="depth-custom"[^>]*min="1" max="20"[^>]*hidden disabled/);
+assert.match(js, /depthCustom\.addEventListener\('input'/);
+assert.match(js, /Number\.isSafeInteger\(value\) && value >= 1 && value <= 20/);
+assert.match(js, /if \(!network \|\| hidden\.size === sectors\.size\) return codeOrder\(a, b\)/);
+assert.match(js, /numeric: true, sensitivity: 'base'/);
+assert.match(js, /textContent: isNum\(score\) \? fmtCoef\(score\) : '—'/);
+assert(!js.includes('`a ${fmtCoef(score)}`'), 'Sector rows must not display unexplained "a"');
+assert.match(js, /Circle AREA, not radius, is proportional to normalized SIGMA score/);
+assert.match(js, /scoreRadius\(2\.0, 10\.5\)/);
+assert.match(css, /sigma-explorer-final-20261019-v3/);
+assert.match(js, /function updateCenterVisibility\(\)/);
+console.log('PASS: custom depth, code reset, coefficient-only, area-scaled SIGMA points.');
