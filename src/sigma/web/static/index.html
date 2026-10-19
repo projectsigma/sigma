@@ -35,14 +35,14 @@
       <option value="both">Both directions</option>
       <option value="outgoing">Supplies inputs to</option>
       <option value="incoming">Uses inputs from</option>
-    </select></label> <span class="control-help" role="note" tabindex="0" aria-label="Help: Links. An arrow points from the supplying sector to the sector using its inputs. Both directions explores suppliers and users; Supplies inputs to explores outgoing links; Uses inputs from explores incoming links." data-tip="An arrow points from the supplying sector to the sector using its inputs. Both directions explores suppliers and users; Supplies inputs to explores outgoing links; Uses inputs from explores incoming links.">?</span></span>
+    </select></label> <span class="control-help" role="note" tabindex="0" aria-label="Help: Links. Links controls network traversal, not road color. Supplies inputs to follows outgoing modeled X edges; Uses inputs from follows incoming edges; Both directions follows either (it does not mean that every link is reciprocal). Road color describes each displayed pair relative to the cluster nearer the selection: red = supplies, blue = uses, purple = reciprocal links between the same two clusters. At deeper steps, backward and cross-links within the discovered network may have the opposite color even in a one-direction search. For equal-depth pairs, node-ID order provides a consistent color reference. Depth affects thickness and opacity, not color." data-tip="Links controls network traversal, not road color. Supplies inputs to follows outgoing modeled X edges; Uses inputs from follows incoming edges; Both directions follows either (it does not mean that every link is reciprocal). Road color describes each displayed pair relative to the cluster nearer the selection: red = supplies, blue = uses, purple = reciprocal links between the same two clusters. At deeper steps, backward and cross-links within the discovered network may have the opposite color even in a one-direction search. For equal-depth pairs, node-ID order provides a consistent color reference. Depth affects thickness and opacity, not color.">?</span></span>
   <span class="toolbar-control"><label>Depth
     <select id="depth">
       <option value="1" selected>Direct links</option>
       <option value="2">Two steps</option>
       <option value="3">Three steps</option>
       <option value="custom">Custom…</option>
-    </select></label> <span class="control-help" role="note" tabindex="0" aria-label="Help: Depth. How far to traverse the cluster network from the selected cluster: direct, two or three steps, or a custom number of link steps (1–20). Map road paths are shown for direct links; farther relationships appear in the network diagram." data-tip="How far to traverse the cluster network from the selected cluster: direct, two or three steps, or a custom number of link steps (1–20). Map road paths are shown for direct links; farther relationships appear in the network diagram.">?</span></span>
+    </select></label> <span class="control-help" role="note" tabindex="0" aria-label="Help: Depth. How far to traverse the cluster network from the selected cluster: direct, two or three steps, or a custom number of link steps (1–20). Published road paths are shown for all reached steps, progressively thinner and fainter at greater depths." data-tip="How far to traverse the cluster network from the selected cluster: direct, two or three steps, or a custom number of link steps (1–20). Published road paths are shown for all reached steps, progressively thinner and fainter at greater depths.">?</span></span>
   <input id="depth-custom" class="top-custom depth-custom" type="number" min="1" max="20" step="1" value="4" inputmode="numeric" aria-label="Custom depth in network steps, from 1 to 20" hidden disabled>
   <span class="toolbar-control"><label>Strongest
     <select id="top">
@@ -70,7 +70,8 @@
       <span><i class="legend-dot center"></i>Cluster center</span>
       <span><i class="legend-line outgoing"></i>Supplies inputs to (solid)</span>
       <span><i class="legend-line incoming"></i>Uses inputs from (dashed)</span>
-      <span class="legend-note">A link in both directions shows both lines on one road. Line width = coefficient relative to the strongest shown link.</span>
+      <span><i class="legend-line both"></i>Both directions (reciprocal)</span>
+      <span class="legend-note">Road colors: red = supplies inputs, blue = uses inputs, purple = reciprocal X links. Greater network depth makes routes thinner and fainter. Separate published paths remain separate.</span>
     </div>
   </section>
   <aside class="side">
@@ -83,13 +84,14 @@
     </section>
     <section class="graph-section">
       <div class="section-head"><h2>Cluster network <span class="control-help " tabindex="0" role="note" aria-label="Help: Cluster network. Diagram of the clusters reached from the selected cluster, according to Links, Depth, Strongest, and the sectors still visible. Arrows point from the supplying cluster to the cluster using its inputs. Click a node to make it the new selection." data-tip="Diagram of the clusters reached from the selected cluster, according to Links, Depth, Strongest, and the sectors still visible. Arrows point from the supplying cluster to the cluster using its inputs. Click a node to make it the new selection.">?</span></h2><small id="graph-count"></small></div>
-      <div class="graph-actions"><button type="button" id="graph-fit">Fit graph</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Fit graph. Fit and center the network diagram in its current pane without changing the graph." data-tip="Fit and center the network diagram in its current pane without changing the graph.">?</span><button type="button" id="theater-toggle" aria-pressed="false">Theater view</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Theater view. Expand the network diagram for closer inspection. Use Exit theater or Escape to return." data-tip="Expand the network diagram for closer inspection. Use Exit theater or Escape to return.">?</span></div>
+      <!-- sigma-explorer-graph-legibility-20261020-v7 -->
+<div class="graph-actions"><button type="button" id="graph-focus">Focus nearby</button> <span class="control-help" role="note" tabindex="0" aria-label="Help: Focus nearby. Zoom into the selected cluster and the first two network rings. Other clusters remain in the diagram; use Fit graph to see all of them." data-tip="Zoom into the selected cluster and the first two network rings. Other clusters remain in the diagram; use Fit graph to see all of them.">?</span> <button type="button" id="graph-fit">Fit graph</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Fit graph. Fit and center the network diagram in its current pane without changing the graph." data-tip="Fit and center the network diagram in its current pane without changing the graph.">?</span><button type="button" id="theater-toggle" aria-pressed="false">Theater view</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Theater view. Expand the network diagram for closer inspection. Use Exit theater or Escape to return." data-tip="Expand the network diagram for closer inspection. Use Exit theater or Escape to return.">?</span></div>
       <div class="network-wrap">
         <div id="network" role="region" aria-label="Cluster network diagram"></div>
         <div id="graph-tip" class="graph-tip" hidden></div>
         <p id="network-empty" class="network-empty">The network of the selected cluster appears here.</p>
       </div>
-      <p class="hint">Center: selected cluster. Rings: network steps from the selected cluster (set by Depth). Arrowheads point to the sector that uses the inputs. Click a node to move to that cluster.</p>
+      <p class="hint">Center: selected cluster. Rings: network steps. Nearby nodes and links are emphasized; outer rings remain visible. Use <strong>Focus nearby</strong> for details or <strong>Fit graph</strong> for the full network. Arrows point toward the cluster using the inputs.</p>
     </section>
     <section class="connections-section" id="connections-section" hidden>
       <div class="section-head"><h2>Linked clusters <span class="control-help " tabindex="0" role="note" aria-label="Help: Linked clusters. The selected cluster&#x27;s direct connections after the current Links, Strongest and visible-sector filters. Technical coefficients measure modeled input requirements, not road distance or actual sales." data-tip="The selected cluster&#x27;s direct connections after the current Links, Strongest and visible-sector filters. Technical coefficients measure modeled input requirements, not road distance or actual sales.">?</span></h2><small id="edge-count"></small></div>
@@ -102,7 +104,7 @@
     </section>
   </aside>
 </main>
-<footer>Network X holds modeled, directed cluster-level spatial-economic relationships, not verified supplier–customer transactions. Map lines are SIGMA's exact shortest road paths for direct links; links further away appear only in the network diagram.</footer>
+<footer>Network X holds modeled, directed cluster-level spatial-economic relationships, not verified supplier–customer transactions. Colored map lines use SIGMA's published shortest road paths for each displayed network edge; higher-step connections are thinner and fainter.</footer>
 <div id="error" role="alert" hidden></div>
 <script src="vendor/maplibre-gl.js"></script>
 <script src="vendor/cytoscape.min.js"></script>

@@ -8,6 +8,8 @@
  * X edges are directed: an edge i -> j means sector i supplies inputs to sector j.
  */
 'use strict';
+// SIGMA multistep exact routes v1
+// SIGMA reciprocal three-color depth routes v2
 (() => {
   const $ = id => document.getElementById(id);
   const EMPTY = () => ({type: 'FeatureCollection', features: []});
@@ -71,7 +73,11 @@
       paint('roads-line', 'line-color', dark ? '#9eb6a6' : '#949b9b');
       paint('roads-line', 'line-opacity', network ? (dark ? 0.29 : 0.18) : (dark ? 0.53 : 0.38));
       paint('partition-focus-line', 'line-color', dark ? '#b0dfc1' : COLOR.focus);
-      paint('routes-casing', 'line-color', dark ? '#17281f' : '#ffffff');
+      // Match every route depth: dark/light themes affect the palette, not its meaning.
+      for (let step = 1; step <= 20; step++) {
+        const stem = step === 1 ? 'routes' : `routes-step-${step}`;
+        paint(step === 1 ? 'routes-casing' : `${stem}-casing`, 'line-color', dark ? '#17281f' : '#ffffff');
+      }
       // Against a dark map, muted/dark strokes avoid bright halos around
       // thousands of colored establishments. Preserve the focus outline.
       paint('establishments', 'circle-stroke-color', network ?
@@ -81,8 +87,14 @@
       paint('partition-focus-fill', 'fill-opacity', dark ? 0.19 : 0.25);
       paint('partition-linked-line', 'line-opacity', dark ? 0.70 : 0.78);
       paint('partition-focus-line', 'line-color', dark ? '#85bd9e' : COLOR.focus);
-      paint('routes', 'line-color', dark ? '#ef9d8b' : COLOR.outgoing);
-      paint('routes-in', 'line-color', dark ? '#8cc8e9' : COLOR.incoming);
+      // red = supply, blue = use, purple = both. Same hues at every depth.
+      const tripleColor = ['match', ['get', 'kind'], 'both',
+        dark ? '#c9a4ed' : COLOR.both, dark ? '#ef9d8b' : COLOR.outgoing];
+      for (let step = 1; step <= 20; step++) {
+        const stem = step === 1 ? 'routes' : `routes-step-${step}`;
+        paint(stem, 'line-color', tripleColor);
+        paint(step === 1 ? 'routes-in' : `${stem}-in`, 'line-color', dark ? '#8cc8e9' : COLOR.incoming);
+      }
       paint('selected-point', 'circle-stroke-color', dark ? '#e9aa55' : '#d99d2c');
       if (state.partitions === 'network' && network) {
         paint('partition-line', 'line-color', dark ? '#627d69' : '#cad6cf');
@@ -92,12 +104,12 @@
     // Theme Cytoscape's canvas explicitly. No text backgrounds on any node:
     // these used to obscure the focal circle with a bright label rectangle.
     if (cy && cy.style) {
-      const quiet = dark ? '#79988a' : '#9eafa5';
+      const quiet = dark ? '#93b8a5' : '#718879';
       const outward = dark ? '#ef9d8b' : '#b35a4f';
       const inward = dark ? '#8cc8e9' : '#39779a';
       cy.style()
         .selector('node').style({
-          'border-color': dark ? '#20362b' : '#f0f4f1'
+          'border-color': dark ? '#a0c9b4' : '#506a5b'
         })
         .selector('node.labelled').style({
           color: dark ? '#d2e1d6' : '#4b5e53',
@@ -113,8 +125,11 @@
         })
         .selector('edge').style({
           'line-color': quiet, 'target-arrow-color': quiet,
-          'source-arrow-color': quiet, opacity: dark ? 0.28 : 0.20
+          'source-arrow-color': quiet, opacity: dark ? 0.60 : 0.52
         })
+        .selector('edge.mid-edge').style({opacity: dark ? 0.76 : 0.68})
+        .selector('edge.outer-edge').style({opacity: dark ? 0.53 : 0.43})
+        .selector('edge.focus-edge').style({opacity: 0.96})
         .selector('edge.focus-edge.outgoing').style({
           'line-color': outward, 'target-arrow-color': outward,
           'source-arrow-color': outward
@@ -407,31 +422,110 @@
     }
   }
 
+  // Render the directed X edges in the selected network, not only the focus's
+  // immediate neighbors. Geometry is read from each edge's published source
+  // cluster route file; no geographic lines are inferred or recomputed.
+  // SIGMA reciprocal three-color depth routes v2.
+  // Relationship colors are defined relative to the endpoint closer to focus:
+  // outgoing/supply = red, incoming/use = blue, genuine reciprocal = purple.
+  // When rings tie, anchor the unordered pair by stable node ID. This is a
+  // display convention only; source/target are always the true directed X edge.
+  // Published route geometry is read unchanged from the source node's route file.
+  const routePairKey = (a, b) => JSON.stringify([a, b].sort());
+  const sameRoadGeometry = (a, b) => {
+    if (!a || !b || a.type !== b.type) return false;
+    if (JSON.stringify(a.coordinates) === JSON.stringify(b.coordinates)) return true;
+    // Reverse geometry can be shared visually, but keep both directed X values.
+    return a.type === 'LineString' &&
+      JSON.stringify(a.coordinates) === JSON.stringify(b.coordinates.slice().reverse());
+  };
+  const routeAnchor = (a, b, ring) => {
+    const da = ring.get(a), db = ring.get(b);
+    return da < db ? a : db < da ? b : String(a) < String(b) ? a : b;
+  };
   async function showRoutes() {
     const epoch = ++routeEpoch;
     ++hoverEpoch;
     setData('route-hover', EMPTY());
-    const n = network && nodeIndex.get(network.focus);
-    if (!n || !n.route_file || !network.direct.length) { setData('routes', EMPTY()); return; }
+    if (!network || !network.edges.length) { setData('routes', EMPTY()); return; }
+    const current = network;
+    const strongest = Math.max(1e-12, ...current.edges.map(e => e.strength));
+    const bySource = new Map();
+    for (const edge of current.edges) {
+      const a = current.ring.get(edge.source), b = current.ring.get(edge.target);
+      const source = nodeIndex.get(edge.source);
+      if (!source || !source.route_file || a === undefined || b === undefined) continue;
+      const pairKey = routePairKey(edge.source, edge.target);
+      const anchor = routeAnchor(edge.source, edge.target, current.ring);
+      const depth = Math.max(1, a, b);
+      const descriptor = {edge, anchor, depth, pairKey};
+      if (!bySource.has(source.route_file)) bySource.set(source.route_file, []);
+      bySource.get(source.route_file).push(descriptor);
+    }
+    const entries = [...bySource.entries()];
+    const output = [];
+    let cursor = 0;
+    // Fetch at most eight route files simultaneously; cached files are reused.
+    async function worker() {
+      while (cursor < entries.length) {
+        const [file, wanted] = entries[cursor++];
+        const fc = await getRoutes(file);
+        if (epoch !== routeEpoch) return;
+        const needed = new Map(wanted.map(d => [JSON.stringify([d.edge.source, d.edge.target]), d]));
+        for (const f of (fc.features || [])) {
+          const p = f.properties || {};
+          const descriptor = needed.get(JSON.stringify([p.from, p.to]));
+          if (!descriptor || !f.geometry) continue;
+          const c = isNum(p.coefficient) ? Math.max(0, p.coefficient) : 0;
+          output.push({...f, properties: {...p,
+            depth: descriptor.depth, anchor: descriptor.anchor,
+            pair_key: descriptor.pairKey,
+            kind: p.from === descriptor.anchor ? 'outgoing' : 'incoming',
+            wn: Math.min(1, Math.sqrt(c / strongest))}});
+        }
+      }
+    }
     try {
-      const fc = await getRoutes(n.route_file);
+      await Promise.all(Array.from({length: Math.min(8, entries.length)}, worker));
       if (epoch !== routeEpoch) return;
-      const keep = new Map(network.direct.map(r => [r.other, r]));
-      const strongest = Math.max(1e-12, ...network.direct.map(r => r.strength));
-      const features = fc.features.filter(f => {
-        const r = keep.get(f.properties.other);
-        if (!r) return false;
-        return f.properties.direction === 'outgoing' ? !!r.out : !!r.in;
-      }).map(f => {
-        const c = f.properties.coefficient;
-        return {...f, properties: {...f.properties,
-          kind: f.properties.direction,
-          wn: Math.sqrt((isNum(c) ? c : 0) / strongest),
-        }};
-      });
-      features.sort((a, b) => a.properties.wn - b.properties.wn);
+      // A reciprocal pair has two independent directed X edges. Their road
+      // paths may or may not coincide, and both coefficients must survive.
+      // Only combine features when their published geometries truly coincide.
+      const byPair = new Map();
+      for (const feature of output) {
+        const key = feature.properties.pair_key;
+        if (!byPair.has(key)) byPair.set(key, []);
+        byPair.get(key).push(feature);
+      }
+      const features = [];
+      for (const group of byPair.values()) {
+        const byDirected = new Map(group.map(f => [JSON.stringify([f.properties.from, f.properties.to]), f]));
+        for (const f of group) {
+          const p = f.properties;
+          const inverse = byDirected.get(JSON.stringify([p.to, p.from]));
+          if (!inverse || inverse === f) {
+            features.push(f);
+            continue;
+          }
+          // Both directed connections are modeled. Never infer reciprocity
+          // solely from unrelated routes sharing the same physical roadway.
+          const q = inverse.properties;
+          const separate = !sameRoadGeometry(f.geometry, inverse.geometry);
+          const enhanced = {...f, properties: {...p, kind: 'both', reciprocal: true,
+            reverse_coefficient: q.coefficient, reverse_weight: q.weight,
+            reverse_distance: q.distance, separate_paths: separate}};
+          if (separate || p.from === p.anchor) features.push(enhanced);
+        }
+      }
+      // Actual overpainting order is determined by route layers, not array order:
+      // the outermost depth is drawn first and direct links are drawn last.
+      features.sort((a, b) => b.properties.depth - a.properties.depth ||
+        a.properties.wn - b.properties.wn ||
+        String(a.properties.pair_key).localeCompare(String(b.properties.pair_key)));
       setData('routes', {type: 'FeatureCollection', features});
-    } catch (err) { if (epoch === routeEpoch) showError(err); }
+    } catch (err) {
+      if (epoch === routeEpoch) { setData('routes', EMPTY()); showError(err); }
+    }
   }
 
   async function highlightRoute(other, direction = null) {
@@ -532,6 +626,7 @@
       body));
   }
 
+  // sigma-explorer-graph-legibility-20261020-v7: legible multi-ring Cytoscape overview and near-focus inspection.
   // ------------------------------------------------------------------ network diagram
   function drawGraph() {
     cy.elements().remove();
@@ -553,15 +648,20 @@
       const outgoing = e.source === network.focus;
       const incoming = e.target === network.focus;
       const reciprocal = directedIds.has(`${e.target}\u0000${e.source}`);
+      const near = Math.min(network.ring.get(e.source), network.ring.get(e.target));
+      const depthClass = near <= 1 ? 'mid-edge' : 'outer-edge';
       const classes = [outgoing || incoming ? 'focus-edge' : '', outgoing ? 'outgoing' : '',
-        incoming ? 'incoming' : '', reciprocal ? 'reciprocal' : ''].join(' ');
+        incoming ? 'incoming' : '', reciprocal ? 'reciprocal' : '', depthClass].join(' ');
       elements.push({group: 'edges', data: {id: `e${i}`, source: e.source, target: e.target,
         wn: Math.sqrt(e.strength / strongest), coefficient: e.coefficient,
         distance: e.distance, weight: e.weight}, classes});
     });
     cy.add(elements);
+    // At high depth, retain labels on the center and its immediate neighbors.
+    // Farther clusters stay selectable and are described on hover.
     if (ids.length <= LIMIT.labelledNodes) cy.nodes().addClass('labelled');
-    cy.layout({name: 'concentric', concentric: n => n.data('level'), levelWidth: () => 1, minNodeSpacing: 6,
+    else cy.nodes().filter(n => n.data('ring') <= 1).addClass('labelled');
+    cy.layout({name: 'concentric', concentric: n => n.data('level'), levelWidth: () => 1, minNodeSpacing: 16,
       startAngle: 1.5 * Math.PI, clockwise: true, equidistant: true, avoidOverlap: true, animate: false, fit: true, padding: 26}).run();
     const linkCount = cy.edges().length;
     $('graph-count').textContent = `${ids.length} clusters · ${linkCount} directed edges${network.truncated ? ' (display limited)' : ''}`;
@@ -721,32 +821,52 @@
 
   // Routes of reciprocal edges, and routes that share the first road segments, lie on the
   // same pixels. List every route under the cursor, one block per linked cluster.
+  // Route hover groups by DIRECTED edge rather than by focus neighbor so
+  // second- and third-step connections are correctly identified.
+  // Describe real directed edges. Purple requires both reciprocal X edges,
+  // not coincident map segments from unrelated cluster pairs.
   function describeRoutes(hits) {
-    const focus = network && nodeIndex.get(network.focus);
-    if (!focus) return [];
-    const byOther = new Map();
+    if (!network) return [];
+    const byPair = new Map();
     for (const h of hits) {
-      const p = h.properties;
-      if (!byOther.has(p.other)) byOther.set(p.other, {});
-      byOther.get(p.other)[p.kind] = p;
+      const p = h.properties || {};
+      if (!p.from || !p.to) continue;
+      const key = p.pair_key || routePairKey(p.from, p.to);
+      if (!byPair.has(key)) byPair.set(key, p);
     }
-    const blocks = [];
-    for (const [other, rel] of byOther) {
-      const n = nodeIndex.get(other);
-      if (!n) continue;
+    return [...byPair.values()].map(p => {
+      const a = p.anchor || p.from;
+      const b = p.from === a ? p.to : p.from;
+      const near = nodeIndex.get(a), far = nodeIndex.get(b);
+      const name = id => { const n = nodeIndex.get(id); return n ? shortLabel(n) : id; };
+      const depth = Number(p.depth) || 1;
       const rows = [];
-      if (rel.outgoing) rows.push(`→ Supplies inputs to it: a = ${fmtCoef(rel.outgoing.coefficient)} (X weight ${fmtNum(rel.outgoing.weight)})`);
-      if (rel.incoming) rows.push(`← Uses inputs from it: a = ${fmtCoef(rel.incoming.coefficient)} (X weight ${fmtNum(rel.incoming.weight)})`);
-      rows.push(`Road distance ${fmtDist((rel.outgoing || rel.incoming).distance)}`);
-      const strength = Math.max(rel.outgoing ? rel.outgoing.coefficient || 0 : 0, rel.incoming ? rel.incoming.coefficient || 0 : 0);
-      blocks.push({title: `${shortLabel(focus)} and ${nodeLabel(n)}`, rows, strength});
-    }
-    return blocks.sort((a, b) => b.strength - a.strength);
+      if (p.kind === 'both') {
+        const outward = p.from === a;
+        const supply = outward ? p : {coefficient: p.reverse_coefficient, weight: p.reverse_weight, distance: p.reverse_distance};
+        const use = outward ? {coefficient: p.reverse_coefficient, weight: p.reverse_weight, distance: p.reverse_distance} : p;
+        rows.push(`${name(a)} → ${name(b)}: a = ${fmtCoef(supply.coefficient)} (X weight ${fmtNum(supply.weight)})`);
+        rows.push(`${name(b)} → ${name(a)}: a = ${fmtCoef(use.coefficient)} (X weight ${fmtNum(use.weight)})`);
+        rows.push(p.separate_paths ? 'Reciprocal X links use two distinct published road paths' : 'Reciprocal X links share the same published road path');
+      } else {
+        rows.push(`${name(p.from)} → ${name(p.to)}: a = ${fmtCoef(p.coefficient)} (X weight ${fmtNum(p.weight)})`);
+      }
+      rows.push(`Road distance ${fmtDist(p.distance)}`);
+      return {title: `${near ? shortLabel(near) : a} ${p.kind === 'both' ? '↔' : '—'} ${far ? shortLabel(far) : b} · step ${depth}`,
+        rows, strength: Math.max(0, Number(p.coefficient) || 0, Number(p.reverse_coefficient) || 0)};
+    }).sort((a, b) => b.strength - a.strength);
   }
 
   const POPUP_BLOCKS = 3;
   function onHover(event) {
-    const layers = ['centers', 'establishments', 'routes', 'routes-in'].filter(l => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
+    // Query all depth-group layers, with centers and establishments first.
+    const routeLayers = [];
+    for (let step = 1; step <= 20; step++) {
+      const stem = step === 1 ? 'routes' : `routes-step-${step}`;
+      routeLayers.push(stem, step === 1 ? 'routes-in' : `${stem}-in`);
+    }
+    const layers = ['centers', 'establishments', ...routeLayers].filter(l =>
+      map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
     const hits = map.queryRenderedFeatures(event.point, {layers});
     const places = hits.filter(h => h.layer.id === 'centers' || h.layer.id === 'establishments');
     map.getCanvas().style.cursor = places.length ? 'pointer' : '';
@@ -914,16 +1034,46 @@
       layout: {visibility: 'none'}, paint: {'line-color': COLOR.focus,
         'line-width': 1.25, 'line-opacity': 0.97}});
     map.addSource('routes', {type: 'geojson', data: EMPTY()});
-    const width = (a, b) => ['interpolate', ['linear'], ['get', 'wn'], 0, a, 1, b];
-    map.addLayer({id: 'routes-casing', type: 'line', source: 'routes', layout: {'line-join': 'round', 'line-cap': 'round'},
-      paint: {'line-color': '#ffffff', 'line-width': width(1.35, 3.25), 'line-opacity': 0.85}});
-    map.addLayer({id: 'routes', type: 'line', source: 'routes', filter: ['==', ['get', 'kind'], 'outgoing'],
+    // Each feature retains its exact published geometry. Layers are registered
+    // deepest-first so earlier road links stay in front of later steps.
+    const width = (a, b, step) => ['*', Math.max(0.26, 1 / Math.sqrt(step)),
+      ['interpolate', ['linear'], ['get', 'wn'], 0, a, 1, b]];
+    const routeDim = step => Math.max(0.18, 0.86 / Math.sqrt(step));
+    const routeColor = ['match', ['get', 'kind'], 'both', COLOR.both, COLOR.outgoing];
+    const stepFilter = step => ['==', ['get', 'depth'], step];
+    // Deeper routes use one set of layers per depth, never per-edge layers.
+    for (let step = 20; step > 1; step--) {
+      const stem = `routes-step-${step}`;
+      const dim = routeDim(step), onlyStep = stepFilter(step);
+      map.addLayer({id: `${stem}-casing`, type: 'line', source: 'routes', filter: onlyStep,
+        layout: {'line-join': 'round', 'line-cap': 'round'},
+        paint: {'line-color': '#ffffff', 'line-width': width(1.35, 3.25, step),
+          'line-opacity': Math.min(0.65, dim * 0.7)}});
+      map.addLayer({id: stem, type: 'line', source: 'routes',
+        filter: ['all', onlyStep, ['!=', ['get', 'kind'], 'incoming']],
+        layout: {'line-join': 'round', 'line-cap': 'round'},
+        paint: {'line-color': routeColor, 'line-width': width(0.7, 2.2, step), 'line-opacity': dim}});
+      map.addLayer({id: `${stem}-in`, type: 'line', source: 'routes',
+        filter: ['all', onlyStep, ['==', ['get', 'kind'], 'incoming']],
+        layout: {'line-join': 'round', 'line-cap': 'round'},
+        paint: {'line-color': COLOR.incoming, 'line-width': width(0.7, 2.2, step),
+          'line-opacity': dim, 'line-dasharray': [2, 1]}});
+    }
+    // Keep the original route IDs used by existing Explorer regressions.
+    const direct = stepFilter(1), directDim = routeDim(1);
+    map.addLayer({id: 'routes-casing', type: 'line', source: 'routes', filter: direct,
       layout: {'line-join': 'round', 'line-cap': 'round'},
-      paint: {'line-color': COLOR.outgoing, 'line-width': width(0.7, 2.2), 'line-opacity': 0.86}});
-    map.addLayer({id: 'routes-in', type: 'line', source: 'routes', filter: ['==', ['get', 'kind'], 'incoming'],
+      paint: {'line-color': '#ffffff', 'line-width': width(1.35, 3.25, 1),
+        'line-opacity': Math.min(0.65, directDim * 0.7)}});
+    map.addLayer({id: 'routes', type: 'line', source: 'routes',
+      filter: ['all', direct, ['!=', ['get', 'kind'], 'incoming']],
       layout: {'line-join': 'round', 'line-cap': 'round'},
-      paint: {'line-color': COLOR.incoming, 'line-width': width(0.7, 2.2), 'line-opacity': 0.86,
-        'line-dasharray': [2, 1]}});
+      paint: {'line-color': routeColor, 'line-width': width(0.7, 2.2, 1), 'line-opacity': directDim}});
+    map.addLayer({id: 'routes-in', type: 'line', source: 'routes',
+      filter: ['all', direct, ['==', ['get', 'kind'], 'incoming']],
+      layout: {'line-join': 'round', 'line-cap': 'round'},
+      paint: {'line-color': COLOR.incoming, 'line-width': width(0.7, 2.2, 1),
+        'line-opacity': directDim, 'line-dasharray': [2, 1]}});
     map.addSource('route-hover', {type: 'geojson', data: EMPTY()});
     map.addLayer({id: 'route-hover', type: 'line', source: 'route-hover', layout: {'line-join': 'round', 'line-cap': 'round'},
       paint: {'line-color': '#d99d2c', 'line-width': 3.2, 'line-opacity': 0.92}});
@@ -1031,7 +1181,13 @@
     });
     $('reset').addEventListener('click', clearSelection);
     $('theater-toggle').addEventListener('click', toggleTheater);
-    $('graph-fit').addEventListener('click', () => { cy.resize(); cy.fit(undefined, 35); });
+    $('graph-focus').addEventListener('click', () => {
+      if (!network) return;
+      // Zoom into the first two rings without removing outer nodes/edges.
+      const near = cy.nodes().filter(n => n.data('ring') <= 2);
+      if (near.length) { cy.resize(); cy.fit(near, 40); }
+    });
+    $('graph-fit').addEventListener('click', () => { cy.resize(); cy.fit(undefined, 24); });
     $('zoom-network').addEventListener('click', zoomToNetwork);
     $('sectors-all').addEventListener('click', () => { hidden.clear(); sectorsChanged(); });
     $('sectors-none').addEventListener('click', () => { for (const code of sectors.keys()) hidden.add(code); sectorsChanged(); });
@@ -1070,14 +1226,16 @@
     if (window.innerWidth < 1100) document.querySelector('.sector-panel').open = false;
 
     cy = cytoscape({container: $('network'), elements: [], layout: {name: 'preset'}, style: [
-      {selector: 'node', style: {'background-color': 'data(color)', 'width': 14, 'height': 14, 'border-width': 1, 'border-color': '#f0f4f1', 'opacity': 0.96, 'label': ''}},
-      {selector: 'node.labelled', style: {'label': 'data(label)', 'font-size': 10, 'font-weight': 500, 'font-family': 'system-ui, sans-serif', 'color': '#4b5e53', 'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 7, 'text-background-opacity': 0, 'text-outline-width': 0}},
-      {selector: 'node[ring >= 2]', style: {'width': 11, 'height': 11, 'opacity': 0.84}},
+      {selector: 'node', style: {'background-color': 'data(color)', 'width': 20, 'height': 20, 'border-width': 1.5, 'border-color': '#506a5b', 'opacity': 0.98, 'label': ''}},
+      {selector: 'node.labelled', style: {'label': 'data(label)', 'font-size': 11, 'font-weight': 500, 'font-family': 'system-ui, sans-serif', 'color': '#4b5e53', 'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 7, 'text-background-opacity': 0, 'text-outline-width': 0}},
+      {selector: 'node[ring >= 2]', style: {'width': 16, 'height': 16, 'opacity': 0.96}},
       {selector: 'node.focus', style: {'width': 28, 'height': 28, 'background-color': '#255b45', 'border-width': 1.5, 'border-color': '#a5c3b1', 'opacity': 1, 'label': 'data(label)', 'font-family': 'system-ui, sans-serif', 'font-size': 11, 'font-weight': 'bold', 'color': '#245541', 'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 7, 'text-outline-width': 0, 'text-background-opacity': 0, 'z-index': 10}},
-      {selector: 'edge', style: {'width': 'mapData(wn, 0, 1, 0.3, 1.3)', 'line-color': '#9eafa5', 'opacity': 0.20, 'curve-style': 'bezier', 'control-point-step-size': 13, 'target-arrow-color': '#9eafa5', 'source-arrow-color': '#9eafa5', 'arrow-scale': 0.52}},
+      {selector: 'edge', style: {'width': 'mapData(wn, 0, 1, 0.9, 2.2)', 'line-color': '#718879', 'opacity': 0.52, 'curve-style': 'bezier', 'control-point-step-size': 15, 'target-arrow-color': '#718879', 'source-arrow-color': '#718879', 'arrow-scale': 0.78}},
+      {selector: 'edge.mid-edge', style: {'opacity': 0.68, 'z-index': 3}},
+      {selector: 'edge.outer-edge', style: {'opacity': 0.43}},
       {selector: 'edge', style: {'target-arrow-shape': 'triangle'}},
-      {selector: 'edge.focus-edge', style: {'opacity': 0.78, 'z-index': 5}},
-      {selector: 'edge.focus-edge.reciprocal', style: {'opacity': 0.86}},
+      {selector: 'edge.focus-edge', style: {'opacity': 0.96, 'z-index': 5, 'width': 'mapData(wn, 0, 1, 1.6, 3.0)'}},
+      {selector: 'edge.focus-edge.reciprocal', style: {'opacity': 0.97}},
       {selector: 'edge.focus-edge.outgoing', style: {'line-color': '#b35a4f', 'target-arrow-color': '#b35a4f', 'source-arrow-color': '#b35a4f'}},
       {selector: 'edge.focus-edge.incoming', style: {'line-color': '#39779a', 'target-arrow-color': '#39779a', 'source-arrow-color': '#39779a'}},
     ]});

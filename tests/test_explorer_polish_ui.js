@@ -15,7 +15,7 @@ assert(!js.includes('`Strength ${fmtCoef(score)}`'), 'Do not render word Strengt
 assert.match(js, /labelledNodes: 12/);
 assert.match(js, /selector: 'node.focus', style: \{'width': 28, 'height': 28/);
 assert.match(js, /'background-color': dark \? '#4d9872' : '#255b45'/);
-assert.match(js, /selector: 'edge.focus-edge', style: \{'opacity': 0\.78/);
+assert.match(js, /selector: 'edge.focus-edge', style: \{'opacity': 0\.96/);
 assert.match(js, /if \(!network \|\| hidden\.size === sectors\.size\) return codeOrder\(a, b\)/);
 assert.match(js, /function displayedSectorStrength\(\)/);
 console.log('PASS: theme aligned, coefficient numbers kept, graph nodes/labels polished.');

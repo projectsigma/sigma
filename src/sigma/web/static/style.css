@@ -51,6 +51,7 @@ main { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1.6fr)
   background:#fff; clip-path:polygon(0 0, 100% 0, 50% 100%); }
 .legend-line { display:inline-block; width:20px; border-top:2px solid; border-radius:2px; }
 .legend-line.outgoing { color:var(--out); } .legend-line.incoming { color:var(--in); border-top-style:dashed; }
+.legend-line.both { color:var(--both); }
 .legend-note { color:var(--muted); }
 
 .maplibregl-popup-content { padding:7px 10px; font:12px/1.4 system-ui,-apple-system,'Segoe UI',sans-serif; color:var(--text); max-width:280px; }
@@ -280,3 +281,8 @@ html[data-theme="light"] #network {
 }
 html[data-theme="dark"] .maplibregl-popup-content { background:#1d3527; }
 html[data-theme="dark"] .maplibregl-popup-close-button { color:#d2e1d6; }
+
+/* sigma-explorer-graph-legibility-20261020-v7 — make multi-ring topology legible in the sidebar. */
+#network { height:440px; }
+@media (max-height:700px) { #network {height:365px;} }
+.graph-actions #graph-focus {font-weight:600;}
