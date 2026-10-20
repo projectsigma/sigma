@@ -64,3 +64,9 @@ jobs:
 
       - name: Graph legibility and focus controls
         run: node tests/test_explorer_graph_legibility.js
+
+      - name: Establishment finder
+        run: node tests/test_explorer_finder.js
+
+      - name: Collapsible right panel
+        run: node tests/test_explorer_panel_collapse.js

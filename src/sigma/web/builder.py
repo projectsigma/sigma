@@ -52,6 +52,7 @@ POINT_BUDGET = 150_000  # the browser loads establishments only when the view ho
 STATIC_FILES = (
     "index.html",
     "app.js",
+    "establishment-finder.js",
     "network-model.js",
     "style.css",
     "vendor/maplibre-gl.js",
@@ -589,6 +590,8 @@ def _build_unstaged_bundle(
     psic = _column(points, "psic_code", "psic")
     sources_text = _column(points, "sources", "source")
     tiles: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
+    # Local-only name index: sector -> [name, tile key, position in tile, cluster].
+    finder_rows: dict[str, list[list[Any]]] = defaultdict(list)
     overview: dict[tuple[int, int], int] = defaultdict(int)
     tx, ty = _tile_indices(lon, lat)
     ox, oy = _tile_indices(lon, lat, zoom=OVERVIEW_ZOOM)
@@ -598,7 +601,11 @@ def _build_unstaged_bundle(
         if profile == "public":
             continue  # never write individual IDs, names, locations or PSICs
         score = float(scores[i]) if math.isfinite(scores[i]) else None
-        tiles[(int(tx[i]), int(ty[i]))].append({
+        tile_key = (int(tx[i]), int(ty[i]))
+        finder_rows[types.iat[i]].append([
+            names.iat[i], f"{tile_key[0]}/{tile_key[1]}", len(tiles[tile_key]), clusters[i],
+        ])
+        tiles[tile_key].append({
             "type": "Feature",
             "properties": {
                 "id": ids[i], "name": names.iat[i], "type": types.iat[i],
@@ -617,6 +624,19 @@ def _build_unstaged_bundle(
     _json_dump(dest / "data/tiles.json", {
         "zoom": TILE_ZOOM, "tiles": {f"{x}/{y}": len(tiles[(x, y)]) for x, y in sorted(tiles)},
     })
+    # The index contains names and tile-feature locators, so NEVER generate it
+    # in public-profile bundles. Shard by sector and count to bound file size.
+    if profile == "local":
+        index: dict[str, list[str]] = {}
+        for sector_n, code in enumerate(sorted(finder_rows, key=_sector_order)):
+            filenames: list[str] = []
+            rows = finder_rows[code]
+            for start in range(0, len(rows), 4000):
+                filename = f"data/search/s{sector_n:04d}-{start // 4000:04d}.json"
+                _json_dump(dest / filename, rows[start:start + 4000])
+                filenames.append(filename)
+            index[code] = filenames
+        _json_dump(dest / "data/search/index.json", {"version": 1, "sectors": index})
     # Counts per grid cell, placed at the cell center (not at any establishment).
     cells = 1 << OVERVIEW_ZOOM
     _json_dump(dest / "data/overview.geojson", {
@@ -695,6 +715,7 @@ def _build_unstaged_bundle(
         "schema_version": BUNDLE_VERSION,
         "profile": profile,
         "has_points": profile == "local" and bool(len(points)),
+        "has_establishment_finder": profile == "local" and bool(len(points)),
         "overview_grid_zoom": OVERVIEW_ZOOM,
         "area": _text(run.get("area_name") or run.get("area_slug") or source.name),
         "economy_id": economy_id,
