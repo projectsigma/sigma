@@ -75,15 +75,37 @@
     </div>
   </section>
   <aside class="side">
+    <!-- sigma-establishment-finder-v1: local-profile search across all tiles -->
+    <section class="finder-section" aria-label="Establishment finder">
+    <details class="sidebar-disclosure">
+      <summary class="section-head"><h2>Find an establishment <span class="control-help" role="note" tabindex="0" aria-label="Help: Establishment finder. Search establishment names across the local area, whether or not their map tiles are currently in view. Sector filtering is optional. Select a result to zoom to its actual location and inspect its cluster, when assigned. Not available in public-profile bundles." data-tip="Search establishment names across the local area, whether or not their map tiles are currently in view. Sector filtering is optional. Select a result to zoom to its actual location and inspect its cluster, when assigned. Not available in public-profile bundles.">?</span></h2></summary>
+      <div class="sidebar-disclosure-body">
+      <div class="finder-controls">
+        <label for="finder-query">Establishment name</label>
+        <input id="finder-query" type="search" autocomplete="off" spellcheck="false" placeholder="Search by name…" aria-controls="finder-results" />
+        <label for="finder-sector">Sector <span class="muted">(optional)</span></label>
+        <select id="finder-sector" aria-label="Filter establishments by sector"><option value="">All sectors</option></select>
+      </div>
+      <p id="finder-status" class="finder-status" role="status" aria-live="polite">Type at least two letters to search.</p>
+      <div id="finder-results" class="finder-results" role="list" aria-label="Establishment matches"></div>
+      </div>
+    </details>
+    </section>
     <section class="selection">
-      <div class="section-head"><h2>Selected location <span class="control-help " tabindex="0" role="note" aria-label="Help: Selected location. The establishment or cluster you clicked. Clicking an establishment selects its underlying sector-cluster node in network X. The values below describe the published point and node, not inferred transactions." data-tip="The establishment or cluster you clicked. Clicking an establishment selects its underlying sector-cluster node in network X. The values below describe the published point and node, not inferred transactions.">?</span></h2><span id="selected-code" class="muted"></span></div>
+    <details class="sidebar-disclosure" open>
+      <summary class="section-head"><h2>Selected location <span class="control-help " tabindex="0" role="note" aria-label="Help: Selected location. The establishment or cluster you clicked. Clicking an establishment selects its underlying sector-cluster node in network X. The values below describe the published point and node, not inferred transactions." data-tip="The establishment or cluster you clicked. Clicking an establishment selects its underlying sector-cluster node in network X. The values below describe the published point and node, not inferred transactions.">?</span></h2><span id="selected-code" class="muted"></span></summary>
+      <div class="sidebar-disclosure-body">
       <h3 id="place-name">No selection</h3>
       <p id="place-description" class="muted">Click an establishment or a cluster center on the map. Its cluster and the clusters linked to it in network X are then shown on the map and below.</p>
       <div class="stats" id="stats"></div>
       <div class="actions" id="selection-actions" hidden><button type="button" id="zoom-network">Zoom to network</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Zoom to network. Adjust the map to fit the currently displayed network cluster centers. Does not change the network or sector filters." data-tip="Adjust the map to fit the currently displayed network cluster centers. Does not change the network or sector filters.">?</span></div>
+      </div>
+    </details>
     </section>
     <section class="graph-section">
-      <div class="section-head"><h2>Cluster network <span class="control-help " tabindex="0" role="note" aria-label="Help: Cluster network. Diagram of the clusters reached from the selected cluster, according to Links, Depth, Strongest, and the sectors still visible. Arrows point from the supplying cluster to the cluster using its inputs. Click a node to make it the new selection." data-tip="Diagram of the clusters reached from the selected cluster, according to Links, Depth, Strongest, and the sectors still visible. Arrows point from the supplying cluster to the cluster using its inputs. Click a node to make it the new selection.">?</span></h2><small id="graph-count"></small></div>
+    <details class="sidebar-disclosure" open>
+      <summary class="section-head"><h2>Cluster network <span class="control-help " tabindex="0" role="note" aria-label="Help: Cluster network. Diagram of the clusters reached from the selected cluster, according to Links, Depth, Strongest, and the sectors still visible. Arrows point from the supplying cluster to the cluster using its inputs. Click a node to make it the new selection." data-tip="Diagram of the clusters reached from the selected cluster, according to Links, Depth, Strongest, and the sectors still visible. Arrows point from the supplying cluster to the cluster using its inputs. Click a node to make it the new selection.">?</span></h2><small id="graph-count"></small></summary>
+      <div class="sidebar-disclosure-body">
       <!-- sigma-explorer-graph-legibility-20261020-v7 -->
 <div class="graph-actions"><button type="button" id="graph-focus">Focus nearby</button> <span class="control-help" role="note" tabindex="0" aria-label="Help: Focus nearby. Zoom into the selected cluster and the first two network rings. Other clusters remain in the diagram; use Fit graph to see all of them." data-tip="Zoom into the selected cluster and the first two network rings. Other clusters remain in the diagram; use Fit graph to see all of them.">?</span> <button type="button" id="graph-fit">Fit graph</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Fit graph. Fit and center the network diagram in its current pane without changing the graph." data-tip="Fit and center the network diagram in its current pane without changing the graph.">?</span><button type="button" id="theater-toggle" aria-pressed="false">Theater view</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Theater view. Expand the network diagram for closer inspection. Use Exit theater or Escape to return." data-tip="Expand the network diagram for closer inspection. Use Exit theater or Escape to return.">?</span></div>
       <div class="network-wrap">
@@ -92,15 +114,25 @@
         <p id="network-empty" class="network-empty">The network of the selected cluster appears here.</p>
       </div>
       <p class="hint">Center: selected cluster. Rings: network steps. Nearby nodes and links are emphasized; outer rings remain visible. Use <strong>Focus nearby</strong> for details or <strong>Fit graph</strong> for the full network. Arrows point toward the cluster using the inputs.</p>
+      </div>
+    </details>
     </section>
     <section class="connections-section" id="connections-section" hidden>
-      <div class="section-head"><h2>Linked clusters <span class="control-help " tabindex="0" role="note" aria-label="Help: Linked clusters. The selected cluster&#x27;s direct connections after the current Links, Strongest and visible-sector filters. Technical coefficients measure modeled input requirements, not road distance or actual sales." data-tip="The selected cluster&#x27;s direct connections after the current Links, Strongest and visible-sector filters. Technical coefficients measure modeled input requirements, not road distance or actual sales.">?</span></h2><small id="edge-count"></small></div>
+    <details class="sidebar-disclosure" open>
+      <summary class="section-head"><h2>Linked clusters <span class="control-help " tabindex="0" role="note" aria-label="Help: Linked clusters. The selected cluster&#x27;s direct connections after the current Links, Strongest and visible-sector filters. Technical coefficients measure modeled input requirements, not road distance or actual sales." data-tip="The selected cluster&#x27;s direct connections after the current Links, Strongest and visible-sector filters. Technical coefficients measure modeled input requirements, not road distance or actual sales.">?</span></h2><small id="edge-count"></small></summary>
+      <div class="sidebar-disclosure-body">
       <p class="hint">a = technical coefficient: input from the supplying sector per unit of output of the using sector.</p>
       <div id="connections" class="connections"></div>
+      </div>
+    </details>
     </section>
     <section class="central-section" id="central-section">
-      <div class="section-head"><h2>Most central clusters <span class="control-help " tabindex="0" role="note" aria-label="Help: Most central clusters. The top 12 clusters by the centrality values published in this SIGMA bundle, among visible sectors. Centrality is a node-level network measure, not the technical-coefficient ranking used by Strongest." data-tip="The top 12 clusters by the centrality values published in this SIGMA bundle, among visible sectors. Centrality is a node-level network measure, not the technical-coefficient ranking used by Strongest.">?</span></h2><small>by published centrality</small></div>
+    <details class="sidebar-disclosure" open>
+      <summary class="section-head"><h2>Most central clusters <span class="control-help " tabindex="0" role="note" aria-label="Help: Most central clusters. The top 12 clusters by the centrality values published in this SIGMA bundle, among visible sectors. Centrality is a node-level network measure, not the technical-coefficient ranking used by Strongest." data-tip="The top 12 clusters by the centrality values published in this SIGMA bundle, among visible sectors. Centrality is a node-level network measure, not the technical-coefficient ranking used by Strongest.">?</span></h2><small>by published centrality</small></summary>
+      <div class="sidebar-disclosure-body">
       <div id="central" class="connections"></div>
+      </div>
+    </details>
     </section>
   </aside>
 </main>
@@ -109,6 +141,7 @@
 <script src="vendor/maplibre-gl.js"></script>
 <script src="vendor/cytoscape.min.js"></script>
 <script src="network-model.js" defer></script>
+<script src="establishment-finder.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>

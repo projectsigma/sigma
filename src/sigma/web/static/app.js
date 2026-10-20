@@ -23,7 +23,7 @@
     showError('Open this page through "sigma view" (or any HTTP server). Browsers block data loading from file:// pages.');
     return;
   }
-  if (!window.maplibregl || !window.cytoscape || !window.SigmaGraph) {
+  if (!window.maplibregl || !window.cytoscape || !window.SigmaGraph || !window.SigmaFinder) {
     showError('The bundled map or network library did not load. Rebuild the Explorer with "sigma view <area> --refresh".');
     return;
   }
@@ -44,6 +44,7 @@
   let selection = null;          // {id, point}
   let network = null;
   const jsonCache = new Map();
+  let finderEpoch = 0, finderTimer = null;
   let tileEpoch = 0, routeEpoch = 0, hoverEpoch = 0;
   let ready = false;             // map layers exist
 
@@ -681,6 +682,122 @@
     tip.hidden = false;
   }
 
+  // ------------------------------------------------------------------ area-wide establishment finder
+  // Search only local-profile bundles. Each index row points to the exact
+  // existing tiled point, avoiding duplicate point metadata and fake locations.
+  function initializeFinder() {
+    const query = $('finder-query'), filter = $('finder-sector');
+    for (const sector of sectors.values()) {
+      filter.append(el('option', {value: sector.code, textContent: `${sector.code} - ${sector.label}`}));
+    }
+    if (!meta.has_establishment_finder || !meta.has_points) {
+      query.disabled = true;
+      filter.disabled = true;
+      $('finder-status').textContent = meta.profile === 'public'
+        ? 'Unavailable in the public profile (names and locations are excluded).'
+        : 'No searchable establishments in this area.';
+      return;
+    }
+    const later = () => {
+      ++finderEpoch; // Invalidate pending earlier searches immediately on input.
+      if (finderTimer) clearTimeout(finderTimer);
+      finderTimer = setTimeout(runFinder, 200);
+    };
+    query.addEventListener('input', later);
+    filter.addEventListener('change', later);
+    query.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (finderTimer) clearTimeout(finderTimer);
+        runFinder();
+      }
+    });
+  }
+
+  async function loadFinderRows(codes) {
+    const manifest = await getJSON('data/search/index.json');
+    if (manifest.version !== 1 || !manifest.sectors) throw new Error('Invalid establishment finder index. Rebuild with sigma view --refresh.');
+    const grouped = new Map(codes.map(code => [code, []]));
+    const jobs = codes.flatMap(code => (manifest.sectors[code] || []).map(path => ({code, path})));
+    let position = 0;
+    // Bound parallel requests; the same JSON promises are cached across queries.
+    await Promise.all(Array.from({length: Math.min(6, jobs.length)}, async () => {
+      while (position < jobs.length) {
+        const job = jobs[position++];
+        const rows = await getJSON(job.path);
+        grouped.get(job.code).push(...rows);
+      }
+    }));
+    return grouped;
+  }
+
+  async function runFinder() {
+    const epoch = ++finderEpoch;
+    const text = $('finder-query').value.trim();
+    const box = $('finder-results'), status = $('finder-status');
+    box.replaceChildren();
+    if (window.SigmaFinder.normalize(text).length < 2) {
+      status.textContent = 'Type at least two letters to search.';
+      return;
+    }
+    status.textContent = 'Searching establishments…';
+    const sector = $('finder-sector').value;
+    const codes = sector ? [sector] : [...sectors.keys()];
+    try {
+      const rows = await loadFinderRows(codes);
+      if (epoch !== finderEpoch) return; // Newer text/filter superseded this request.
+      const found = window.SigmaFinder.search(rows, text, 30);
+      if (!found.total) { status.textContent = 'No matching establishment names.'; return; }
+      status.textContent = `${found.total.toLocaleString()} matches${found.total > found.matches.length ? ' · showing the first 30' : ''}`;
+      for (const hit of found.matches) {
+        const button = el('button', {type: 'button', className: 'finder-result'});
+        button.append(el('span', {className: 'finder-name', textContent: hit.name}),
+          el('span', {className: 'finder-detail', textContent:
+            `${sectorLabel(hit.sector)}${hit.cluster == null ? '' : ` · cluster ${hit.cluster}`}`}));
+        button.addEventListener('click', () => pickFinderResult(hit));
+        box.append(el('div', {role: 'listitem'}, button));
+      }
+    } catch (err) {
+      if (epoch === finderEpoch) status.textContent = `Search unavailable: ${err.message || err}`;
+    }
+  }
+
+  async function pickFinderResult(hit) {
+    const status = $('finder-status');
+    status.textContent = `Locating ${hit.name}…`;
+    try {
+      const fc = await getJSON(`data/tiles/${tileIndex.zoom}/${hit.tile}.geojson`);
+      const feature = fc.features[hit.offset];
+      if (!feature || feature.properties.name !== hit.name ||
+          String(feature.properties.type) !== String(hit.sector) ||
+          feature.geometry.type !== 'Point') throw new Error('Search index and tile disagree. Rebuild Explorer with --refresh.');
+      const coordinates = feature.geometry.coordinates;
+      const point = {...feature.properties, coordinates};
+      if (hidden.has(hit.sector)) {
+        hidden.delete(hit.sector);
+        renderSectors();
+        renderCentral();
+      }
+      if (point.node_id && nodeIndex.has(point.node_id)) {
+        selectNode(point.node_id, point);
+      } else {
+        // Unassigned establishments still have a known, exact location.
+        clearSelection();
+        $('place-name').textContent = point.name;
+        $('place-description').textContent = `${sectorLabel(hit.sector)} · No assigned X cluster`;
+        setData('selected-point', {type: 'FeatureCollection', features: [
+          {type: 'Feature', properties: {}, geometry: {type: 'Point', coordinates}}]});
+      }
+      map.easeTo({center: coordinates, zoom: Math.max(map.getZoom(), 15), duration: 500});
+      status.textContent = `Located: ${hit.name}`;
+      // Close search results after a successful selection, revealing the graph.
+      const finderPanel = $('finder-query').closest('.sidebar-disclosure');
+      if (finderPanel) finderPanel.open = false;
+    } catch (err) {
+      status.textContent = `Could not locate establishment: ${err.message || err}`;
+    }
+  }
+
   // ------------------------------------------------------------------ selection
   function refresh() {
     network = selection && nodeIndex.has(selection.id) ? buildNetwork(selection.id) : null;
@@ -1239,6 +1356,14 @@
       {selector: 'edge.focus-edge.outgoing', style: {'line-color': '#b35a4f', 'target-arrow-color': '#b35a4f', 'source-arrow-color': '#b35a4f'}},
       {selector: 'edge.focus-edge.incoming', style: {'line-color': '#39779a', 'target-arrow-color': '#39779a', 'source-arrow-color': '#39779a'}},
     ]});
+    // A graph hidden in a collapsed panel must resize after it becomes visible.
+    // Native <details> handles keyboard/pointer toggling without custom state.
+    document.querySelector('.graph-section .sidebar-disclosure').addEventListener('toggle', event => {
+      if (event.target.open && cy) requestAnimationFrame(() => {
+        cy.resize();
+        if (network) cy.fit(undefined, 24);
+      });
+    });
     cy.on('tap', 'node', e => selectNode(e.target.id(), null, {fly: true}));
     cy.on('mouseover', 'node', e => graphTip(e, true));
     cy.on('mouseout', 'node', e => graphTip(e, false));
@@ -1277,6 +1402,7 @@
         map.on('click', onClick);
         map.on('moveend', loadVisiblePoints);
         bindControls();
+        initializeFinder();
         await loadVisiblePoints();
         const fromHash = decodeURIComponent(location.hash.slice(1));
         if (fromHash && nodeIndex.has(fromHash)) selectNode(fromHash, null, {fly: true});

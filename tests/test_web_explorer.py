@@ -514,3 +514,31 @@ def test_explorer_builds_from_a_genuine_sigma_export(tmp_path: Path):
     assert meta["has_roads"] and meta["has_boundary"]
     assert sum(n["members"] for n in graph["nodes"]) == run["scored_points"]
     assert bundle_is_current(output, dest)
+
+
+def test_local_finder_index_and_public_privacy(published: Path, tmp_path: Path):
+    local = tmp_path / "local-finder"
+    public = tmp_path / "public-finder"
+    build_web_bundle(published, local)
+    meta = _json(local / "data/metadata.json")
+    assert meta["has_establishment_finder"]
+    manifest = _json(local / "data/search/index.json")
+    assert manifest["version"] == 1
+    assert set(manifest["sectors"]) == {"54", "55", "63"}
+    seen_names = set()
+    for sector, filenames in manifest["sectors"].items():
+        for filename in filenames:
+            assert filename.startswith("data/search/")
+            assert (local / filename).stat().st_size < 2_000_000
+            for name, tile_key, offset, cluster in _json(local / filename):
+                seen_names.add(name)
+                fc = _json(local / "data/tiles/13" / (tile_key + ".geojson"))
+                point = fc["features"][offset]
+                assert point["properties"]["name"] == name
+                assert point["properties"]["type"] == sector
+                assert point["properties"]["cluster"] == cluster
+    assert seen_names == {"Test Shop", "Another shop", "Eatery"}
+    build_web_bundle(published, public, profile="public")
+    assert not _json(public / "data/metadata.json")["has_establishment_finder"]
+    assert not (public / "data/search").exists()
+    assert "Test Shop" not in " ".join(p.read_text(encoding="utf-8") for p in public.rglob("*.json"))
