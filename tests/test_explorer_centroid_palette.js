@@ -17,7 +17,7 @@ function section(start, end) {
 const helperSource = section('  function centerIconExpression() {', '  // Selected cluster:');
 const selectedSource = section('  function selectedCenterIconExpression() {', '  function addLayers(data) {');
 const layerSource = section('  function addLayers(data) {', '  function bindControls() {');
-const emphasisSource = section('  function applyEmphasis() {', '  function updatePartitions() {');
+const emphasisSource = section('  // SIGMA Explorer depth-based map opacity v1', '  function updatePartitions() {');
 const sectors = new Map([
   ['55', {code: '55', label: 'Retail trade', color: '#f7336f'}],
   ['70', {code: '70', label: 'Real estate', color: '#692c39'}],
@@ -107,6 +107,15 @@ function evaluate(expr, props) {
   if (op === 'literal') return args[0];
   if (op === '==') return evaluate(args[0], props) === evaluate(args[1], props);
   if (op === 'in') return evaluate(args[1], props).includes(evaluate(args[0], props));
+  if (op === 'match') {
+    const value = evaluate(args[0], props);
+    for (let i = 1; i < args.length - 1; i += 2) {
+      const candidate = args[i];
+      if (Array.isArray(candidate) ? candidate.includes(value) : candidate === value)
+        return evaluate(args[i + 1], props);
+    }
+    return evaluate(args[args.length - 1], props);
+  }
   if (op === 'case') {
     for (let i = 0; i < args.length - 1; i += 2) if (evaluate(args[i], props)) return evaluate(args[i+1], props);
     return evaluate(args[args.length-1], props);

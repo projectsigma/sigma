@@ -84,9 +84,13 @@
       paint('establishments', 'circle-stroke-color', network ?
         ['case', ['==', ['get', 'node_id'], network.focus], dark ? '#81c5a1' : COLOR.focus,
           dark ? '#20372a' : '#ffffff'] : (dark ? '#20372a' : '#ffffff'));
-      paint('partition-linked-fill', 'fill-opacity', dark ? 0.17 : 0.105);
+      paint('partition-linked-fill', 'fill-opacity', network ?
+        networkDepthOpacity('node_id', 0, step => fadeByStep(dark ? 0.17 : 0.105, step), 0) :
+        (dark ? 0.17 : 0.105));
       paint('partition-focus-fill', 'fill-opacity', dark ? 0.19 : 0.25);
-      paint('partition-linked-line', 'line-opacity', dark ? 0.70 : 0.78);
+      paint('partition-linked-line', 'line-opacity', network ?
+        networkDepthOpacity('node_id', 0, step => fadeByStep(dark ? 0.70 : 0.78, step), 0) :
+        (dark ? 0.70 : 0.78));
       paint('partition-focus-line', 'line-color', dark ? '#85bd9e' : COLOR.focus);
       // red = supply, blue = use, purple = both. Same hues at every depth.
       const tripleColor = ['match', ['get', 'kind'], 'both',
@@ -351,13 +355,42 @@
     if (map.getLayer('selected-center')) map.setFilter('selected-center', notHidden());
   }
 
+  // SIGMA Explorer depth-based map opacity v1
+  // The graph's BFS rings are the only source of truth for map depth.
+  // The selected cluster is handled separately so it stays prominent.
+  function fadeByStep(base, step) {
+    // Attenuate by the inverse square root of the BFS distance from focus.
+    // The first linked ring retains base opacity; deeper rings remain legible.
+    return Number((base / Math.sqrt(Math.max(1, step))).toFixed(6));
+  }
+
+  function networkDepthOpacity(property, focusOpacity, linkedOpacity, outsideOpacity) {
+    if (!network) return outsideOpacity;
+    // A single MapLibre match expression groups IDs by distance; it does not
+    // mutate the underlying tiles, centers, or polygon geometries.
+    const grouped = new Map();
+    for (const [id, step] of network.ring) {
+      if (step < 1) continue;
+      if (!grouped.has(step)) grouped.set(step, []);
+      grouped.get(step).push(id);
+    }
+    const paint = ['match', ['get', property], network.focus, focusOpacity];
+    for (const [step, ids] of [...grouped.entries()].sort((a, b) => a[0] - b[0])) {
+      paint.push(ids, linkedOpacity(step));
+    }
+    paint.push(outsideOpacity);
+    return paint;
+  }
+
   function applyEmphasis() {
     const ids = network ? [...network.ring.keys()] : null;
     const focus = network ? network.focus : '';
     const inNet = ['in', ['get', 'node_id'], ['literal', ids || []]];
     const isFocus = ['==', ['get', 'node_id'], focus];
-    map.setPaintProperty('establishments', 'circle-opacity', ids ? ['case', isFocus, 0.96, inNet, 0.90, 0.025] : 0.78);
-    map.setPaintProperty('establishments', 'circle-stroke-opacity', ids ? ['case', inNet, 1, 0.025] : 1);
+    map.setPaintProperty('establishments', 'circle-opacity', ids ?
+      networkDepthOpacity('node_id', 0.96, step => fadeByStep(0.90, step), 0.025) : 0.78);
+    map.setPaintProperty('establishments', 'circle-stroke-opacity', ids ?
+      networkDepthOpacity('node_id', 1, step => fadeByStep(1, step), 0.025) : 1);
     map.setPaintProperty('establishments', 'circle-stroke-width', ids ? ['case', isFocus, 0.9, 0.35] : 0.35);
     map.setPaintProperty('establishments', 'circle-stroke-color', ids ? ['case', isFocus, COLOR.focus, '#ffffff'] : '#ffffff');
     const centerIn = ['in', ['get', 'id'], ['literal', ids || []]];
@@ -371,7 +404,7 @@
       ['case', centerIn, ['get', connectedIcon], ['get', baseIcon]] :
       ['get', baseIcon]);
     map.setPaintProperty('centers', 'icon-opacity', ids ?
-      ['case', ['==', ['get', 'id'], focus], 0, centerIn, 1, 0.16] : 1);
+      networkDepthOpacity('id', 0, step => fadeByStep(1, step), 0.16) : 1);
     map.setFilter('establishments', notHidden());
     updateCenterVisibility();
     if (map.getLayer('roads-line')) map.setPaintProperty('roads-line', 'line-opacity', ids ? 0.18 : 0.38);

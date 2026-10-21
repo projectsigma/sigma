@@ -70,3 +70,6 @@ jobs:
 
       - name: Collapsible right panel
         run: node tests/test_explorer_panel_collapse.js
+
+      - name: Map opacity by network depth
+        run: node tests/test_explorer_depth_opacity.js
