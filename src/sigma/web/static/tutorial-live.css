@@ -1,0 +1,165 @@
+/* SIGMA Explorer visual language for the Step-by-Step tutorial.
+   Source tutorial's animation and visualization rules remain unchanged;
+   only surface, typography, spacing, navigation and component styling vary.
+   These rules load AFTER the standalone walkthrough styles. */
+:root, :root[data-theme="light"] {
+  color-scheme: light;
+  --paper:#f8faf8; --plate:#ffffff; --ink:#263b32; --muted:#728077;
+  --line:#e4ebe6; --grid:#eef3ef;
+  --teal:#32654f; --blue:#1f6fb2; --gold:#9b753c; --rose:#c0392b;
+  --road:#949b9b; --grey:#9dac9e;
+  --teal-soft:#e7f2eb; --blue-soft:#eaf2fc; --gold-soft:#f8f1e4; --rose-soft:#fae9e5;
+  --display:system-ui,-apple-system,'Segoe UI',sans-serif;
+  --body:system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:ui-monospace,'SFMono-Regular',Consolas,'Liberation Mono',monospace;
+  --hdr:54px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper:#111e17; --plate:#1b2b21; --ink:#e6f0e9; --muted:#b1c6b8;
+  --line:#364b3e; --grid:#283e30;
+  --teal:#9bdcb4; --blue:#8bcaff; --gold:#e0ad70; --rose:#ff987e;
+  --road:#738b7b; --grey:#809b88;
+  --teal-soft:#294336; --blue-soft:#253b4e; --gold-soft:#413421; --rose-soft:#482e27;
+}
+html { scroll-behavior:smooth; }
+body { font:15px/1.55 var(--body); color:var(--ink); background:var(--paper); }
+body::before { background:var(--paper); }
+a { color:var(--teal); }
+:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+h1,h2,h3,h4 { font-family:var(--display);letter-spacing:-.012em; }
+code,kbd,.mono { font-family:var(--mono); }
+var { font-family:inherit; }
+/* Restore the native app's restrained 54px header and squared green mark. */
+.top { background:var(--plate);border-bottom:1px solid var(--line);box-shadow:none; }
+.top .in { max-width:1400px; gap:14px; }
+.top .mark { display:flex;align-items:center;gap:8px;font:400 14px/1.25 var(--display);
+  letter-spacing:normal;color:var(--ink); }
+.top .mark:hover { text-decoration:none; }
+.top .sigma-brand-icon { display:grid;place-items:center;width:30px;height:30px;border-radius:7px;
+  font:24px/1 Georgia,serif;background:#32654f;color:#fff;letter-spacing:0;flex:none; }
+.top .sigma-brand-text { font-size:17px;font-weight:400;color:var(--ink);letter-spacing:0;white-space:nowrap; }
+.top .sigma-brand-text b { font-weight:700; }
+.top .sigma-brand-text span { font-weight:400;color:#53695f; }
+.top .sigma-page { color:var(--muted);font-size:12px;white-space:nowrap; }
+.live-back { display:inline-flex;align-items:center;padding:5px 9px;flex:none;border:1px solid var(--line);
+  border-radius:8px;font:600 12px/1.35 var(--display);background:var(--plate);color:var(--teal);text-decoration:none;white-space:nowrap; }
+.live-back:hover { background:var(--teal-soft);border-color:var(--teal); }
+.nav { gap:5px; }
+.nav a { font:500 12px/1.35 var(--display);padding:7px 8px;border-radius:7px;color:var(--muted); }
+.nav a:hover { background:var(--grid); }
+.nav a[aria-current="true"] { color:var(--teal);background:var(--teal-soft); }
+.now { font:500 12px var(--display); }
+.bar { background:var(--teal); }
+.theme { display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:5px 9px;
+  background:var(--plate);color:var(--ink);border:1px solid var(--line);
+  font:500 12px/1.35 var(--display); }
+.theme:hover { background:var(--grid);border-color:var(--teal); }
+.theme[aria-pressed="true"] { background:var(--teal-soft);color:var(--teal);border-color:var(--teal); }
+/* Familiar Explorer density, panel geometry and typography. */
+.hero { padding-block:clamp(24px,4vw,55px) 16px; }
+.eyebrow,.part-no,.live-kicker { font:700 11px/1.4 var(--display);letter-spacing:.09em;text-transform:uppercase;color:var(--teal); }
+.hero h1 { max-width:23ch;font-size:clamp(29px,3.6vw,46px);font-weight:720;line-height:1.13; }
+.lede { font-size:15px;line-height:1.65;max-width:73ch;margin-top:12px;color:var(--muted); }
+.ovw { margin-top:24px;border-radius:10px; }
+.cap { font:11px/1.45 var(--display); }
+.intro { gap:12px;padding-block:16px 40px; }
+.note,.card { border:1px solid var(--line);border-radius:10px;padding:18px 20px;
+  background:var(--plate); }
+.note h2 { font-size:15px; }
+.note.warn { background:var(--gold-soft);border:1px solid #e9dfc9; }
+.units b { font-size:13px; }
+.units div { font-size:13px; }
+.part-head { padding-block:52px 8px; }
+.part-head h2 { font-size:clamp(23px,2.6vw,33px);line-height:1.18; }
+.part-head p { font-size:14px; }
+.scrolly { gap:clamp(20px,3vw,40px); }
+.step { max-width:38rem;border:1px solid var(--line);border-radius:10px;padding:20px 22px;
+  background:var(--plate);box-shadow:0 3px 12px rgba(37,64,48,.025); }
+.step.active { border-color:#91b4a0;box-shadow:0 0 0 1px rgba(50,101,79,.06); }
+.step h3 { font-size:17px;font-weight:680;line-height:1.3; }
+.step p,.step li { font-size:14px;line-height:1.55; }
+.stage { font:600 11px/1.4 var(--display);color:var(--muted); }
+.shield { height:24px;min-width:26px;border-radius:6px;background:#728077;font-size:12px; }
+.step.active .shield { background:#32654f;color:white; }
+svg.fig,.dag,.live-geography svg { border-color:var(--line);border-radius:10px; }
+.figcap { font:11px/1.45 var(--display); }
+.eq { background:var(--paper);border:1px solid var(--line);border-radius:8px;
+  font-size:14px;line-height:1.55;padding:10px 12px; }
+.ctl { font:12px/1.45 var(--display); }
+input[type=range],input[type=checkbox] { accent-color:var(--teal); }
+.check { font:12px/1.4 var(--display); }
+.readout { background:var(--paper);border:1px solid var(--line);border-radius:8px;
+  font:12px/1.55 var(--mono); }
+.pill,.live-chooser select { border:1px solid var(--line);border-radius:8px;
+  background:var(--plate);color:var(--ink);font:500 12px var(--display); }
+.pill:hover,.live-chooser select:hover { background:var(--grid);border-color:var(--teal); }
+.pill[aria-pressed="true"] { background:var(--teal-soft);color:var(--teal);border-color:var(--teal); }
+.hint,.mini { font:12px/1.5 var(--display);color:var(--muted); }
+.callout { border-radius:8px;background:var(--gold-soft);font-size:13px; }
+table.t { font:12px/1.5 var(--display); }
+.t th { font-weight:650; }
+.foot { background:var(--plate);border-color:var(--line); }
+.foot p,.foot li { font-size:12px; }
+.sec h3 { font-size:18px; }
+/* The published-results lens uses the same summary/stat cards as SIGMA Explorer. */
+.live-panel { max-width:1240px;margin:0 auto;padding-block:20px 35px; }
+.live-topline { display:flex;align-items:center;justify-content:space-between;gap:12px;
+  flex-wrap:wrap;margin-bottom:9px; }
+#live-status { font:11px/1.5 var(--display);color:var(--muted); }
+.live-summary { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.92fr);
+  gap:clamp(16px,2.6vw,30px);background:var(--plate);border:1px solid var(--line);
+  border-radius:10px;padding:22px; }
+.live-summary h2 { font-size:21px;line-height:1.25; }
+.live-explainer { font-size:13px;color:var(--muted);line-height:1.55;margin-top:7px; }
+.live-stats { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:16px 0 13px; }
+.live-stat { display:flex;flex-direction:column;gap:2px;padding:9px 10px;background:var(--paper);
+  border:1px solid var(--line);border-radius:9px;min-width:0; }
+.live-stat strong { font:650 clamp(15px,2vw,19px)/1.3 var(--display);color:var(--ink); }
+.live-stat span { font:11px/1.35 var(--display);color:var(--muted); }
+.live-chooser { display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0; }
+.live-chooser label { font:600 12px/1.4 var(--display);color:var(--muted);display:flex;flex-direction:column;gap:5px;min-width:0; }
+.live-chooser select { width:100%;max-width:100%;min-width:0;padding:7px 8px; }
+.live-focus { min-height:60px;padding:11px 13px;border:1px solid var(--line);border-left:3px solid var(--teal);
+  border-radius:8px;background:var(--paper); }
+.live-focus p { margin:0 0 6px;font:13px/1.5 var(--display); }
+.live-focus p:last-child { margin-bottom:0; }
+.live-focus-connection { color:var(--muted); }
+.live-open { display:inline-block;margin-top:11px;font:600 12px var(--display);color:var(--teal);text-decoration:none; }
+.live-open:hover { text-decoration:underline; }
+.live-plate-title { font:650 13px var(--display);margin-bottom:8px; }
+.live-geography { min-width:0; }
+.live-geography svg { display:block;width:100%;height:auto;max-height:275px;background:var(--paper); }
+.live-geography svg circle[role="button"] { cursor:pointer; }
+.live-geography svg circle[role="button"]:focus-visible { outline:2px solid var(--teal); }
+.live-small { font:12px/1.5 var(--display);color:var(--muted);margin-top:8px; }
+.live-step { margin-top:15px;padding:11px 13px;border:1px solid #d2e3d8;
+  border-left:3px solid var(--teal);background:var(--teal-soft);color:var(--ink);border-radius:8px; }
+.live-step-title { font:700 10px/1.4 var(--display);letter-spacing:.08em;color:var(--teal); }
+.live-step-content { font:13px/1.5 var(--display)!important;margin:6px 0!important; }
+.live-step-caution { font:11px/1.48 var(--display);color:var(--muted); }
+/* Theme follows SIGMA's optional dark mode; light is default. */
+:root[data-theme="dark"] .sigma-brand-text span { color:#b1c6b8; }
+:root[data-theme="dark"] .note.warn { border-color:#58492f; }
+:root[data-theme="dark"] .step.active { border-color:#63846e;box-shadow:none; }
+:root[data-theme="dark"] .live-step { border-color:#476353; }
+@media (max-width:1150px) { .nav { display:none; }.now { display:block; } }
+@media (max-width:860px) {
+ .live-summary { grid-template-columns:1fr; }
+ .fig-wrap { z-index:6; }
+ .top .sigma-page { display:none; }
+}
+@media (max-width:600px) {
+ .live-back { padding:5px 6px;font-size:11px; }
+ .top .sigma-brand-text { font-size:14px; }
+ .top .sigma-brand-icon { width:27px;height:27px;font-size:22px; }
+ .top .in { gap:8px; }
+ .live-summary { padding:14px; }
+ .live-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .live-chooser { grid-template-columns:1fr; }
+ .hero h1 { font-size:29px; }
+ .step { padding:15px 16px; }
+ .theme span { display:none; }
+ .theme { padding:6px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior:auto; } }

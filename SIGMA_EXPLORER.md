@@ -89,3 +89,28 @@ Explorer is part of the `sigma.web` Python package in this repository. Normal SI
 The full local export contains individual establishment locations; do not upload it to GitHub Pages or other public hosting without independent review of data rights, source licenses, confidentiality, and inference risks. `--public` writes a reduced-data bundle, but cluster centers, polygons, and small aggregate counts can still create disclosure risks. A public-marked bundle is not silently replaced with a full local bundle. Publishing a reviewed static site is an **explicit separate step**; `sigma view` never creates an internet-facing server.
 
 The output directory must not overwrite the SIGMA source export directory or its ancestors. Avoid manually modifying the generated `.sigma-explorer` ownership marker or force-replacing unknown directories.
+
+## Guided tutorial (area and economy aware)
+
+Open **Guided tutorial** in the Explorer header. The tutorial retains the
+original *SIGMA, Step by Step* interactive mathematical walkthrough and adds
+read-only evidence panels tailored to this Explorer bundle's **area**, selected
+**economy**, **sectors**, **cluster centers**, **X links**, **coefficients**,
+**centrality**, and **score range**. The sector and cluster selectors let you
+change the real-world case study; choose **Examine this cluster in Explorer**
+to jump back to the map and its exact computed road paths. A currently selected
+Explorer X node is passed to the tutorial when opened from the header.
+
+The additional panels use `data/metadata.json` and `data/graph.json` and do not
+run classification, clustering, route-finding, IO recalculation, or scoring.
+The tutorial's animated diagrams and example numbers remain **illustrative**:
+matching candidate scores, core distances, the transaction matrix Z, raw Katz
+components, and individual point scores are not all part of the exported graph.
+The tutorial never invents them. On `--public` bundles, the tutorial reads only
+published aggregate data and does not seek individual establishment records.
+
+After installing an Explorer update, refresh derived bundles with
+`sigma view pasig --refresh` (or another existing area slug). A plain
+`sigma view pasig` will also rebuild when the fingerprint changes. The tutorial
+is included in both local and reduced public-profile bundles.
+
