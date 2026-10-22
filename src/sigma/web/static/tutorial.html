@@ -1,0 +1,2141 @@
+<!doctype html><html lang="en" data-theme="light"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>SIGMA, Step by Step</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="A scroll-through explanation of the SIGMA pipeline: places, roads, clusters, territories, input-output coefficients, graph X, Katz centrality, and establishment scores.">
+<style>
+/* Layout: a two-column scroll story. Text steps on the left, a sticky map-plate figure on the right that redraws for each step.
+   On phones the plate pins under the header and the steps scroll below it. Palette follows the SIGMA deck (ink, teal, blue, gold, rose). */
+:root{
+  --paper:#F3F6F8; --plate:#FFFFFF; --ink:#17304A; --muted:#566B7F; --line:#D3DEE6; --grid:#EAF0F4;
+  --teal:#0B7776; --blue:#3271A3; --gold:#A86818; --rose:#AE4A55; --road:#8E9EAC; --grey:#A0ADB9;
+  --teal-soft:#D5EDEB; --blue-soft:#DAE7F3; --gold-soft:#F5E6CF; --rose-soft:#F5DEE1;
+  --display:"Overpass","Helvetica Neue",Arial,sans-serif;
+  --body:"Source Serif 4","Source Serif Pro",Georgia,serif;
+  --mono:"Overpass Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --hdr:52px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0D1822; --plate:#122230; --ink:#E2EBF2; --muted:#9AAEBF; --line:#28394A; --grid:#182A39;
+    --teal:#41B5AD; --blue:#72A9DA; --gold:#E0A050; --rose:#E3858F; --road:#62788B; --grey:#6F8395;
+    --teal-soft:#14403F; --blue-soft:#17344F; --gold-soft:#3D2D17; --rose-soft:#43232A;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0D1822; --plate:#122230; --ink:#E2EBF2; --muted:#9AAEBF; --line:#28394A; --grid:#182A39;
+  --teal:#41B5AD; --blue:#72A9DA; --gold:#E0A050; --rose:#E3858F; --road:#62788B; --grey:#6F8395;
+  --teal-soft:#14403F; --blue-soft:#17344F; --gold-soft:#3D2D17; --rose-soft:#43232A;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.62}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--paper)}
+.gut{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+a{color:var(--teal);text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+h1,h2,h3,h4{font-family:var(--display);text-wrap:balance;margin:0;color:var(--ink)}
+p{margin:0 0 .8em}
+var{font-family:var(--body);font-style:italic}
+code,kbd{font-family:var(--mono);font-size:.86em}
+sub,sup{font-size:.72em;line-height:0}
+
+/* header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;height:var(--hdr);background:var(--paper);border-bottom:1px solid var(--line)}
+.top .in{position:relative;max-width:1240px;margin:0 auto;height:100%;display:flex;align-items:center;gap:16px}
+.mark{font-family:var(--display);font-weight:800;letter-spacing:.12em;font-size:.95rem;color:var(--ink);text-decoration:none;display:flex;align-items:center;gap:10px;white-space:nowrap}
+.mark span{font-weight:400;letter-spacing:.02em;color:var(--muted)}
+.nav{display:flex;gap:2px;margin-left:auto;font-family:var(--display);font-size:.86rem}
+.nav a{color:var(--muted);text-decoration:none;padding:6px 10px;border-radius:4px;white-space:nowrap}
+.nav a:hover{color:var(--ink)}
+.nav a[aria-current="true"]{color:var(--ink);background:var(--grid)}
+.now{display:none;margin-left:auto;font-family:var(--display);font-size:.84rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.bar{position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--teal);transform-origin:0 50%;transform:scaleX(0)}
+.theme{flex-shrink:0;display:inline-flex;align-items:center;gap:7px;font-family:var(--display);font-size:.82rem;border:1px solid var(--line);background:var(--plate);color:var(--ink);border-radius:999px;padding:5px 12px 4px;cursor:pointer;white-space:nowrap}
+.theme:hover{border-color:var(--teal)}
+.theme[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.theme svg{display:block}
+@media (max-width:900px){.nav{display:none}.now{display:block}.mark span{display:none}}
+
+/* hero */
+.hero{max-width:1240px;margin:0 auto;padding-block:clamp(36px,7vw,84px) 24px}
+.eyebrow{font-family:var(--mono);font-size:.76rem;letter-spacing:.14em;text-transform:uppercase;color:var(--teal);margin:0 0 14px}
+.hero h1{font-weight:800;font-size:clamp(2.1rem,5vw,4rem);line-height:1.04;letter-spacing:-.015em;max-width:18ch}
+.lede{font-size:clamp(1.05rem,1.6vw,1.22rem);max-width:62ch;margin-top:22px}
+.ovw{margin-top:30px;border:1px solid var(--line);background:var(--plate);border-radius:6px;overflow-x:auto}
+.ovw svg{display:block;min-width:780px;width:100%;height:auto}
+.cap{font-family:var(--mono);font-size:.76rem;color:var(--muted);margin-top:10px;display:flex;flex-wrap:wrap;gap:6px 18px;line-height:1.5}
+.key{display:inline-flex;align-items:center;gap:6px}
+.key i{width:12px;height:12px;border-radius:3px;display:inline-block;border:1px solid var(--line)}
+
+/* intro notes */
+.intro{max-width:1240px;margin:0 auto;padding-block:24px 48px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.note{border:1px solid var(--line);background:var(--plate);border-radius:6px;padding:20px 22px;min-width:0}
+.note h2{font-size:1.12rem;margin-bottom:10px}
+.note.warn{background:var(--gold-soft);border-color:transparent}
+.units{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:12px}
+.units div{border-top:2px solid var(--line);padding-top:8px;font-size:.95rem}
+.units b{font-family:var(--display);display:block;font-size:.95rem}
+@media (max-width:760px){.intro{grid-template-columns:minmax(0,1fr)}.units{grid-template-columns:minmax(0,1fr)}}
+
+/* parts */
+.part{border-top:1px solid var(--line)}
+[id]{scroll-margin-top:calc(var(--hdr) + 8px)}
+.part-head{max-width:1240px;margin:0 auto;padding-block:64px 4px}
+.part-no{font-family:var(--mono);font-size:.76rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0}
+.part-head h2{font-size:clamp(1.7rem,3.4vw,2.7rem);font-weight:700;line-height:1.1;margin-top:10px;max-width:24ch}
+.part-head p{max-width:62ch;margin-top:12px;color:var(--muted)}
+
+/* scrolly */
+.scrolly{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(24px,4vw,56px)}
+.steps{grid-column:1;grid-row:1;padding-block:14vh 36vh;min-width:0}
+.step{max-width:34rem;margin-bottom:62vh;padding:22px 24px;background:var(--plate);border:1px solid var(--line);border-radius:6px;color:var(--muted);transition:color .3s,border-color .3s}
+.step:last-child{margin-bottom:0}
+.step.active{color:var(--ink);border-color:var(--road)}
+.step h3{font-size:1.28rem;font-weight:700;line-height:1.2;margin:10px 0 10px}
+.step p,.step li{font-size:1rem}
+.step ul,.step ol{padding-left:1.15em;margin:0 0 .8em}
+.step li{margin-bottom:.3em}
+.stage{display:flex;align-items:center;gap:10px;font-family:var(--display);font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0}
+.shield{display:inline-grid;place-items:center;min-width:30px;height:25px;padding:0 7px;border-radius:5px 5px 10px 10px;background:var(--muted);color:var(--plate);font-weight:800;font-size:.86rem;letter-spacing:0;transition:background .3s}
+.step.active .shield{background:var(--teal)}
+.fig-wrap{margin:0;grid-column:2;grid-row:1;align-self:start;position:sticky;top:calc(var(--hdr) + env(safe-area-inset-top,0px));height:calc(100vh - var(--hdr) - env(safe-area-inset-top,0px));display:flex;flex-direction:column;justify-content:center;gap:10px;padding-block:18px;min-width:0}
+svg.fig{display:block;width:100%;height:auto;max-height:calc(100% - 40px);border:1px solid var(--line);border-radius:4px;background:var(--plate)}
+.figcap{font-family:var(--mono);font-size:.76rem;color:var(--muted);line-height:1.45;min-height:2.9em;margin:0}
+@media (max-width:860px){
+  .scrolly{grid-template-columns:minmax(0,1fr);gap:0}
+  .fig-wrap{grid-row:1;grid-column:1;height:auto;z-index:6;background:var(--paper);padding-block:8px 6px;border-bottom:1px solid var(--line)}
+  svg.fig{max-height:42svh}
+  .figcap{min-height:0;font-size:.68rem}
+  .steps{grid-row:2;padding-block:5vh 28vh}
+  .step{margin-bottom:46vh;padding:18px}
+}
+
+/* math and controls */
+.eq{font-family:var(--body);font-size:1.06rem;padding:10px 14px;border:1px solid var(--line);background:var(--paper);border-radius:4px;overflow-x:auto;margin:12px 0;text-align:center;white-space:nowrap;color:var(--ink)}
+.frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;line-height:1.2;margin:0 .15em}
+.frac>span:last-child{border-top:1px solid currentColor;padding-top:1px}
+.ss{display:inline-flex;flex-direction:column;vertical-align:middle;font-size:.68em;line-height:1.05;margin-left:.05em}
+.ctl{display:grid;grid-template-columns:auto minmax(0,1fr) 4.6em;align-items:center;gap:8px 12px;margin:14px 0 4px;font-family:var(--mono);font-size:.8rem;color:var(--ink)}
+.ctl output{text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;min-width:0;accent-color:var(--teal);margin:0}
+.check{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:.8rem;margin:8px 0 2px;color:var(--ink)}
+.check input{accent-color:var(--teal);width:16px;height:16px}
+.readout{font-family:var(--mono);font-size:.78rem;line-height:1.55;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:10px 12px;margin:10px 0 0;font-variant-numeric:tabular-nums}
+.readout var{font-family:var(--mono)}
+.v-ok{color:var(--teal);font-weight:600}.v-bad{color:var(--rose);font-weight:600}
+.pill{font-family:var(--display);font-size:.86rem;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+.pill:hover{border-color:var(--teal)}
+.pill[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.hint{font-family:var(--mono);font-size:.74rem;color:var(--muted);margin:8px 0 0}
+.callout{background:var(--gold-soft);padding:10px 12px;border-radius:4px;font-size:.95rem;margin-top:12px;color:var(--ink)}
+.tw{overflow-x:auto}
+table.t{border-collapse:collapse;font-size:.86rem;width:100%;color:var(--ink)}
+.t th,.t td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.t th{font-family:var(--display);font-weight:600}
+.t td.n,.t th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* static sections */
+.sec{max-width:1240px;margin:0 auto;padding-block:28px}
+.sec h3{font-size:1.3rem;margin-bottom:12px}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.cols>div{min-width:0}
+.card{border:1px solid var(--line);background:var(--plate);border-radius:6px;padding:20px 22px}
+.card ul{padding-left:1.15em;margin:0}
+.card li{margin-bottom:.35em}
+.card h4{font-size:1rem;margin-bottom:8px}
+.dag{border:1px solid var(--line);background:var(--plate);border-radius:6px;overflow-x:auto}
+.dag svg{display:block;min-width:760px;width:100%;height:auto}
+pre.cmd{font-family:var(--mono);font-size:.86rem;background:var(--plate);border:1px solid var(--line);border-radius:6px;padding:14px 16px;overflow-x:auto;margin:0 0 12px;color:var(--ink)}
+@media (max-width:760px){.cols{grid-template-columns:minmax(0,1fr)}}
+.foot{border-top:1px solid var(--line);margin-top:56px;padding-block:44px 64px;background:var(--plate)}
+.foot .in{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px}
+.foot h4{font-size:.95rem;margin-bottom:10px}
+.foot p,.foot li{font-size:.86rem}
+.foot ul{padding-left:1em;margin:0}
+.foot .refs li{margin-bottom:.4em}
+@media (max-width:900px){.foot .in{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- SVG figure styling (all colors from tokens) ---------- */
+.fig text,.ovw text,.dag text{font-family:var(--display);fill:var(--ink);font-size:14px}
+.fig .sm,.ovw .sm,.dag .sm{font-size:12.5px}
+.fig .big{font-size:18px;font-weight:600}
+.fig .hd{font-size:15px;font-weight:600}
+.fig .mono,.dag .mono{font-family:var(--mono)}
+.halo{paint-order:stroke;stroke:var(--plate);stroke-width:4px;stroke-linejoin:round}
+.f-teal{fill:var(--teal)}.f-blue{fill:var(--blue)}.f-gold{fill:var(--gold)}.f-rose{fill:var(--rose)}
+.f-ink{fill:var(--ink)}.f-muted{fill:var(--muted)}.f-grey{fill:var(--grey)}.f-plate{fill:var(--plate)}
+.fig text.f-teal,.ovw text.f-teal{fill:var(--teal)}.fig text.f-blue{fill:var(--blue)}.fig text.f-gold,.ovw text.f-gold{fill:var(--gold)}
+.fig text.f-rose{fill:var(--rose)}.fig text.f-muted,.ovw text.f-muted,.dag text.f-muted{fill:var(--muted)}.fig text.f-plate{fill:var(--plate)}
+.mk-teal{fill:var(--teal)}.mk-blue{fill:var(--blue)}.mk-gold{fill:var(--gold)}.mk-ink{fill:var(--ink)}.mk-muted{fill:var(--muted)}.mk-rose{fill:var(--rose)}
+.bgp{fill:var(--plate)}
+.gridl{stroke:var(--grid);stroke-width:1;fill:none}
+.fig circle,.fig path,.fig rect,.fig text,.fig line,.fig polygon,.fig polyline,.fig g{transition:opacity .45s ease,fill .45s ease,stroke .45s ease}
+.fig .off,.dag .off{opacity:0!important;pointer-events:none}
+.fig .dim{opacity:.18}
+.fig .draw{stroke-dasharray:1 1;stroke-dashoffset:1;stroke-linecap:butt;transition:stroke-dashoffset 1s ease,opacity .45s ease}
+.fig .draw.on{stroke-dashoffset:0}
+.road{stroke:var(--road);stroke-width:7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.gap{stroke:var(--plate);stroke-width:15;fill:none}
+.vtx{fill:var(--ink)}
+.dot{stroke:var(--plate);stroke-width:2}
+.osm{fill:var(--plate);stroke:var(--ink);stroke-width:2.4}
+.ovt{fill:var(--ink);stroke:var(--plate);stroke-width:1.5}
+.bx{fill:var(--grid);stroke:var(--line);stroke-width:1.2}.bx.gold{fill:var(--gold-soft)}.bx.teal{fill:var(--teal-soft)}
+.arw{fill:none;stroke:var(--teal);stroke-width:1.7}.arw.ink{stroke:var(--ink)}.arw.gold{stroke:var(--gold)}.arw.blue{stroke:var(--blue)}.arw.rose{stroke:var(--rose)}
+.axis{fill:none;stroke:var(--muted);stroke-width:1.2}
+.guide{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 4;fill:none}
+.straight{fill:none;stroke:var(--gold);stroke-width:2;stroke-dasharray:6 6}
+.trace{fill:none;stroke:var(--teal);stroke-width:7;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:1 1;stroke-dashoffset:1}
+.snap{fill:none;stroke:var(--gold);stroke-width:2}
+.cand{stroke:var(--muted);stroke-width:2;stroke-dasharray:5 5;fill:none}
+.cand.ok{stroke:var(--teal);stroke-width:3.5;stroke-dasharray:none}
+.cand.skip{stroke:var(--grey);stroke-dasharray:2 6}
+.cand.bad{stroke:var(--rose);stroke-width:2.6}
+.acc{fill:var(--teal-soft)}.stair{fill:none;stroke:var(--teal);stroke-width:2.5}
+.never{fill:var(--rose-soft)}.gen{fill:var(--gold);stroke:var(--gold);stroke-width:1}.gen.hot{stroke-width:4}
+.exm{fill:var(--plate);stroke:var(--muted);stroke-width:1.5}
+.handle{stroke:var(--plate);stroke-width:3}
+.hit{fill:transparent;cursor:grab;touch-action:none}
+.hit:active{cursor:grabbing}
+.hull{fill:none;stroke:var(--teal);stroke-width:2;stroke-dasharray:1 1}
+.reach{stroke:var(--teal);stroke-width:12;opacity:.3;stroke-linecap:round;fill:none}
+.brk{fill:none;stroke:var(--teal);stroke-width:2}
+.barb{fill:var(--grid)}.barb.hot{fill:var(--teal)}.barb.gold{fill:var(--gold)}.barb.blue{fill:var(--blue)}.barb.tealf{fill:var(--teal)}
+.icicle{fill:var(--grid);stroke:var(--muted);stroke-width:1.2}.icicle.sel{fill:var(--teal-soft);stroke:var(--teal);stroke-width:3}
+.ring{fill:none;stroke:var(--teal);stroke-width:1.6;stroke-dasharray:5 5}
+.fig .xs{font-size:11px}
+.arcm{fill:none;stroke:var(--teal);stroke-width:2.2}.arcm.gold{stroke:var(--gold);stroke-width:3.2}
+.thr{stroke:var(--rose);stroke-width:2;stroke-dasharray:6 5}
+.dend{fill:none;stroke:var(--ink);stroke-width:1.6}
+.river{fill:var(--blue-soft);stroke:var(--blue);stroke-width:1}
+.seg0{stroke:var(--teal);stroke-width:7;stroke-linecap:round;fill:none}.seg1{stroke:var(--blue);stroke-width:7;stroke-linecap:round;fill:none}
+.split{fill:var(--plate);stroke:var(--ink);stroke-width:2}
+.cell0{fill:var(--teal-soft)}.cell1{fill:var(--blue-soft)}
+.cellline{stroke:var(--plate);stroke-width:1;fill:none}
+.dissolve{fill:none;stroke:var(--ink);stroke-width:3;stroke-linejoin:round}
+.cellhot{fill:none;stroke:var(--ink);stroke-width:2}
+.cost0{fill:none;stroke:var(--teal);stroke-width:2.5}.cost1{fill:none;stroke:var(--blue);stroke-width:2.5}
+.cellz{fill:var(--plate);stroke:var(--line);stroke-width:1.5}.cellz.hot{stroke:var(--gold);stroke-width:3.5}
+.xrow{fill:var(--gold-soft)}
+.node{stroke:var(--plate);stroke-width:2}
+.nodeF{fill:var(--teal-soft);stroke:var(--teal);stroke-width:2.5}.nodeR{fill:var(--blue-soft);stroke:var(--blue);stroke-width:2.5}.nodeN{fill:var(--plate);stroke:var(--ink);stroke-width:2}
+.edgeF{fill:none;stroke:var(--teal)}.edgeR{fill:none;stroke:var(--blue)}.edgeM{fill:none;stroke:var(--muted);stroke-width:2.4}.edgeG{fill:none;stroke:var(--gold);stroke-width:5;opacity:.45}
+.terrF{fill:var(--teal);fill-opacity:.22;stroke:var(--teal);stroke-width:1.5}.terrF2{fill:var(--teal);fill-opacity:.42;stroke:var(--teal);stroke-width:1.5}
+.terrR{fill:var(--blue);fill-opacity:.2;stroke:var(--blue);stroke-width:1.5}.terrR2{fill:var(--blue);fill-opacity:.4;stroke:var(--blue);stroke-width:1.5}
+.curve{fill:none;stroke:var(--teal);stroke-width:3}.mean{fill:none;stroke:var(--gold);stroke-width:2;stroke-dasharray:7 6}
+.refl{fill:none;stroke:var(--rose);stroke-width:1.6;stroke-dasharray:5 5}
+.chain{fill:var(--plate);stroke:var(--line);stroke-width:1.4}.chain.on{fill:var(--teal-soft);stroke:var(--teal)}
+.ob rect{stroke:var(--line);stroke-width:1.5}.ob.sp rect{fill:var(--teal-soft)}.ob.ec rect{fill:var(--gold-soft)}.ob.ou rect{fill:var(--grid)}
+.ob{cursor:pointer;outline:none}.ob:hover rect,.ob:focus-visible rect{stroke:var(--teal);stroke-width:2.6}
+.flow{fill:none;stroke:var(--teal);stroke-width:1.8;stroke-dasharray:6 5;animation:flow 1.1s linear infinite}
+.flow.gold{stroke:var(--gold)}.flow.ink{stroke:var(--muted)}
+@keyframes flow{to{stroke-dashoffset:-11}}
+.dn rect{fill:var(--grid);stroke:var(--line);stroke-width:1.5;transition:fill .4s,stroke .4s}
+.dn.stale rect{fill:var(--gold-soft);stroke:var(--gold);stroke-width:2.5}
+.dn.src rect{stroke:var(--rose);stroke-width:3}
+.de{fill:none;stroke:var(--muted);stroke-width:1.5}.de.stale{stroke:var(--gold);stroke-width:2.4}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+}
+</style>
+<link rel="stylesheet" href="tutorial-live.css">
+<script>try{var t=localStorage.getItem('sigma-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+
+<header class="top gut">
+  <div class="in">
+    <a class="mark" href="#top" aria-label="SIGMA Explorer · Step by step"><span class="sigma-brand-icon" aria-hidden="true">Σ</span><span class="sigma-brand-text"><b>SIGMA</b> <span>Explorer</span></span><span class="sigma-page">/ Step by step</span></a>
+    <a id="live-back-top" class="live-back" href="index.html">← Back to Explorer</a>
+    <nav class="nav" aria-label="Parts">
+      <a href="#places" data-part="places">1 Places</a>
+      <a href="#roads" data-part="roads">2 Roads and clusters</a>
+      <a href="#economy" data-part="economy">3 Economy</a>
+      <a href="#graph" data-part="graph">4 Graph and scores</a>
+      <a href="#limits" data-part="limits">5 Limits</a>
+    </nav>
+    <span class="now" id="now">Overview</span>
+    <button class="theme" id="theme" type="button" aria-pressed="false" title="Switch between light and dark mode"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.7a6.3 6.3 0 0 1 0 12.6z" fill="currentColor"/></svg><span>Dark mode</span></button>
+    <div class="bar" id="bar"></div>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero gut" aria-labelledby="h1">
+    <p class="eyebrow">Project SIGMA · method walk-through</p>
+    <h1 id="h1">From establishments to a spatial–economic influence network</h1>
+    <p class="lede">SIGMA takes three inputs: mapped business locations, a road network, and a national input–output table. It turns them into a directed graph of local business clusters, and then into a score for each establishment. Scroll to follow each stage and the mathematics that defines it. Some figures have controls you can drag.</p>
+    <div class="ovw"><svg id="fig-overview" viewBox="0 0 960 304" role="img" aria-label="Pipeline: places and roads feed clustering, centers and territories; input-output coefficients feed graph X; graph X gives Katz centrality, which becomes the establishment score."></svg></div>
+    <div class="cap">
+      <span class="key"><i style="background:var(--teal-soft)"></i>spatial branch</span>
+      <span class="key"><i style="background:var(--gold-soft)"></i>economic branch</span>
+      <span class="key"><i style="background:var(--grid)"></i>combined model and scores</span>
+      <span>Select a box to go to that stage.</span>
+    </div>
+  </section>
+
+  <section class="live-panel gut" aria-label="Case study from the current SIGMA Explorer bundle">
+    <div class="live-topline"><span class="live-kicker">CURRENT SIGMA RUN</span><span id="live-status" role="status" aria-live="polite">Loading the published Explorer bundle…</span></div>
+    <div class="live-summary">
+      <div class="live-main">
+        <h2 id="live-title">Current area and economic model</h2>
+        <p class="live-explainer">The figures below use published results from the area you are exploring. The tutorial's mathematical diagrams remain worked illustrations.</p>
+        <div id="live-stats" class="live-stats"></div>
+        <div class="live-chooser">
+          <label for="live-sector">Economic sector <select id="live-sector" aria-label="Choose an actual economic sector"></select></label>
+          <label for="live-node">Example cluster <select id="live-node" aria-label="Choose an actual economic cluster"></select></label>
+        </div>
+        <div id="live-focus" class="live-focus" aria-live="polite"></div>
+        <a id="live-open-cluster" class="live-open" href="index.html">Examine this cluster in Explorer →</a>
+      </div>
+      <div class="live-geography">
+        <div class="live-plate-title">Cluster centers in this study area</div>
+        <svg id="live-map" viewBox="0 0 620 275" role="img" aria-label="Actual published SIGMA cluster-center positions, colored by sector"></svg>
+        <p class="live-small">Positions are based on published cluster-center coordinates. This is a geographic overview, not road routes or Voronoi territory polygons. Select a dot to inspect its cluster.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="intro gut" aria-label="Before you start">
+    <div class="note">
+      <h2>Two units of analysis</h2>
+      <div class="units">
+        <div><b>An establishment <var>p</var></b>One mapped place with a location and one economic type, for example one bakery.</div>
+        <div><b>An <var>X</var> node <var>n</var> = (<var>t</var>, <var>c</var>)</b>A cluster <var>c</var> of establishments of the same type <var>t</var>, for example a local group of bakeries.</div>
+      </div>
+      <p>Centrality is computed for <var>X</var> nodes. Each clustered establishment receives its cluster's centrality, reduced by at most 15% for its road distance from the cluster center. An establishment labeled <em>noise</em> belongs to no cluster, so it is not part of any <var>X</var> node.</p>
+    </div>
+    <div class="note warn">
+      <h2>What the model does not say</h2>
+      <p>SIGMA builds an explicit model of <strong>potential</strong> spatial–economic structure. It does not observe buyer–seller contracts.</p>
+      <p>A modeled edge is not evidence that a particular shop buys from a particular factory. A centrality score is not measured output, causal impact, or welfare.</p>
+      <p style="margin:0">The walkthrough’s diagrams and worked example numbers are illustrative. The separately marked “Current SIGMA run” panels use this Explorer bundle’s published results.</p>
+    </div>
+  </section>
+
+  <!-- ======================= PART 1 ======================= -->
+  <section class="part" id="places" data-title="1 Places">
+    <div class="part-head gut">
+      <p class="part-no">Part 1 · Stages 1–3</p>
+      <h2>From observed places to typed establishments</h2>
+      <p>Two map sources describe the same streets. SIGMA decides which records are the same place, then gives each place an economic type.</p>
+    </div>
+    <div class="scrolly gut" data-fig="places">
+      <div class="steps">
+        <article class="step" data-cap="Invented records on a street map. Circles are OSM records; diamonds are Overture records.">
+          <p class="stage"><span class="shield">1</span>Stage 1</p>
+          <h3>Two map sources, one study area</h3>
+          <p>SIGMA reads places from OpenStreetMap (OSM), taken from the Geofabrik Philippines extract, and from Overture Maps Places. Both layers are clipped to the study boundary. Names, categories, IDs, license data, and source provenance are kept.</p>
+          <ul>
+            <li>No direct Foursquare data. Overture records attributed to Foursquare are excluded.</li>
+            <li>The same Geofabrik file also supplies the roads used later.</li>
+          </ul>
+          <p>The same bakery can appear once in OSM and once in Overture. SIGMA must decide which rows describe the same place before it counts places.</p>
+        </article>
+
+        <article class="step" data-cap="Acceptance rule in the plane of distance d and name score s. Teal area: accepted. Drag the point or use the sliders.">
+          <p class="stage"><span class="shield">2</span>Stage 2 · candidate pairs</p>
+          <h3>Same place or not? Distance and name decide</h3>
+          <p>SIGMA compares one OSM record with one Overture record. It measures their distance <var>d</var> with the Haversine formula, the great-circle distance on a sphere:</p>
+          <div class="eq"><var>d</var> = 2<var>R</var> arcsin √<var>h</var>, &nbsp; <var>h</var> = sin²(Δ<var>φ</var>/2) + cos <var>φ</var><sub>1</sub> cos <var>φ</var><sub>2</sub> sin²(Δ<var>ℓ</var>/2)</div>
+          <p class="hint" style="margin-top:-4px">φ = latitude, ℓ = longitude (radians), R = 6,371,008.8 m</p>
+          <p style="margin-top:10px">The name score <var>s</var> is the larger of two RapidFuzz scores divided by 100: the simple ratio, and the token-sort ratio, which ignores word order (“Rosa Bakery” and “Bakery Rosa” give <var>s</var> = 1). The farther apart two records are, the more similar the names must be.</p>
+          <div class="ctl">
+            <label for="m-d">distance <var>d</var></label><input id="m-d" type="range" min="0" max="150" step="1" value="30"><output id="m-d-o" for="m-d">30 m</output>
+            <label for="m-s">name <var>s</var></label><input id="m-s" type="range" min="0.40" max="1" step="0.01" value="0.90"><output id="m-s-o" for="m-s">0.90</output>
+          </div>
+          <label class="check" for="m-gen"><input id="m-gen" type="checkbox"> generic or very short name</label>
+          <p class="readout" id="m-out" aria-live="polite"></p>
+          <p class="hint">Accepted pairs get a ranking strength <var>q</var> = 0.82 <var>s</var> + 0.18 (1 − <var>d</var>/120).</p>
+        </article>
+
+        <article class="step" data-cap="Candidate pairs within 120 m, decided in rank order of q. Invented records.">
+          <p class="stage"><span class="shield">2</span>Stage 2 · matching</p>
+          <h3>Rank the pairs, then match one-to-one</h3>
+          <p>Accepted pairs are sorted by <var>q</var> (highest first), then by distance, then by stable source IDs. SIGMA accepts a pair only if <em>neither</em> record is already matched.</p>
+          <div class="tw"><table class="t">
+            <tr><th>Pair</th><th class="n">d (m)</th><th class="n">s</th><th class="n">needs</th><th class="n">q</th><th>Result</th></tr>
+            <tr><td>o<sub>1</sub>–v<sub>1</sub></td><td class="n">30</td><td class="n">.90</td><td class="n">.82</td><td class="n">.873</td><td>matched (rank 1)</td></tr>
+            <tr><td>o<sub>1</sub>–v<sub>2</sub></td><td class="n">100</td><td class="n">1.00</td><td class="n">.94</td><td class="n">.850</td><td>skipped: o<sub>1</sub> is used</td></tr>
+            <tr><td>o<sub>2</sub>–v<sub>3</sub></td><td class="n">100</td><td class="n">.92</td><td class="n">.94</td><td class="n">–</td><td>rejected: name too different</td></tr>
+          </table></div>
+          <p style="margin-top:10px">A close pair with a weaker name (<var>q</var> = 0.873) ranks above a far pair with an exact name (<var>q</var> = 0.850).</p>
+        </article>
+
+        <article class="step" data-cap="The matched pair becomes one canonical place at its midpoint. Unmatched records stay as single-source places.">
+          <p class="stage"><span class="shield">2</span>Stage 2 · output</p>
+          <h3>One canonical record per matched pair</h3>
+          <p>A matched pair becomes one canonical place at the midpoint of its two points. If the midpoint falls outside the study boundary, an in-boundary source point is used. Unmatched records stay as single-source places.</p>
+          <p>Canonical IDs are derived with SHA-256 from the source IDs, so every row can be traced back to its sources.</p>
+          <p class="callout">The thresholds and the <var>q</var> weights are a versioned matching <strong>policy</strong>. They are not learned, and they are not a proven-optimal record-linkage method.</p>
+        </article>
+
+        <article class="step" data-cap="Each canonical place receives one economic type. Colors: Food (teal) and Retail (blue).">
+          <p class="stage"><span class="shield">3</span>Stage 3</p>
+          <h3>Give each place an economic type</h3>
+          <p>Name, OSM tags, and source categories go through reviewed deterministic crosswalks and name rules to a PSIC industry code (Philippine Standard Industrial Classification). The code is then mapped to one sector of the selected input–output (IO) economy: PSA 2018 IO80 by default, or IO16, or a custom economy.</p>
+          <ul>
+            <li>Strong source categories take precedence.</li>
+            <li>Compatible OSM tag combinations are allowed.</li>
+            <li>Incompatible combined activities are sent to review; they are not forced into one code.</li>
+            <li>No large language model (LLM) is used in the default path. Optional human review can remove out-of-scope rows before clustering.</li>
+          </ul>
+          <p>Classification decides which places may cluster together, and which economic coefficients apply to them later.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-places" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ======================= PART 2 ======================= -->
+  <section class="part" id="roads" data-title="2 Roads and clusters">
+    <div class="part-head gut">
+      <p class="part-no">Part 2 · Stages 4–8</p>
+      <h2>Road distances, clusters, and territories</h2>
+      <p>Every spatial step in SIGMA measures distance along roads. This part builds the road graph, finds clusters of each economic type, picks a center for each cluster, and assigns territory.</p>
+    </div>
+
+    <div class="scrolly gut" data-fig="roads">
+      <div class="steps">
+        <article class="step" data-cap="One road line stored as four coordinates. Teal: the road path. Dashed gold: the straight line.">
+          <p class="stage"><span class="shield">4</span>Stage 4</p>
+          <h3>Roads become a graph</h3>
+          <div class="eq"><var>G</var><sub>R</sub> = (<var>V</var><sub>R</sub>, <var>E</var><sub>R</sub>), &nbsp; edge length <var>ℓ</var><sub><var>e</var></sub> &gt; 0</div>
+          <p>Vertices are canonicalized road coordinates. Edges are the straight pieces between consecutive coordinates of each road line. Each edge has its projected length in metres (local UTM). The shortest road distance <var>d</var><sub>R</sub> is computed with Dijkstra's algorithm (SciPy).</p>
+          <p>Here one road line with 4 coordinates gives 4 vertices and 3 edges: <var>d</var><sub>R</sub>(<var>v</var><sub>1</sub>, <var>v</var><sub>4</sub>) = 120 + 90 + 150 = 360 m, while the straight line is about 312 m.</p>
+          <p>The graph is <strong>undirected</strong>: one-way tags are kept for audit but do not restrict routing.</p>
+        </article>
+        <article class="step" data-cap="Left: two lines share a vertex, so a turn is possible. Right: a flyover has no shared vertex, so the route cannot turn.">
+          <p class="stage"><span class="shield">4</span>Stage 4 · topology</p>
+          <h3>Where do two roads connect?</h3>
+          <p>Roads come from the same Geofabrik file: the study boundary buffered by 5 km, motor-road classes only (motorway … residential, living_street, service, road), excluding <code>access</code> = no, private, agricultural, or forestry. Lines are projected to local UTM and not simplified.</p>
+          <p>Coordinates are rounded to 11 significant digits. Two lines connect <strong>only</strong> where they share a canonical vertex. A flyover crosses a road without a shared vertex, so no turn is possible there.</p>
+          <p class="callout">If a flyover were joined to the road below it, the graph would allow a turn that does not exist. That false path would change clusters, centers, territories, <var>X</var> edges, and scores.</p>
+        </article>
+        <article class="step" data-cap="Each place snaps to the nearest point on any road. Distance is measured along roads between snap points.">
+          <p class="stage"><span class="shield">5</span>Stage 5</p>
+          <h3>Snap each place onto the road</h3>
+          <div class="eq"><var>s</var><sub><var>i</var></sub> = arg min<sub><var>z</var> ∈ <var>N</var></sub> ‖<var>x</var><sub><var>i</var></sub> − <var>z</var>‖, &nbsp;&nbsp; <var>d</var>(<var>i</var>, <var>j</var>) = <var>d</var><sub>R</sub>(<var>s</var><sub><var>i</var></sub>, <var>s</var><sub><var>j</var></sub>)</div>
+          <p><var>N</var> is every position on every road, not only the vertices. Here <var>x</var><sub><var>i</var></sub> is nearer the side street, so its snap point is on the side street, and <var>d</var>(<var>i</var>, <var>j</var>) = 115 + 170 = 285 m.</p>
+          <p>The snap distance (65 m and 55 m here) is stored for quality checks. It is <strong>not</strong> added to <var>d</var>(<var>i</var>, <var>j</var>).</p>
+          <p>If two snap points are on road parts that do not connect, their road distance is undefined (infinite). SIGMA does not replace it with a straight-line distance.</p>
+        </article>
+        <article class="step" data-cap="A and B are 330 m apart on the map but 690 m apart by road, because the road goes around the river.">
+          <p class="stage"><span class="shield">5</span>Stage 5 · why roads</p>
+          <h3>Why not straight-line distance?</h3>
+          <p>Straight-line distance asks how close two coordinates are on a map: 330 m. Road distance asks how far apart they are through allowed roads: 690 m.</p>
+          <p>A river, disconnected roads, or a single crossing point can put two nearby places in different local groups.</p>
+          <p class="mini">What this metric does not represent: footpaths outside the motor-road profile, ferries, one-way rules, and travel time.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-roads" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
+
+    <div class="scrolly gut" data-fig="clusters" id="clusters">
+      <div class="steps">
+        <article class="step" data-cap="Food and Retail places on the same roads. Clustering runs on one type at a time. Invented positions.">
+          <p class="stage"><span class="shield">6</span>Stage 6</p>
+          <h3>Cluster each economic type separately</h3>
+          <p>Network HDBSCAN* finds dense, connected groups along roads without fixing the number of clusters in advance. It works on one economic type at a time, so here the Retail places are set aside while Food is clustered.</p>
+          <p>All establishments of the type take part at the same time. HDBSCAN* does not grow clusters from a chosen starting point; the next four steps show what it does instead.</p>
+          <p>Positions with no dense group are labeled <strong>noise</strong>. Noise is not used to build centers.</p>
+          <p>Defaults: <code>min_cluster_size</code> = 5; <code>min_samples</code> <var>k</var> defaults to the same value.</p>
+          <p class="mini">This is HDBSCAN* applied to road shortest-path distance. It is not ordinary latitude/longitude clustering.</p>
+        </article>
+        <article class="step" data-cap="Worked example: 10 Food positions on one road (metres), k = 3. Each position in turn searches along the road until it reaches k; the bar is its core distance. Select a position to repeat its search.">
+          <p class="stage"><span class="shield">6</span>HDBSCAN* · step 1 of 4</p>
+          <h3>No starting point: every position is <var>p</var></h3>
+          <p>HDBSCAN* does not pick a first point. It takes all positions of one economic type at once. A <em>position</em> is one snap point on the road. Establishments that snap to the same point are merged into one position with weight <var>w</var> (in this example every weight is 1).</p>
+          <p>For <strong>every</strong> position, SIGMA asks the same question: how far along the road must I go to reach <var>k</var> establishments, counting myself? The answer is that position's core distance. Each position takes the role of <var>p</var> once, and the order does not change the result.</p>
+          <div class="eq">core(<var>p</var>) = min { <var>r</var> ≥ 0 : Σ<sub><var>q</var>: <var>d</var>(<var>p</var>,<var>q</var>) ≤ <var>r</var></sub> <var>w</var><sub><var>q</var></sub> ≥ <var>k</var> }</div>
+          <p>Example with <var>k</var> = 3: position 190 m reaches itself, 220 m (30 m away), and 150 m (40 m away), so its core distance is 40 m. Position 0 m must go as far as 190 m, so its core distance is 190 m. A small core distance means crowded; a large one means sparse. Nothing is clustered yet.</p>
+          <div class="ctl"><label for="k"><var>k</var> (min_samples)</label><input id="k" type="range" min="1" max="5" step="1" value="3"><output id="k-o" for="k">3</output></div>
+          <p class="readout" id="k-out" aria-live="polite"></p>
+          <p class="mini" style="margin-top:10px">SIGMA's default is <var>k</var> = 5; this example uses 3 so that it stays small, and the next three steps keep <var>k</var> = 3. This is different from k-means, which starts from chosen centers, and from the usual step-by-step description of DBSCAN, which picks an unvisited point and grows a cluster from it.</p>
+        </article>
+        <article class="step" data-cap="Each arc is one link of the minimum spanning tree; a taller arc costs more. Links are added from the cheapest to the most expensive.">
+          <p class="stage"><span class="shield">6</span>HDBSCAN* · step 2 of 4</p>
+          <h3>Which positions should be linked first?</h3>
+          <p>Two positions should be linked early when they are close to each other <em>and</em> both are in crowded surroundings. The link cost, called mutual reachability, says exactly this:</p>
+          <div class="eq"><var>d</var><sub>mr</sub>(<var>p</var>, <var>q</var>) = max{ core(<var>p</var>), core(<var>q</var>), <var>d</var>(<var>p</var>, <var>q</var>) }</div>
+          <p>Example: 150 m and 190 m are 40 m apart, but core(150) = 70 m, so their link costs 70 m. Position 150 is at the edge of its group, so it joins later than the positions in the middle.</p>
+          <p>SIGMA computes this cost for every pair within the search horizon. It then adds links from the cheapest to the most expensive and skips any link whose two ends are already connected. The 9 links that remain connect all 10 positions: the <strong>minimum spanning tree</strong> (a forest if some positions cannot reach each other).</p>
+          <p class="mini">Why the maximum? With plain road distance, a lone shop 40 m from a group would join as early as the group's own members. With core distances, sparse positions join late, so one sparse position cannot connect two dense groups early.</p>
+        </article>
+        <article class="step" data-cap="Tree of the example: a link at height h joins two groups when the threshold ε reaches h. Colored groups have at least 3 positions; grey positions are in groups that are too small at this ε.">
+          <p class="stage"><span class="shield">6</span>HDBSCAN* · step 3 of 4</p>
+          <h3>Lower the threshold and the tree breaks into groups</h3>
+          <p>Keep only the links that cost at most ε. With a large ε, everything is one group. As ε gets smaller, the expensive links disappear and the tree breaks apart. A group with fewer than <code>min_cluster_size</code> establishments (3 here) is too small to be a cluster; at that level its positions are noise.</p>
+          <div class="ctl"><label for="eps">threshold ε</label><input id="eps" type="range" min="0" max="220" step="5" value="120"><output id="eps-o" for="eps">120 m</output></div>
+          <p class="readout" id="eps-out" aria-live="polite"></p>
+          <p style="margin-top:10px">Read the tree from the top. Below 190 m, position 0 drops off. Below 170 m, position 620 drops off. Below 150 m, the rest splits into two groups of 4. Below 70, 60, and 50 m, those groups lose positions until they are too small.</p>
+          <p class="mini">HDBSCAN* writes the same thing with the density level <var>λ</var> = 1/ε: a smaller ε is a larger, denser <var>λ</var>.</p>
+        </article>
+        <article class="step" data-cap="Condensed tree of the example, with λ in 1/km. Width shows how many positions remain. EOM keeps L and R; 0 m and 620 m are noise.">
+          <p class="stage"><span class="shield">6</span>HDBSCAN* · step 4 of 4</p>
+          <h3>Keep the clusters that persist</h3>
+          <p>The condensed tree keeps only real splits, where both sides have at least <code>min_cluster_size</code> establishments. A candidate cluster <var>C</var> is born at <var>λ</var><sub>birth</sub>(<var>C</var>), and each position <var>p</var> leaves it at <var>λ</var><sub><var>p</var></sub>. Stability adds up how long the positions stay:</p>
+          <div class="eq"><var>S</var>(<var>C</var>) = Σ<sub><var>p</var> ∈ <var>C</var></sub> <var>w</var><sub><var>p</var></sub> (<var>λ</var><sub><var>p</var></sub> − <var>λ</var><sub>birth</sub>(<var>C</var>))</div>
+          <div class="tw"><table class="t">
+            <tr><th>Cluster</th><th>born at λ</th><th>positions leave at λ</th><th class="n">S</th></tr>
+            <tr><td>L (150–250 m)</td><td>6.67</td><td>150 at 14.29; others at 16.67</td><td class="n">37.6</td></tr>
+            <tr><td>R (400–490 m)</td><td>6.67</td><td>490 at 16.67; others at 20.00</td><td class="n">50.0</td></tr>
+            <tr><td>all (parent)</td><td>0</td><td>0 at 5.26; 620 at 5.88; the other 8 at 6.67</td><td class="n">64.5</td></tr>
+          </table></div>
+          <p style="margin-top:10px"><strong>Excess of mass (EOM)</strong>, the default, keeps a parent only if its stability is larger than the total of its selected children: 37.6 + 50.0 = 87.6 &gt; 64.5, so EOM keeps L and R. Positions 0 and 620 left before any kept cluster was born, so they are <strong>noise</strong>.</p>
+          <p class="mini">Membership strength is <var>λ</var><sub><var>p</var></sub> / <var>λ</var><sub>max</sub>(<var>C</var>): position 150 gets 14.29 / 16.67 = 0.86, position 490 gets 16.67 / 20 = 0.83, the others get 1, and noise gets 0. Here <var>λ</var> = 1000 / ε, in 1/km.</p>
+        </article>
+        <article class="step" data-cap="Radius schedule of the adaptive search. The rings show the radii; the actual search runs along roads.">
+          <p class="stage"><span class="shield">6</span>HDBSCAN* · search horizon</p>
+          <h3>Limit the road search</h3>
+          <p>SIGMA never builds the full table of all pairs. It stores only pairs closer than the current radius, which grows over trials:</p>
+          <div class="eq"><var>r</var><sub>0</sub> = <var>R</var> / <var>g</var><sup><var>n</var>−1</sup>, &nbsp; <var>r</var><sub><var>t</var>+1</sub> = min(<var>R</var>, <var>g</var> <var>r</var><sub><var>t</var></sub>)</div>
+          <p>With defaults <var>R</var> = 5,000 m, <var>g</var> = 1.5, <var>n</var> = 4: about 1,481, 2,222, 3,333, and 5,000 m.</p>
+          <ul>
+            <li>Stop early when two successive trials give the same labels and memberships, and at most 1% of positions have a core distance cut by the radius.</li>
+            <li>Memory guard: at most 20 million stored pairs. If a larger trial exceeds it, the last successful trial is kept (flag <code>pair_cap_limited</code>).</li>
+            <li>If network clustering fails, a separately labeled Euclidean HDBSCAN* runs within each road component.</li>
+          </ul>
+          <p class="callout">5 km is a <strong>search horizon</strong>, not DBSCAN's ε. It limits which pairs are computed; it does not define clusters. Agreement between trials is a check, not a proof.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-clusters" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
+
+    <div class="scrolly gut" data-fig="centers" id="centers">
+      <div class="steps">
+        <article class="step" data-cap="Five establishments on one road. Bars: total road distance M(v) from all five to each vertex. Move the far establishment with the slider.">
+          <p class="stage"><span class="shield">7</span>Stage 7</p>
+          <h3>Which road node is easiest to reach from the whole cluster?</h3>
+          <p>For a cluster with demand nodes <var>q</var><sub>1</sub>, …, <var>q</var><sub><var>m</var></sub> (one per establishment), score every road vertex <var>v</var> by total road distance:</p>
+          <div class="eq"><var>M</var>(<var>v</var>) = Σ<sub><var>i</var>=1…<var>m</var></sub> <var>d</var><sub>R</sub>(<var>q</var><sub><var>i</var></sub>, <var>v</var>), &nbsp; <var>v</var>* = arg min<sub><var>v</var> ∈ <var>V</var><sub>R</sub></sub> <var>M</var>(<var>v</var>)</div>
+          <div class="ctl"><label for="far">far place at</label><input id="far" type="range" min="500" max="5000" step="100" value="1000"><output id="far-o" for="far">1,000 m</output></div>
+          <p class="readout" id="far-out" aria-live="polite"></p>
+          <p style="margin-top:10px">This is the classic <strong>1-median</strong> (minisum) objective. It is not the coordinate centroid, and not the minimax 1-center, which minimizes the largest distance.</p>
+        </article>
+        <article class="step" data-cap="Recovery path: centroid, snap to the nearest road edge in the cluster's component, then the nearer endpoint node.">
+          <p class="stage"><span class="shield">7</span>Stage 7 · recovery</p>
+          <h3>If the 1-median fails, the output says so</h3>
+          <p>Primary method: compute demand-to-node road distances in batches and take the node with the smallest total.</p>
+          <p>Recovery path, used only if the primary method fails and continuation is enabled:</p>
+          <ol>
+            <li>Compute the arithmetic centroid of the cluster's projected coordinates.</li>
+            <li>Find the nearest road edge within the cluster's road component.</li>
+            <li>Snap the centroid to that edge.</li>
+            <li>Select the nearer endpoint node; break exact ties by the smallest node ID.</li>
+          </ol>
+          <p class="mini">The field <code>center_method</code> separates <code>network_1_median</code> from <code>euclidean_centroid_road_snap_fallback</code>.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-centers" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
+
+    <div class="scrolly gut" data-fig="voronoi" id="territories">
+      <div class="steps">
+        <article class="step" data-cap="Multi-source Dijkstra from the road nodes of two Food clusters. White dots mark where ownership changes inside an edge.">
+          <p class="stage"><span class="shield">8</span>Stage 8</p>
+          <h3>Network Voronoi: which cluster owns each road?</h3>
+          <p>For each economic type separately, <strong>all</strong> cluster-member road nodes are sources, not only the centers. Multi-source Dijkstra gives every reachable road node to its nearest source's cluster. Exact ties go to the smaller cluster label.</p>
+          <p>The search spreads from all sources at once. Where two searches meet, the road changes owner.</p>
+          <div class="pills"><button class="pill" type="button" id="wave-replay">Replay the search</button></div>
+        </article>
+        <article class="step" data-cap="One edge between two owners. Top: the two route costs. The owner changes where they are equal.">
+          <p class="stage"><span class="shield">8</span>Stage 8 · inside an edge</p>
+          <h3>Where exactly does an edge change owner?</h3>
+          <p>Take an edge (<var>u</var>, <var>v</var>) of length <var>L</var>. <var>D</var><sub><var>u</var></sub> and <var>D</var><sub><var>v</var></sub> are the distances from the owners' nearest sources to <var>u</var> and <var>v</var>. A point at offset <var>t</var> from <var>u</var> costs <var>D</var><sub><var>u</var></sub> + <var>t</var> via <var>A</var>, and <var>D</var><sub><var>v</var></sub> + <var>L</var> − <var>t</var> via <var>B</var>. They are equal at</p>
+          <div class="eq"><var>t</var>* = <span class="frac"><span><var>D</var><sub><var>v</var></sub> + <var>L</var> − <var>D</var><sub><var>u</var></sub></span><span>2</span></span> &nbsp; (clipped to [0, <var>L</var>])</div>
+          <div class="ctl">
+            <label for="du"><var>D</var><sub><var>u</var></sub></label><input id="du" type="range" min="0" max="500" step="10" value="100"><output id="du-o" for="du">100 m</output>
+            <label for="dv"><var>D</var><sub><var>v</var></sub></label><input id="dv" type="range" min="0" max="500" step="10" value="300"><output id="dv-o" for="dv">300 m</output>
+          </div>
+          <p class="readout" id="t-out" aria-live="polite"></p>
+          <p style="margin-top:10px">The road is split by <em>road</em> distance, not at the middle of the edge.</p>
+        </article>
+        <article class="step" data-cap="Grid rendering. Each cell takes the owner of its nearest road point (dotted line for one cell). Black line: the dissolved boundary.">
+          <p class="stage"><span class="shield">8</span>Stage 8 · 2-D rendering</p>
+          <h3>Turning road ownership into areas</h3>
+          <p>Graph <var>X</var> needs areas, because it tests whether territories overlap. SIGMA renders the 1-D ownership as 2-D polygons:</p>
+          <ol>
+            <li>Overlay a regular grid on the exact study boundary.</li>
+            <li>Attach each cell's representative point to the nearest source-reachable road edge.</li>
+            <li>Read the exact network-Voronoi owner at that point.</li>
+            <li>Dissolve the cells by (type, cluster).</li>
+          </ol>
+          <p>Defaults: 500 m cells, at most one million cells. If a valid cluster receives no cell, the cell size is halved, up to five times. Within one type, each cell has exactly one owner, so the polygons of one type cover the area without overlap.</p>
+          <p class="callout">The exact object is road ownership. The polygon is a finite-resolution rendering of it, not an exact planar boundary, and most of its area contains no establishment. If rendering fails, the labeled fallback is a Euclidean Voronoi of the cluster centers.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-voronoi" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ======================= PART 3 ======================= -->
+  <section class="part" id="economy" data-title="3 Economy">
+    <div class="part-head gut">
+      <p class="part-no">Part 3 · Stage 9</p>
+      <h2>From transactions to a directed economic network</h2>
+      <p>An input–output table says how much each sector buys from each other sector. SIGMA turns it into directed edges between economic types.</p>
+    </div>
+    <div class="scrolly gut" data-fig="economy">
+      <div class="steps">
+        <article class="step" data-cap="Illustrative transaction table Z (not PSA data). Rows supply; columns use.">
+          <p class="stage"><span class="shield">9</span>Stage 9</p>
+          <h3>A table of intermediate use</h3>
+          <p>In the transaction matrix <var>Z</var> = (<var>z</var><sub><var>ij</var></sub>), row <var>i</var> is the supplying sector and column <var>j</var> is the using sector. Values must be finite and non-negative.</p>
+          <p>Example: <var>z</var><sub>Food,Retail</sub> = 40 means the retail sector buys 40 units of food-sector output as an intermediate input.</p>
+          <p>The table summarizes flows between whole sectors of one economy. It does not identify which establishments trade with each other.</p>
+        </article>
+        <article class="step" data-cap="Each column is divided by the total output x_j of the using sector.">
+          <p class="stage"><span class="shield">9</span>Stage 9 · coefficients</p>
+          <h3>Divide by the user's total output</h3>
+          <div class="eq"><var>a</var><sub><var>ij</var></sub> = <span class="frac"><span><var>z</var><sub><var>ij</var></sub></span><span><var>x</var><sub><var>j</var></sub></span></span></div>
+          <p><var>x</var><sub><var>j</var></sub> is the total output of using sector <var>j</var>. It includes value added, so it is larger than the column sum of <var>Z</var> (30 and 45 here).</p>
+          <p><var>a</var><sub>Food,Retail</sub> = 40/200 = 0.20: retail uses 0.20 units of food-sector input per unit of retail output.</p>
+          <p>Every <var>a</var><sub><var>ij</var></sub> &gt; 0 gives a directed edge <var>i</var> → <var>j</var>. The direction “supplier → user” stays the same through graph <var>X</var>.</p>
+        </article>
+        <article class="step" data-cap="The economic graph from the example. Edge width follows the coefficient. Self-use and two-way edges are kept.">
+          <p class="stage"><span class="shield">9</span>Stage 9 · default graph</p>
+          <h3>The economy is not forced into a DAG</h3>
+          <p>By default, <code>transaction_preprocessing</code> = none: the effective table is the raw transaction table (unless a valid explicit coefficient matrix is supplied under the compatibility rules).</p>
+          <p>Positive self-use (diagonal), two-way edges, and directed cycles are all kept. A cyclic economy is normal; treating cycles as errors would remove real interindustry dependence.</p>
+        </article>
+        <article class="step" data-cap="Optional greedy MWAS on three sectors. Edges are tried from heaviest to lightest; an edge that would close a cycle is rejected.">
+          <p class="stage"><span class="shield">9</span>Optional branch</p>
+          <h3>Greedy MWAS, then RAS (not the default)</h3>
+          <p><code>mwas_ras_fast</code> exists for large or special tables when a sparse support is useful.</p>
+          <ol>
+            <li>Turn each positive off-diagonal <var>z</var><sub><var>ij</var></sub> into a candidate edge <var>i</var> → <var>j</var>; sort from largest to smallest.</li>
+            <li>Accept <var>u</var> → <var>v</var> only if the accepted graph has no path <var>v</var> ⇝ <var>u</var>.</li>
+            <li>Restore positive diagonal cells. Test with a bipartite max-flow problem whether the kept cells can match the original row and column totals; if not, restore removed cells in descending weight until they can.</li>
+            <li>Balance with RAS (alternating row and column scaling) to the original margins; tolerances 10<sup>−8</sup> absolute, 10<sup>−10</sup> relative, at most 10,000 iterations.</li>
+          </ol>
+          <p class="mini">This is a greedy approximation to a maximum-weight acyclic subgraph, not an exact optimum. Restored cells can close cycles again, so the final support need not be acyclic. Coefficients are recomputed from the balanced table; MWAS weights are never used downstream.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-economy" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ======================= PART 4 ======================= -->
+  <section class="part" id="graph" data-title="4 Graph and scores">
+    <div class="part-head gut">
+      <p class="part-no">Part 4 · Stages 10–13</p>
+      <h2>Constructing and scoring the spatial–economic graph</h2>
+      <p>Clusters become nodes. Economic coefficients and territory overlap decide the edges. Katz centrality measures each node, and each establishment receives its cluster's score.</p>
+    </div>
+    <div class="scrolly gut" data-fig="xgraph">
+      <div class="steps">
+        <article class="step" data-cap="Food territories (top) and Retail territories (moving up). Overlapping parts are candidate links. Invented example.">
+          <p class="stage"><span class="shield">10</span>Stage 10</p>
+          <h3>Build <var>X</var>: overlap decides which edges can exist</h3>
+          <p>Every retained cluster becomes a node <var>u</var> = (<var>t</var>, <var>c</var>). Isolated nodes are kept. A candidate edge <var>u</var> → <var>v</var> needs both conditions:</p>
+          <div class="eq">[<var>a</var><sub><var>t</var>(<var>u</var>),<var>t</var>(<var>v</var>)</sub> &gt; 0] ∧ [area(<var>P</var><sub><var>u</var></sub> ∩ <var>P</var><sub><var>v</var></sub>) &gt; 0]</div>
+          <p>The first is economic (supplier type → user type). The second is spatial: the two cluster polygons overlap with strictly positive area. Overlap decides <em>whether</em> an edge exists; the overlap area is not part of the weight.</p>
+          <p>Here <var>F</var><sub>2</sub> and <var>R</var><sub>1</sub> do not overlap, so there is no edge between them.</p>
+        </article>
+        <article class="step" data-cap="Graph X from the example. Edge width follows the weight w = a × d. Teal: Food → Retail. Blue: Retail → Food.">
+          <p class="stage"><span class="shield">10</span>Stage 10 · weights</p>
+          <h3>The weight multiplies coefficient and distance</h3>
+          <div class="eq"><var>w</var><sub><var>uv</var></sub> = <var>a</var><sub><var>t</var>(<var>u</var>),<var>t</var>(<var>v</var>)</sub> · <var>d</var><sub>R</sub>(<var>m</var><sub><var>u</var></sub>, <var>m</var><sub><var>v</var></sub>)</div>
+          <p><var>m</var><sub><var>u</var></sub> and <var>m</var><sub><var>v</var></sub> are the two cluster centers. An edge is kept only if the centers are connected by road and the weight is strictly positive.</p>
+          <p class="callout">For a fixed coefficient, <strong>more separation gives more weight</strong>. The weight is not a proximity score or a distance-decay kernel. In this example the heaviest edge (280) joins the two centers that are farthest apart.</p>
+          <p class="mini">A same-cluster self-edge has distance 0, so it is omitted. Centers on disconnected roads produce a diagnostic, not an edge. Because overlap is symmetric, two-way coefficients give two-way edges.</p>
+        </article>
+        <article class="step" data-cap="A two-step walk F2 → R2 → F1. Katz adds every walk, discounted by α per step.">
+          <p class="stage"><span class="shield">11</span>Stage 11</p>
+          <h3>Why count paths of many steps?</h3>
+          <p>An edge is a direct relation. A cluster can also reach others in 2, 3, or more steps. Katz centrality adds up <em>walks</em> (nodes may repeat) and multiplies each extra step by the attenuation <var>α</var>:</p>
+          <div class="eq">(<var>I</var> − <var>α</var><var>W</var>)<sup>−1</sup> = <var>I</var> + <var>α</var><var>W</var> + <var>α</var><sup>2</sup><var>W</var><sup>2</sup> + …</div>
+          <p>(<var>W</var><sup><var>k</var></sup>)<sub><var>ij</var></sub> adds, over all <var>k</var>-step walks from <var>i</var> to <var>j</var>, the product of their edge weights. The walk in the figure adds <var>α</var><sup>2</sup> × 100 × 140 to the outgoing score of <var>F</var><sub>2</sub> and to the incoming score of <var>F</var><sub>1</sub>.</p>
+        </article>
+        <article class="step" data-cap="Balanced Katz computed live on the example graph. Node size follows C. Change the α factor with the slider.">
+          <p class="stage"><span class="shield">11</span>Stage 11 · directed Katz</p>
+          <h3>A receiving score and a sending score</h3>
+          <div class="eq"><var>K</var><sup>in</sup> = <var>β</var>(<var>I</var> − <var>α</var><var>W</var><sup>T</sup>)<sup>−1</sup><b>1</b>, &nbsp; <var>K</var><sup>out</sup> = <var>β</var>(<var>I</var> − <var>α</var><var>W</var>)<sup>−1</sup><b>1</b></div>
+          <p><var>K</var><sup>in</sup> adds the weighted walks that end at a node; <var>K</var><sup>out</sup> adds those that start there. Both use <var>β</var> = 1 and the same <var>α</var>:</p>
+          <div class="eq"><var>α</var> = 0.85 / <var>ρ</var>(<var>W</var>)</div>
+          <p class="mini" style="margin-top:-4px"><var>ρ</var>(<var>W</var>) is the spectral radius (largest absolute eigenvalue). This keeps <var>α</var><var>ρ</var>(<var>W</var>) &lt; 1, so the series converges. If <var>X</var> is a DAG, <var>ρ</var>(<var>W</var>) = 0 and SIGMA uses the largest row sum as the scale instead.</p>
+          <div class="ctl"><label for="af"><var>α</var> factor</label><input id="af" type="range" min="0.1" max="0.95" step="0.05" value="0.85"><output id="af-o" for="af">0.85</output></div>
+          <p class="readout" id="af-out" aria-live="polite"></p>
+          <p class="mini" style="margin-top:10px">Because <var>α</var> is set relative to <var>ρ</var>(<var>W</var>), multiplying every weight by the same constant (for example metres to kilometres) does not change <var>K</var>. An isolated node keeps <var>K</var><sup>in</sup> = <var>K</var><sup>out</sup> = 1.</p>
+        </article>
+        <article class="step" data-cap="Combined score for nodes whose two Katz values add to 10. The arithmetic mean is the same for all; the geometric mean is not.">
+          <p class="stage"><span class="shield">12</span>Stage 12</p>
+          <h3>Combine the two roles: the geometric mean</h3>
+          <div class="eq"><var>g</var><sub><var>i</var></sub> = √(<var>K</var><span class="ss"><span>in</span><span><var>i</var></span></span> <var>K</var><span class="ss"><span>out</span><span><var>i</var></span></span>), &nbsp; <var>C</var><sub><var>i</var></sub> = <var>g</var><sub><var>i</var></sub> / ‖<var>g</var>‖<sub>2</sub></div>
+          <p>Both roles matter, and a weak side limits the result. The geometric mean ranks nodes in the same order as the product <var>K</var><sup>in</sup><var>K</var><sup>out</sup> (Sharkey, 2017), on the scale of a single Katz score. SIGMA normalizes once, at the end.</p>
+          <div class="ctl"><label for="kin"><var>K</var><sup>in</sup></label><input id="kin" type="range" min="1" max="9" step="0.5" value="5"><output id="kin-o" for="kin">5.0</output></div>
+          <p class="readout" id="kin-out" aria-live="polite"></p>
+          <p class="mini" style="margin-top:10px">For nodes A (9, 1), B (5, 5), and C (1, 9): <var>g</var> = 3, 5, 3 and <var>C</var> = 0.457, 0.762, 0.457. The rule “geometric mean, then one final L2 normalization” is a SIGMA construction motivated by the published sender–receiver Katz product; it is not a separately published named index.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-xgraph" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
+
+    <div class="scrolly gut" data-fig="score" id="scores">
+      <div class="steps">
+        <article class="step" data-cap="Score of one establishment as it moves away from its cluster center (C_c = 0.40, p90 = 800 m).">
+          <p class="stage"><span class="shield">13</span>Stage 13</p>
+          <h3>Transfer cluster centrality to establishments</h3>
+          <p>For establishment <var>p</var> in cluster <var>c</var>, <var>d</var><sub><var>p</var></sub> is its road distance to the cluster's 1-median, and <var>Q</var><sub>.90,<var>c</var></sub> is the 90th percentile of these distances in the cluster.</p>
+          <div class="eq"><var>q</var><sub><var>p</var></sub> = min(<var>d</var><sub><var>p</var></sub> / max(<var>Q</var><sub>.90,<var>c</var></sub>, 1 m), 1), &nbsp; <var>S</var><sub><var>p</var></sub> = <var>C</var><sub><var>c</var></sub>(1 − <var>λ</var><var>q</var><sub><var>p</var></sub>), &nbsp; <var>λ</var> = 0.15</div>
+          <div class="ctl"><label for="dp"><var>d</var><sub><var>p</var></sub></label><input id="dp" type="range" min="0" max="2000" step="20" value="200"><output id="dp-o" for="dp">200 m</output></div>
+          <p class="readout" id="dp-out" aria-live="polite"></p>
+          <p style="margin-top:10px">So <var>C</var><sub><var>c</var></sub>(1 − <var>λ</var>) ≤ <var>S</var><sub><var>p</var></sub> ≤ <var>C</var><sub><var>c</var></sub>: position changes the score by at most 15%. An establishment at the edge of a cluster with <var>C</var><sub><var>c</var></sub> = 0.40 (0.34) still scores above one at the center of a cluster with <var>C</var><sub><var>c</var></sub> = 0.30.</p>
+          <p class="mini">The p90 gives each cluster its own distance scale; the cap at 1 stops very distant points from receiving an unbounded penalty; the 1 m floor avoids division by zero. This step does not estimate a separate place-to-place trade network.</p>
+        </article>
+        <article class="step" data-cap="One invented establishment through every stage.">
+          <p class="stage"><span class="shield">✓</span>All stages</p>
+          <h3>One establishment, from record to score</h3>
+          <ol>
+            <li>One OSM record and one Overture record pass the distance/name rule → one canonical bakery.</li>
+            <li>Categories and PSIC → the Food IO sector.</li>
+            <li>The bakery snaps to a road and joins Food cluster <var>c</var> = 2 through network HDBSCAN*.</li>
+            <li>The cluster's center is its network 1-median; network Voronoi gives its territory.</li>
+            <li><var>a</var><sub>Food,Retail</sub> &gt; 0, the territories overlap, and the centers are road-connected → a directed <var>X</var> edge.</li>
+            <li>Balanced Katz gives the cluster <var>C</var><sub><var>c</var></sub> = 0.40.</li>
+            <li>The bakery is 200 m from its center and <var>Q</var><sub>.90,<var>c</var></sub> = 800 m → <var>S</var><sub><var>p</var></sub> = 0.40 × (1 − 0.15 × 0.25) = 0.385.</li>
+          </ol>
+          <p>Each final number has a traceable chain: matched identity → economic type → roads → cluster → graph → score.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-score" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ======================= PART 5 ======================= -->
+  <section class="part" id="limits" data-title="5 Limits">
+    <div class="part-head gut">
+      <p class="part-no">Part 5</p>
+      <h2>Auditability, adjustments, and limits</h2>
+      <p>What a result can and cannot support, how SIGMA reuses and recomputes its stages, and what to inspect before you interpret a score.</p>
+    </div>
+
+    <div class="sec gut">
+      <div class="cols">
+        <div class="card">
+          <h4>Supported reading</h4>
+          <ul>
+            <li>Spatial concentration under a specified road metric</li>
+            <li>Modeled IO-compatible links between overlapping territories</li>
+            <li>Balanced, directed, walk-based network centrality</li>
+            <li>Transparent, reproducible comparison of scores within one run</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Unsupported reading</h4>
+          <ul>
+            <li>Verified purchases or supply contracts between firms</li>
+            <li>Travel time, legal one-way driving, or traffic congestion</li>
+            <li>Precise planar territorial borders</li>
+            <li>Causal economic influence or policy impact</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec gut">
+      <h3>Reproducibility: an artifact dependency DAG</h3>
+      <p style="max-width:68ch">Each stage has a <em>recipe</em>: parameters, schema and implementation versions, upstream artifact identities, and source hashes. The recipe is stored as canonical JSON and hashed with SHA-256; the output files are hashed too. When a parameter changes, only the stages that depend on it are recomputed. Choose a change:</p>
+      <div class="pills" role="group" aria-label="Parameter to change">
+        <button class="pill" type="button" data-change="katz" aria-pressed="true">Katz α</button>
+        <button class="pill" type="button" data-change="vertex" aria-pressed="false">vertex_digits</button>
+        <button class="pill" type="button" data-change="match" aria-pressed="false">matching thresholds</button>
+        <button class="pill" type="button" data-change="io" aria-pressed="false">IO table</button>
+      </div>
+      <div class="dag"><svg id="fig-dag" viewBox="0 0 960 280" role="img" aria-label="Artifact dependency graph with recomputed stages highlighted"></svg></div>
+      <p class="readout" id="dag-out" aria-live="polite"></p>
+      <p class="mini" style="margin-top:10px">Reproducible computation does not by itself validate the modeling assumptions.</p>
+    </div>
+
+    <div class="sec gut">
+      <div class="cols">
+        <div class="card">
+          <h4>Inspect before you interpret: identity and geography</h4>
+          <ul>
+            <li>Cross-source matches and unresolved classes</li>
+            <li>Boundary, road, and snap quality</li>
+            <li>Noise, memberships, component IDs, adaptive-radius diagnostics</li>
+            <li><code>center_method</code> and <code>surface_method</code> fallbacks</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h4>Inspect before you interpret: economy and scores</h4>
+          <ul>
+            <li>Raw and effective transaction matrices, and coefficient direction</li>
+            <li>Overlap qualification and unreachable pairs</li>
+            <li><var>a</var><sub><var>ij</var></sub>, road distance, <var>w</var><sub><var>uv</var></sub>, road paths</li>
+            <li><code>katz_in_raw</code>, <code>katz_out_raw</code>, final <var>C</var> and <var>S</var><sub><var>p</var></sub></li>
+          </ul>
+        </div>
+      </div>
+      <p class="callout" style="margin-top:20px"><strong>Priority sensitivity tests.</strong> Before making substantive claims, compare matching and classification thresholds, road profiles, HDBSCAN* horizons, Voronoi cell sizes, IO definitions, and alternatives to the distance-multiplying <var>X</var> weight.</p>
+    </div>
+
+    <div class="sec gut">
+      <h3>What is established, and what SIGMA adjusts</h3>
+      <div class="tw"><table class="t">
+        <tr><th>Component</th><th>Methodological foundation</th><th>SIGMA adjustment or policy</th></tr>
+        <tr><td>Place records</td><td>geographic and name-based record linkage</td><td>distance bands, <var>q</var> weights, greedy one-to-one matching</td></tr>
+        <tr><td>Road distance</td><td>shortest paths (Dijkstra; SciPy)</td><td>motor-road profile, undirected graph, shared-vertex topology</td></tr>
+        <tr><td>Clustering</td><td>HDBSCAN*; network-space clustering</td><td>weighted snaps, sparse search horizon, adaptive stopping, fallback</td></tr>
+        <tr><td>Centers</td><td>network-node 1-median (location theory)</td><td>road-node candidates; labeled centroid recovery</td></tr>
+        <tr><td>Territories</td><td>graph and network Voronoi</td><td>finite-grid 2-D rendering, refinement, Euclidean fallback</td></tr>
+        <tr><td>Economy</td><td>IO technical coefficients; RAS</td><td>configurable table; optional greedy MWAS and support repair</td></tr>
+        <tr><td>Centrality</td><td>Katz; sender–receiver coupling</td><td>geometric mean, then one final L2 normalization</td></tr>
+        <tr><td>Point scoring</td><td>distance-based score tempering</td><td>cluster p90 scale and capped linear tempering</td></tr>
+        <tr><td>Graph <var>X</var></td><td colspan="2">model-defining choice: edges through polygon overlap, weight <var>w</var><sub><var>uv</var></sub> = <var>a</var> × <var>d</var><sub>R</sub>(<var>m</var><sub><var>u</var></sub>, <var>m</var><sub><var>v</var></sub>)</td></tr>
+      </table></div>
+    </div>
+
+    <div class="sec gut">
+      <div class="cols">
+        <div>
+          <h3>Run and inspect a study area</h3>
+<pre class="cmd">sigma init
+sigma run pasig
+sigma status pasig
+sigma view pasig</pre>
+          <p class="mini"><code>init</code> prepares the shared national source data. <code>run</code> executes the dependency-aware analysis and reuses valid artifacts. <code>status</code> inspects artifacts. <code>view</code> opens SIGMA Explorer, a read-only browser view of the published results; it draws existing results and is not another modeling step.</p>
+        </div>
+        <div>
+          <h3>Published outputs</h3>
+          <p class="mini"><code>sigma_points.parquet</code>, <code>sigma_X_nodes.csv</code>, <code>sigma_X_edges.csv</code>, <code>sigma_spatial_outputs.gpkg</code>, a QGIS project, and an optional SIGMA Explorer browser bundle.</p>
+          <p class="mini">The value of the model is not that every assumption is beyond dispute, but that each assumption can be identified, tested, and changed.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot gut">
+  <div class="in">
+    <div>
+      <h4>Defaults that change outputs</h4>
+      <div class="tw"><table class="t">
+        <tr><td>Vertex significant digits</td><td class="n">11</td></tr>
+        <tr><td>Min. cluster size / min. samples</td><td class="n">5 / 5</td></tr>
+        <tr><td>Cluster selection</td><td class="n">EOM</td></tr>
+        <tr><td>HDBSCAN* ceiling, growth, steps</td><td class="n">5 km, 1.5, 4</td></tr>
+        <tr><td>Core truncation tolerance</td><td class="n">1%</td></tr>
+        <tr><td>Max. neighbor pairs</td><td class="n">20 million</td></tr>
+        <tr><td>Voronoi grid / max. cells</td><td class="n">500 m / 1 M</td></tr>
+        <tr><td>Min. class score / margin</td><td class="n">0.45 / 0.12</td></tr>
+        <tr><td>Road buffer, direction</td><td class="n">5 km, undirected</td></tr>
+        <tr><td>IO system, preprocessing</td><td class="n">IO80, none</td></tr>
+        <tr><td>Katz α factor, β</td><td class="n">0.85, 1</td></tr>
+        <tr><td>Distance tempering λ</td><td class="n">0.15</td></tr>
+      </table></div>
+    </div>
+    <div>
+      <h4>Notation</h4>
+      <ul>
+        <li><var>G</var><sub>R</sub>, <var>d</var><sub>R</sub>: undirected road graph and road shortest-path distance</li>
+        <li>(<var>t</var>, <var>c</var>): economic type and cluster → one <var>X</var> node</li>
+        <li>core(<var>p</var>), <var>d</var><sub>mr</sub>, <var>λ</var> = 1/<var>d</var><sub>mr</sub>: HDBSCAN* quantities</li>
+        <li><var>Z</var>, <var>x</var><sub><var>j</var></sub>, <var>a</var><sub><var>ij</var></sub> = <var>z</var><sub><var>ij</var></sub>/<var>x</var><sub><var>j</var></sub>: transactions, output, coefficients</li>
+        <li><var>W</var> = (<var>w</var><sub><var>uv</var></sub>): weighted adjacency of <var>X</var></li>
+        <li><var>K</var><sup>in</sup>, <var>K</var><sup>out</sup>, <var>C</var>: raw Katz scores and balanced centrality</li>
+        <li><var>S</var><sub><var>p</var></sub>, <var>Q</var><sub>.90,<var>c</var></sub>, <var>λ</var> (scoring): point score, p90 distance, tempering</li>
+      </ul>
+      <p class="mini" style="margin-top:10px">The symbol λ has two unrelated meanings: the HDBSCAN* density level and the scoring tempering factor.</p>
+    </div>
+    <div>
+      <h4>References</h4>
+      <ul class="refs">
+        <li>Dijkstra (1959), <em>Numerische Mathematik</em> 1.</li>
+        <li>Campello, Moulavi &amp; Sander (2013), PAKDD; Campello et al. (2015), <em>ACM TKDD</em> 10(1).</li>
+        <li>Yiu &amp; Mamoulis (2004), SIGMOD.</li>
+        <li>Hakimi (1964), <em>Operations Research</em> 12(3).</li>
+        <li>Erwig (2000), <em>Networks</em> 36(3); Okabe &amp; Sugihara (2012), <em>Spatial Analysis along Networks</em>.</li>
+        <li>Leontief (1986); Bacharach (1970).</li>
+        <li>Katz (1953), <em>Psychometrika</em> 18; Sharkey (2017), <em>Scientific Reports</em> 7; Everett &amp; Schoch (2022), <em>Social Networks</em> 70; Kleinberg (1999), <em>JACM</em> 46(5).</li>
+      </ul>
+      <p class="mini" style="margin-top:12px">Specification: <a href="https://projectsigma.github.io/sigma/content/intro/index.html" target="_blank" rel="noopener">SIGMA documentation</a> · <a href="https://projectsigma.github.io/sigma/content/reference/method_lineage.html" target="_blank" rel="noopener">method lineage</a> · <a href="https://projectsigma.github.io/sigma/content/reference/references.html" target="_blank" rel="noopener">full references</a></p>
+    </div>
+  </div>
+</footer>
+
+<script>
+(() => {
+'use strict';
+const NS = 'http://www.w3.org/2000/svg';
+const RM = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const fmt = n => Math.round(n).toLocaleString('en-US');
+
+function S(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  if (attrs) for (const k in attrs) { if (attrs[k] !== undefined && attrs[k] !== null) e.setAttribute(k, attrs[k]); }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+// rich SVG text: ~italic~, _{sub}, ^{sup}
+function rich(t, s) {
+  while (t.firstChild) t.removeChild(t.firstChild);
+  let fs = parseFloat(t.getAttribute('font-size'));
+  if (!fs) { try { fs = parseFloat(getComputedStyle(t).fontSize); } catch (e) { fs = 14; } }
+  if (!fs || isNaN(fs)) fs = 14;
+  const re = /~([^~]+)~|_\{([^}]*)\}|\^\{([^}]*)\}|([^~_^]+|[~_^])/g;
+  let m, shift = 0;
+  while ((m = re.exec(s))) {
+    const ts = document.createElementNS(NS, 'tspan');
+    let target = 0;
+    if (m[1] !== undefined) { ts.textContent = m[1]; ts.setAttribute('font-style', 'italic'); }
+    else if (m[2] !== undefined || m[3] !== undefined) {
+      let c = m[2] !== undefined ? m[2] : m[3];
+      if (c.indexOf('~') >= 0) { ts.setAttribute('font-style', 'italic'); c = c.replace(/~/g, ''); }
+      ts.textContent = c; ts.setAttribute('font-size', (fs * 0.72).toFixed(1));
+      target = m[2] !== undefined ? fs * 0.3 : -fs * 0.42;
+    } else ts.textContent = m[4];
+    if (target !== shift) { ts.setAttribute('dy', (target - shift).toFixed(1)); shift = target; }
+    t.appendChild(ts);
+  }
+  if (shift) { const ts = document.createElementNS(NS, 'tspan'); ts.setAttribute('dy', (-shift).toFixed(1)); ts.textContent = ' '; t.appendChild(ts); }
+}
+function T(p, x, y, str, cls, extra) { const t = S('text', Object.assign({ x, y, class: cls || '' }, extra || {}), p); rich(t, String(str)); return t; }
+const setT = (t, s) => rich(t, String(s));
+function vis(e, on) { if (!e) return; if (Array.isArray(e)) { e.forEach(x => vis(x, on)); return; } e.classList.toggle('off', !on); }
+const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function tween(dur, fn, done) {
+  let stop = false;
+  if (RM || dur <= 0) { fn(1); if (done) done(); return { stop() {} }; }
+  let t0 = null;
+  const f = ts => { if (stop) return; if (t0 === null) t0 = ts; const k = Math.min(1, (ts - t0) / dur); fn(ease(k), k); if (k < 1) requestAnimationFrame(f); else if (done) done(); };
+  requestAnimationFrame(f);
+  return { stop() { stop = true; } };
+}
+function Ctx() {
+  const tm = [], tw = [];
+  return {
+    after(ms, fn) { if (RM) fn(); else tm.push(setTimeout(fn, ms)); },
+    tween(d, fn, done) { const h = tween(d, fn, done); tw.push(h); return h; },
+    clear() { tm.forEach(clearTimeout); tm.length = 0; tw.forEach(h => h.stop()); tw.length = 0; }
+  };
+}
+function undraw(e) { e.style.transition = 'none'; e.classList.remove('on'); e.getBoundingClientRect(); e.style.transition = ''; }
+function drawIn(e, ctx, ms) { undraw(e); if (ms && ctx) ctx.after(ms, () => e.classList.add('on')); else e.classList.add('on'); }
+function setDash(e, k) { e.style.strokeDashoffset = String(1 - k); }
+function markers(svg) {
+  const d = S('defs', null, svg);
+  ['teal', 'blue', 'gold', 'ink', 'muted', 'rose'].forEach(c => {
+    const m = S('marker', { id: svg.id + '-ah-' + c, viewBox: '0 0 10 10', refX: 8.5, refY: 5, markerWidth: 9, markerHeight: 9, markerUnits: 'userSpaceOnUse', orient: 'auto-start-reverse' }, d);
+    S('path', { d: 'M0,0L10,5L0,10z', class: 'mk-' + c }, m);
+  });
+  return c => `url(#${svg.id}-ah-${c})`;
+}
+function plate(svg, w = 600, h = 440, step = 40) {
+  S('rect', { x: 0, y: 0, width: w, height: h, class: 'bgp' }, svg);
+  let d = '';
+  for (let x = step; x < w; x += step) d += `M${x},0V${h}`;
+  for (let y = step; y < h; y += step) d += `M0,${y}H${w}`;
+  S('path', { d, class: 'gridl' }, svg);
+  return markers(svg);
+}
+function scalebar(p, x, y, px, label) {
+  const g = S('g', null, p);
+  S('path', { d: `M${x},${y - 5}V${y}H${x + px}V${y - 5}`, class: 'axis' }, g);
+  T(g, x + px / 2, y - 9, label, 'sm mono f-muted', { 'text-anchor': 'middle' });
+  return g;
+}
+function rrect(x, y, w, h, r) { return `M${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}H${x + r}Q${x},${y + h} ${x},${y + h - r}V${y + r}Q${x},${y} ${x + r},${y}Z`; }
+function svgPoint(svg, e) { const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); }
+function setAttrs(e, a) { for (const k in a) e.setAttribute(k, a[k]); }
+function scenes(svg, n) { const a = []; for (let i = 0; i < n; i++) a.push(S('g', { class: 'scene off' }, svg)); return a; }
+function showScene(list, i) { list.forEach((g, k) => vis(g, k === i)); }
+function tracer(ctx, geom, traceEl, token, dur, onLen, done) {
+  const L = geom.getTotalLength();
+  return ctx.tween(dur, k => {
+    if (traceEl) setDash(traceEl, k);
+    if (token) { const p = geom.getPointAtLength(L * k); token.setAttribute('cx', p.x); token.setAttribute('cy', p.y); }
+    if (onLen) onLen(L * k, k);
+  }, done);
+}
+
+const FIGS = {};
+
+/* ================= overview (hero) ================= */
+function overview() {
+  const svg = $('#fig-overview'); if (!svg) return;
+  const AH = markers(svg);
+  const W = 168, H = 66, col = [10, 200, 390, 580, 770], row = [14, 117, 220];
+  const B = {
+    A: [0, 0, 'sp', 'OSM + Overture', 'observed places', 'places'],
+    B: [1, 0, 'sp', 'Match and classify', 'PSIC → IO type', 'places'],
+    C: [2, 0, 'sp', 'Snap to roads;', 'HDBSCAN∗ per type', 'clusters'],
+    D: [3, 0, 'sp', '1-median centers;', 'Voronoi territories', 'centers'],
+    E: [0, 1, 'sp', 'Geofabrik roads', 'same file as OSM', 'roads'],
+    F: [1, 1, 'sp', 'Road graph ~G~_{R}', 'road distance ~d~_{R}', 'roads'],
+    G: [0, 2, 'ec', 'PSA 2018 IO80', 'transactions ~Z~', 'economy'],
+    H: [1, 2, 'ec', 'Coefficients', '~a~_{~ij~} = ~z~_{~ij~} / ~x~_{~j~}', 'economy'],
+    X: [3, 2, 'ou', 'Graph ~X~', 'nodes (~t~, ~c~)', 'graph'],
+    K: [4, 2, 'ou', 'Balanced Katz', 'centrality ~C~', 'graph'],
+    P: [4, 1, 'ou', 'Establishment', 'score ~S~_{~p~}', 'scores']
+  };
+  const flows = [
+    ['M178,47H198', 'flow'], ['M368,47H388', 'flow'], ['M558,47H578', 'flow'],
+    ['M178,150H198', 'flow'], ['M368,150H474V82', 'flow'],
+    ['M178,253H198', 'flow gold'], ['M368,253H578', 'flow gold'],
+    ['M664,80V218', 'flow'], ['M748,253H768', 'flow ink'], ['M854,220V185', 'flow ink'], ['M748,47H854V115', 'flow ink']
+  ];
+  flows.forEach(([d, c]) => S('path', { d, class: c, 'marker-end': AH(c.includes('gold') ? 'gold' : c.includes('ink') ? 'muted' : 'teal') }, svg));
+  T(svg, 473, 244, 'edges ~i~ → ~j~ where ~a~_{~ij~} > 0', 'sm f-gold', { 'text-anchor': 'middle' });
+  T(svg, 654, 146, 'territory overlap', 'sm f-muted', { 'text-anchor': 'end' });
+  T(svg, 654, 162, '+ center distance', 'sm f-muted', { 'text-anchor': 'end' });
+  T(svg, 801, 39, '~d~_{~p~} to center', 'sm f-muted', { 'text-anchor': 'middle' });
+  for (const k in B) {
+    const [c, r, kind, l1, l2, target] = B[k];
+    const x = col[c], y = row[r];
+    const g = S('g', { class: 'ob ' + kind, tabindex: 0, role: 'link', 'aria-label': (l1 + ' ' + l2).replace(/[~_{}^]/g, '') + ': go to this stage' }, svg);
+    S('rect', { x, y, width: W, height: H, rx: 6 }, g);
+    T(g, x + W / 2, y + 28, l1, '', { 'text-anchor': 'middle', 'font-weight': 700 });
+    T(g, x + W / 2, y + 48, l2, 'sm f-muted', { 'text-anchor': 'middle' });
+    const go = () => { const el = document.getElementById(target); if (el) el.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }); };
+    g.addEventListener('click', go);
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+  }
+}
+
+/* ================= Part 1: places ================= */
+FIGS.places = (svg, sec) => {
+  const AH = plate(svg); const ctx = Ctx();
+  const map = S('g', { class: 'scene' }, svg);
+  ['M20,250H580', 'M190,30V420', 'M420,30V420', 'M190,150H420'].forEach(d => S('path', { d, class: 'road' }, map));
+  scalebar(map, 500, 428, 75, '50 m');
+  const strip = S('g', { class: 'off' }, map);
+  [['name + tags', 24], ['crosswalk + rules', 170], ['PSIC code', 316], ['IO sector', 462]].forEach(([t, x], i) => {
+    S('rect', { x, y: 14, width: 118, height: 34, rx: 4, class: i === 3 ? 'bx gold' : 'bx' }, strip);
+    T(strip, x + 59, 36, t, 'sm', { 'text-anchor': 'middle' });
+    if (i < 3) S('path', { d: `M${x + 121},31H${x + 144}`, class: 'arw', 'marker-end': AH('teal') }, strip);
+  });
+  const lines = S('g', null, map);
+  const recG = S('g', null, map);
+  const recs = [
+    { id: 'o1', src: 'osm', x: 240, y: 220, name: "Rosa's Bakery", lx: -12, ly: -8, an: 'end', type: 'food' },
+    { id: 'v1', src: 'ov', x: 282, y: 205, name: 'Rosas Bakery', lx: 12, ly: -6, an: 'start', type: 'food' },
+    { id: 'v2', src: 'ov', x: 240, y: 370, name: "Rosa's Bakery", lx: 13, ly: 5, an: 'start', type: 'food' },
+    { id: 'o2', src: 'osm', x: 460, y: 110, name: 'Lim Hardware', lx: -12, ly: -7, an: 'end', type: 'retail' },
+    { id: 'v3', src: 'ov', x: 566, y: 216, name: "Lim's Hardware Store", lx: -4, ly: 26, an: 'end', type: 'retail' },
+    { id: 'o3', src: 'osm', x: 80, y: 120, name: 'Kape Kanto', lx: 12, ly: 5, an: 'start', type: 'food' },
+    { id: 'v4', src: 'ov', x: 500, y: 390, name: 'Mercado Fresh', lx: -13, ly: 5, an: 'end', type: 'retail' }
+  ];
+  const R = {};
+  recs.forEach(r => {
+    R[r.id] = r;
+    r.g = S('g', { transform: `translate(${r.x},${r.y})` }, recG);
+    r.shape = r.src === 'osm' ? S('circle', { r: 7, class: 'osm' }, r.g) : S('path', { d: 'M0,-9L9,0L0,9L-9,0Z', class: 'ovt' }, r.g);
+    r.dot = S('circle', { cx: r.x, cy: r.y, r: 8, class: 'dot f-gold off' }, recG);
+    r.label = T(recG, r.x + r.lx, r.y + r.ly, r.name, 'sm halo', { 'text-anchor': r.an });
+  });
+  const pairs = [
+    { a: 'o1', b: 'v1', res: 'ok', lab: '#1 · q 0.873 · matched', x: 292, y: 274, an: 'start' },
+    { a: 'o1', b: 'v2', res: 'skip', lab: '#2 · q 0.850 · skipped: o_{1} already used', x: 250, y: 302, an: 'start' },
+    { a: 'o2', b: 'v3', res: 'bad', lab: 's 0.92 < 0.94 · rejected', x: 502, y: 160, an: 'end' }
+  ];
+  pairs.forEach(p => {
+    p.line = S('line', { x1: R[p.a].x, y1: R[p.a].y, x2: R[p.b].x, y2: R[p.b].y, class: 'cand off' }, lines);
+    p.text = T(map, p.x, p.y, p.lab, 'sm halo off ' + (p.res === 'ok' ? 'f-teal' : p.res === 'bad' ? 'f-rose' : 'f-muted'), { 'text-anchor': p.an });
+  });
+  const legSrc = S('g', null, map);
+  S('circle', { cx: 32, cy: 398, r: 6, class: 'osm' }, legSrc); T(legSrc, 44, 403, 'OSM', 'sm');
+  S('path', { d: 'M96,390L104,398L96,406L88,398Z', class: 'ovt' }, legSrc); T(legSrc, 110, 403, 'Overture', 'sm');
+  T(legSrc, 24, 428, 'invented records', 'sm f-muted');
+  const legCan = S('g', { class: 'off' }, map);
+  S('circle', { cx: 32, cy: 398, r: 7, class: 'dot f-gold' }, legCan); T(legCan, 46, 403, 'canonical place', 'sm'); T(legCan, 24, 428, 'invented records', 'sm f-muted');
+  const legType = S('g', { class: 'off' }, map);
+  S('circle', { cx: 32, cy: 398, r: 7, class: 'dot f-teal' }, legType); T(legType, 46, 403, 'Food', 'sm');
+  S('circle', { cx: 100, cy: 398, r: 7, class: 'dot f-blue' }, legType); T(legType, 114, 403, 'Retail', 'sm'); T(legType, 24, 428, 'invented records', 'sm f-muted');
+
+  /* chart scene */
+  const chart = S('g', { class: 'scene off' }, svg);
+  const X0 = 80, X1 = 560, Y0 = 372, Y1 = 52;
+  const xs = d => X0 + (X1 - X0) * d / 150, ys = s => Y0 - (Y0 - Y1) * (s - 0.4) / 0.6;
+  S('rect', { x: xs(120), y: Y1, width: xs(150) - xs(120), height: Y0 - Y1, class: 'never' }, chart);
+  T(chart, xs(135), ys(0.64), 'never', 'sm f-rose', { 'text-anchor': 'middle' });
+  T(chart, xs(135), ys(0.64) + 16, 'compared', 'sm f-rose', { 'text-anchor': 'middle' });
+  const stair = [[0, .70], [20, .70], [20, .82], [50, .82], [50, .90], [90, .90], [90, .94], [120, .94]];
+  const sp = stair.map(([d, s]) => `${xs(d)},${ys(s)}`).join(' ');
+  const acc = S('polygon', { points: `${xs(0)},${ys(1)} ${sp} ${xs(120)},${ys(1)}`, class: 'acc' }, chart);
+  const stl = S('polyline', { points: `${sp} ${xs(120)},${ys(1)}`, class: 'stair' }, chart);
+  const accT = T(chart, xs(70), ys(0.955), 'accepted', 'sm f-teal', { 'text-anchor': 'middle' });
+  const rejT = T(chart, xs(62), ys(0.6), 'rejected', 'sm f-rose', { 'text-anchor': 'middle' });
+  const gen = S('rect', { x: xs(0), y: ys(1), width: xs(15) - xs(0), height: ys(0.99) - ys(1), class: 'gen' }, chart);
+  S('path', { d: `M${xs(7.5)},${ys(1)}V${Y1 - 22}H${xs(14)}`, class: 'arw gold' }, chart);
+  T(chart, xs(15), Y1 - 18, 'generic or short name: ~d~ ≤ 15 m and ~s~ ≥ 0.99', 'sm f-gold halo');
+  S('path', { d: `M${X0},${Y1 - 6}V${Y0}H${X1 + 8}`, class: 'axis' }, chart);
+  [0, 20, 50, 90, 120, 150].forEach(d => { S('path', { d: `M${xs(d)},${Y0}v5`, class: 'axis' }, chart); T(chart, xs(d), Y0 + 20, d, 'sm mono f-muted', { 'text-anchor': 'middle' }); });
+  T(chart, (X0 + X1) / 2, Y0 + 46, 'distance ~d~ between the two records (m)', 'sm f-muted', { 'text-anchor': 'middle' });
+  [0.4, 0.5, 0.6, 0.7, 0.82, 0.9, 0.94, 1].forEach(s => { S('path', { d: `M${X0 - 5},${ys(s)}h5`, class: 'axis' }, chart); T(chart, X0 - 9, ys(s) + 4, s.toFixed(2), 'sm mono f-muted', { 'text-anchor': 'end' }); });
+  T(chart, 22, (Y0 + Y1) / 2, 'name score ~s~', 'sm f-muted', { 'text-anchor': 'middle', transform: `rotate(-90 22 ${(Y0 + Y1) / 2})` });
+  [['o_{1}–v_{1}', 30, .90, 16], ['o_{1}–v_{2}', 100, 1.0, 16], ['o_{2}–v_{3}', 100, .92, 16]].forEach(([l, d, s, dy]) => {
+    S('circle', { cx: xs(d), cy: ys(s), r: 4.5, class: 'exm' }, chart);
+    T(chart, xs(d) - 9, ys(s) + dy, l, 'sm f-muted halo', { 'text-anchor': 'end' });
+  });
+  const hg = S('g', null, chart);
+  const hx = S('line', { class: 'guide' }, hg), hy = S('line', { class: 'guide' }, hg);
+  const hc = S('circle', { r: 9, class: 'handle f-teal' }, hg);
+  const hv = T(hg, 0, 0, '', 'sm halo');
+  const hit = S('circle', { r: 26, class: 'hit' }, hg);
+
+  const st = { d: 30, s: 0.90, gen: false };
+  const elD = $('#m-d', sec), elS = $('#m-s', sec), elG = $('#m-gen', sec), oD = $('#m-d-o', sec), oS = $('#m-s-o', sec), out = $('#m-out', sec);
+  const qv = (d, s) => 0.82 * s + 0.18 * (1 - d / 120);
+  function evalM(d, s, g) {
+    if (d > 120) return { ok: false, band: 'more than 120 m', need: null, note: 'Pairs farther than 120 m are never compared.' };
+    if (g) return d <= 15 ? { ok: s >= 0.99 - 1e-9, band: 'within 15 m (generic name)', need: 0.99 } : { ok: false, band: 'more than 15 m (generic name)', need: null, note: 'Generic or very short names are compared only within 15 m.' };
+    const bands = [[20, .70, '0–20 m'], [50, .82, '20–50 m'], [90, .90, '50–90 m'], [120, .94, '90–120 m']];
+    for (const [hi, need, lab] of bands) if (d <= hi) return { ok: s >= need - 1e-9, band: lab, need };
+  }
+  function render() {
+    const { d, s, gen: g } = st; const e = evalM(d, s, g);
+    const x = xs(d), y = ys(s);
+    setAttrs(hx, { x1: x, x2: x, y1: y, y2: Y0 }); setAttrs(hy, { x1: X0, x2: x, y1: y, y2: y });
+    setAttrs(hc, { cx: x, cy: y, class: 'handle ' + (e.ok ? 'f-teal' : 'f-rose') }); setAttrs(hit, { cx: x, cy: y });
+    const right = x < 380;
+    setAttrs(hv, { x: right ? x + 15 : x - 15, y: y < 90 ? y + 26 : y - 12, 'text-anchor': right ? 'start' : 'end', class: 'sm halo ' + (e.ok ? 'f-teal' : 'f-rose') });
+    setT(hv, e.ok ? `accepted · q = ${qv(d, s).toFixed(3)}` : 'rejected');
+    acc.classList.toggle('dim', g); stl.classList.toggle('dim', g); accT.classList.toggle('dim', g); rejT.classList.toggle('dim', g); gen.classList.toggle('hot', g);
+    elD.value = d; elS.value = s.toFixed(2); oD.textContent = d + ' m'; oS.textContent = s.toFixed(2);
+    let h = `Band: ${e.band}. `;
+    if (e.need === null) h += `<span class="v-bad">Not a candidate.</span> ${e.note}`;
+    else {
+      h += `Needs <var>s</var> ≥ ${e.need.toFixed(2)}.<br>`;
+      h += e.ok ? `<span class="v-ok">Accepted.</span> <var>q</var> = 0.82 × ${s.toFixed(2)} + 0.18 × (1 − ${d}/120) = ${qv(d, s).toFixed(3)}` : `<span class="v-bad">Rejected:</span> ${s.toFixed(2)} &lt; ${e.need.toFixed(2)}.`;
+    }
+    out.innerHTML = h;
+  }
+  elD.addEventListener('input', () => { st.d = +elD.value; render(); });
+  elS.addEventListener('input', () => { st.s = +elS.value; render(); });
+  elG.addEventListener('change', () => { st.gen = elG.checked; render(); });
+  let drag = false;
+  const move = e => { const p = svgPoint(svg, e); st.d = Math.round(clamp((p.x - X0) / (X1 - X0) * 150, 0, 150)); st.s = Math.round(clamp(0.4 + (Y0 - p.y) / (Y0 - Y1) * 0.6, 0.4, 1) * 100) / 100; render(); };
+  hit.addEventListener('pointerdown', e => { drag = true; try { hit.setPointerCapture(e.pointerId); } catch (_) {} move(e); e.preventDefault(); });
+  hit.addEventListener('pointermove', e => { if (drag) move(e); });
+  hit.addEventListener('pointerup', () => { drag = false; });
+  hit.addEventListener('pointercancel', () => { drag = false; });
+  render();
+
+  return {
+    step(i, prev) {
+      ctx.clear();
+      vis(map, i !== 1); vis(chart, i === 1);
+      vis(strip, i === 4); vis(legSrc, i <= 2); vis(legCan, i === 3); vis(legType, i === 4);
+      pairs.forEach(p => { p.line.setAttribute('class', 'cand' + (i === 2 ? '' : ' off')); vis(p.text, false); });
+      if (i === 2) pairs.forEach((p, k) => ctx.after(600 + 900 * k, () => { p.line.setAttribute('class', 'cand ' + p.res); vis(p.text, true); }));
+      const o = R.o1, v = R.v1, mx = (o.x + v.x) / 2, my = (o.y + v.y) / 2;
+      const place = k => {
+        o.g.setAttribute('transform', `translate(${o.x + (mx - o.x) * k},${o.y + (my - o.y) * k})`);
+        v.g.setAttribute('transform', `translate(${v.x + (mx - v.x) * k},${v.y + (my - v.y) * k})`);
+      };
+      recs.forEach(r => r.dot.setAttribute('class', 'dot off ' + (i === 4 ? (r.type === 'food' ? 'f-teal' : 'f-blue') : 'f-gold')));
+      if (i < 3) {
+        place(0);
+        recs.forEach(r => { vis(r.shape, true); vis(r.label, true); });
+        setT(o.label, o.name); setAttrs(o.label, { x: o.x + o.lx, y: o.y + o.ly });
+      } else {
+        vis(v.label, false);
+        setT(o.label, "Rosa's Bakery · 2 sources"); setAttrs(o.label, { x: mx - 13, y: my - 11 });
+        setAttrs(o.dot, { cx: mx, cy: my });
+        const finish = () => recs.forEach(r => { vis(r.shape, false); vis(r.dot, r.id !== 'v1'); });
+        if (prev < 3) { place(0); recs.forEach(r => vis(r.shape, true)); ctx.tween(900, place, finish); }
+        else { place(1); finish(); }
+      }
+    }
+  };
+};
+
+/* ================= Part 2a: roads ================= */
+FIGS.roads = (svg) => {
+  plate(svg); const ctx = Ctx();
+  const sc = scenes(svg, 4);
+  /* scene 0: road graph */
+  const g0 = sc[0];
+  const roadD = 'M70,300L250,300L296,173L521,173';
+  S('path', { d: 'M70,300L521,173', class: 'straight' }, g0);
+  const road0 = S('path', { d: roadD, class: 'road' }, g0);
+  const tr0 = S('path', { d: roadD, class: 'trace', pathLength: 1 }, g0);
+  [[70, 300, 'v_{1}', 0, 26], [250, 300, 'v_{2}', 0, 26], [296, 173, 'v_{3}', 0, -14], [521, 173, 'v_{4}', 0, -14]].forEach(([x, y, l, dx, dy]) => {
+    S('circle', { cx: x, cy: y, r: 6, class: 'vtx' }, g0); T(g0, x + dx, y + dy, '~' + l.replace('_', '~_'), '', { 'text-anchor': 'middle' });
+  });
+  T(g0, 160, 322, '120 m', 'sm mono f-muted', { 'text-anchor': 'middle' });
+  T(g0, 264, 244, '90 m', 'sm mono f-muted', { 'text-anchor': 'end' });
+  T(g0, 408, 160, '150 m', 'sm mono f-muted', { 'text-anchor': 'middle' });
+  T(g0, 160, 262, 'straight line ≈ 312 m', 'sm f-gold halo', { 'text-anchor': 'middle', transform: 'rotate(-15.7 160 262)' });
+  const sum0 = T(g0, 300, 70, '', 'big', { 'text-anchor': 'middle' });
+  T(g0, 300, 98, '4 coordinates → 4 vertices, 3 edges', 'sm f-muted', { 'text-anchor': 'middle' });
+  const tok0 = S('circle', { r: 8, class: 'dot f-teal' }, g0);
+
+  /* scene 1: topology */
+  const g1 = sc[1];
+  S('path', { d: 'M60,230H260', class: 'road' }, g1); S('path', { d: 'M160,130V330', class: 'road' }, g1);
+  [[60, 230], [260, 230], [160, 130], [160, 330]].forEach(([x, y]) => S('circle', { cx: x, cy: y, r: 4, class: 'vtx' }, g1));
+  S('circle', { cx: 160, cy: 230, r: 8, class: 'dot f-teal' }, g1);
+  S('path', { d: 'M340,230H540', class: 'road' }, g1);
+  S('path', { d: 'M440,130V330', class: 'gap' }, g1); S('path', { d: 'M440,130V330', class: 'road' }, g1);
+  [[340, 230], [540, 230], [440, 130], [440, 330]].forEach(([x, y]) => S('circle', { cx: x, cy: y, r: 4, class: 'vtx' }, g1));
+  T(g1, 160, 370, 'shared vertex', '', { 'text-anchor': 'middle' }); T(g1, 160, 390, 'junction: the route can turn', 'sm f-teal', { 'text-anchor': 'middle' });
+  T(g1, 440, 370, 'no shared vertex (flyover)', '', { 'text-anchor': 'middle' }); T(g1, 440, 390, 'no junction: no turn', 'sm f-rose', { 'text-anchor': 'middle' });
+  const ghost = S('path', { d: 'M440,222V160', class: 'cand bad off', 'stroke-dasharray': '4 5' }, g1);
+  const xmark = T(g1, 452, 186, '×', 'big f-rose off');
+  const tokL = S('circle', { r: 8, class: 'dot f-teal' }, g1), tokR = S('circle', { r: 8, class: 'dot f-blue' }, g1);
+  function loopTopo() {
+    setAttrs(tokL, { cx: 60, cy: 230 }); setAttrs(tokR, { cx: 340, cy: 230 }); vis([ghost, xmark], false);
+    ctx.tween(1300, k => { tokL.setAttribute('cx', 60 + 100 * k); tokR.setAttribute('cx', 340 + 100 * k); }, () => {
+      vis([ghost, xmark], true);
+      ctx.tween(1200, k => { tokL.setAttribute('cy', 230 - 100 * k); tokR.setAttribute('cx', 440 + 100 * k); }, () => { if (!RM) ctx.after(1400, loopTopo); });
+    });
+  }
+
+  /* scene 2: snapping */
+  const g2 = sc[2];
+  S('path', { d: 'M47,360H554', class: 'road' }, g2); S('path', { d: 'M242,360V113', class: 'road' }, g2);
+  const tr2 = S('path', { d: 'M242,210.5V360H463', class: 'trace', pathLength: 1 }, g2);
+  const snI = S('path', { d: 'M157.5,210.5H242', class: 'snap draw', pathLength: 1 }, g2);
+  const snJ = S('path', { d: 'M463,288.5V360', class: 'snap draw', pathLength: 1 }, g2);
+  S('circle', { cx: 157.5, cy: 210.5, r: 8, class: 'dot f-gold' }, g2); T(g2, 145, 215, '~x~_{~i~}', '', { 'text-anchor': 'end' });
+  S('circle', { cx: 463, cy: 288.5, r: 8, class: 'dot f-gold' }, g2); T(g2, 463, 272, '~x~_{~j~}', '', { 'text-anchor': 'middle' });
+  const sI = S('g', { class: 'off' }, g2); S('circle', { cx: 242, cy: 210.5, r: 5.5, class: 'vtx' }, sI); T(sI, 254, 205, '~s~_{~i~}', '');
+  const sJ = S('g', { class: 'off' }, g2); S('circle', { cx: 463, cy: 360, r: 5.5, class: 'vtx' }, sJ); T(sJ, 463, 388, '~s~_{~j~}', '', { 'text-anchor': 'middle' });
+  const lab2 = S('g', { class: 'off' }, g2);
+  T(lab2, 200, 200, '65 m', 'sm mono f-gold halo', { 'text-anchor': 'middle' }); T(lab2, 473, 330, '55 m', 'sm mono f-gold halo');
+  T(lab2, 230, 290, '115 m', 'sm mono f-teal halo', { 'text-anchor': 'end' }); T(lab2, 352, 384, '170 m', 'sm mono f-teal halo', { 'text-anchor': 'middle' });
+  const tot2 = T(g2, 300, 64, '~d~(~i~, ~j~) = 115 + 170 = 285 m', 'big off', { 'text-anchor': 'middle' });
+  const not2 = T(g2, 300, 88, 'snap lines (65 m, 55 m) are not added', 'sm f-muted off', { 'text-anchor': 'middle' });
+
+  /* scene 3: river */
+  const g3 = sc[3];
+  S('rect', { x: 287.5, y: 87.5, width: 52, height: 238, rx: 8, class: 'river' }, g3);
+  T(g3, 313.5, 78, 'river', 'sm f-blue', { 'text-anchor': 'middle' });
+  S('path', { d: 'M40.5,146H99V380H528V146H573.5', class: 'road' }, g3);
+  const geo3 = S('path', { d: 'M99,146V380H528V146', class: 'road', style: 'opacity:0' }, g3);
+  const tr3 = S('path', { d: 'M99,146V380H528V146', class: 'trace', pathLength: 1 }, g3);
+  S('path', { d: 'M99,146H528', class: 'straight' }, g3);
+  T(g3, 200, 136, 'straight: 330 m', 'sm f-gold halo', { 'text-anchor': 'middle' });
+  S('circle', { cx: 99, cy: 146, r: 8, class: 'dot f-gold' }, g3); T(g3, 99, 126, '~A~', 'hd', { 'text-anchor': 'middle' });
+  S('circle', { cx: 528, cy: 146, r: 8, class: 'dot f-blue' }, g3); T(g3, 528, 126, '~B~', 'hd', { 'text-anchor': 'middle' });
+  const cnt3 = T(g3, 313, 414, '', 'hd', { 'text-anchor': 'middle' });
+  const tok3 = S('circle', { r: 8, class: 'dot f-teal' }, g3);
+
+  return {
+    step(i) {
+      ctx.clear(); showScene(sc, i);
+      if (i === 0) {
+        setDash(tr0, 0); setT(sum0, '~d~_{R}(~v~_{1}, ~v~_{4}) = …'); vis(tok0, true);
+        ctx.after(400, () => tracer(ctx, road0, tr0, tok0, 2600, len => {
+          setT(sum0, len < 180 ? '~d~_{R}(~v~_{1}, ~v~_{4}) = …' : len < 315 ? '~d~_{R}(~v~_{1}, ~v~_{4}) = 120 + …' : len < 539 ? '~d~_{R}(~v~_{1}, ~v~_{4}) = 120 + 90 + …' : '~d~_{R}(~v~_{1}, ~v~_{4}) = 120 + 90 + 150 = 360 m');
+        }, () => { setT(sum0, '~d~_{R}(~v~_{1}, ~v~_{4}) = 120 + 90 + 150 = 360 m'); vis(tok0, false); }));
+      }
+      if (i === 1) loopTopo();
+      if (i === 2) {
+        undraw(snI); undraw(snJ); setDash(tr2, 0); vis([sI, sJ, lab2, tot2, not2], false);
+        drawIn(snI, ctx, 300); drawIn(snJ, ctx, 300);
+        ctx.after(1200, () => vis([sI, sJ], true));
+        ctx.after(1500, () => ctx.tween(1300, k => setDash(tr2, k), () => vis([lab2, tot2, not2], true)));
+      }
+      if (i === 3) {
+        setDash(tr3, 0); setT(cnt3, 'road path: 0 m'); vis(tok3, true);
+        ctx.after(500, () => tracer(ctx, geo3, tr3, tok3, 2800, len => { setT(cnt3, 'road path: ' + fmt(len / 1.3) + ' m'); },
+          () => { setT(cnt3, 'road path: 180 + 330 + 180 = 690 m'); vis(tok3, false); }));
+      }
+    }
+  };
+};
+
+/* ================= Part 2b: clusters ================= */
+FIGS.clusters = (svg, sec) => {
+  plate(svg); const ctx = Ctx();
+  const sc = scenes(svg, 6);
+  /* scene 0: per-type clustering */
+  const g0 = sc[0];
+  ['M40,330H560', 'M150,330V160', 'M390,330V96'].forEach(d => S('path', { d, class: 'road' }, g0));
+  const c1 = [[110, 330], [190, 330], [150, 290], [150, 250], [150, 210]];
+  const c2 = [[390, 285], [390, 250], [390, 215], [390, 180], [390, 145]];
+  const rt = [[240, 330], [335, 330], [485, 330], [530, 330], [390, 108]];
+  const hull1 = S('path', { d: rrect(92, 192, 116, 156, 14), class: 'hull draw', pathLength: 1 }, g0);
+  const hull2 = S('path', { d: rrect(372, 127, 36, 176, 14), class: 'hull draw', pathLength: 1 }, g0);
+  const h1t = T(g0, 150, 182, 'Food cluster 1', 'sm f-teal halo off', { 'text-anchor': 'middle' });
+  const h2t = T(g0, 416, 222, 'Food cluster 2', 'sm f-teal halo off');
+  const foodDots = [...c1, ...c2].map(([x, y]) => S('circle', { cx: x, cy: y, r: 7.5, class: 'dot f-teal' }, g0));
+  const noise = S('circle', { cx: 275, cy: 330, r: 7.5, class: 'dot f-teal' }, g0);
+  const nt = T(g0, 275, 360, 'noise', 'sm f-muted halo off', { 'text-anchor': 'middle' });
+  const retail = rt.map(([x, y]) => S('circle', { cx: x, cy: y, r: 7.5, class: 'dot f-blue' }, g0));
+  S('circle', { cx: 32, cy: 30, r: 7, class: 'dot f-teal' }, g0); T(g0, 46, 35, 'Food', 'sm');
+  const rLeg = S('g', null, g0); S('circle', { cx: 100, cy: 30, r: 7, class: 'dot f-blue' }, rLeg); T(rLeg, 114, 35, 'Retail', 'sm');
+  const typeNote = T(g0, 24, 60, 'clustering Food only', 'sm f-muted off');
+
+
+  /* worked example shared by scenes 1-4 (verified against the hdbscan library) */
+  const POS = [0, 150, 190, 220, 250, 400, 430, 450, 490, 620], NP = POS.length;
+  const XP = p => 40 + p * 520 / 620;
+  const coreK = k => POS.map(p => POS.map(q => Math.abs(p - q)).sort((a, b) => a - b)[k - 1]);
+  const K3 = coreK(3);
+  const UF = n => { const pr = Array.from({ length: n }, (_, i) => i); const f = a => { while (pr[a] !== a) { pr[a] = pr[pr[a]]; a = pr[a]; } return a; }; return { f, u(a, b) { pr[f(a)] = f(b); } }; };
+  const cand = [];
+  for (let i = 0; i < NP; i++) for (let j = i + 1; j < NP; j++) cand.push({ i, j, d: POS[j] - POS[i], w: Math.max(K3[i], K3[j], POS[j] - POS[i]) });
+  cand.sort((a, b) => a.w - b.w || a.d - b.d || a.i - b.i);
+  const MST = []; { const U = UF(NP); cand.forEach(e => { if (U.f(e.i) !== U.f(e.j)) { U.u(e.i, e.j); MST.push(e); } }); }
+  const roadRow = (g, y) => {
+    S('path', { d: `M28,${y}H572`, class: 'road', 'stroke-width': 6 }, g);
+    const dots = POS.map(p => S('circle', { cx: XP(p), cy: y, r: 6.5, class: 'dot f-teal' }, g));
+    POS.forEach((p, i) => T(g, XP(p), y + (i % 2 ? 34 : 21), p, 'xs mono f-muted', { 'text-anchor': 'middle' }));
+    return dots;
+  };
+
+  /* scene 1: every position computes its core distance */
+  const g1 = sc[1], RY = 96;
+  const band = S('path', { d: `M28,${RY}H28`, class: 'reach', opacity: 0 }, g1);
+  const d1 = roadRow(g1, RY);
+  const ring = S('circle', { cx: -40, cy: RY, r: 11, class: 'arw ink', 'stroke-width': 2.4 }, g1);
+  const pT = T(g1, 40, 46, '', 'hd');
+  const kT = T(g1, 560, 46, '', 'hd', { 'text-anchor': 'end' });
+  const BY = 404, BS = 216 / 250;
+  S('path', { d: `M28,${BY}H572`, class: 'axis' }, g1);
+  T(g1, 28, 170, 'core distance of each position (m)', 'sm f-muted');
+  const bars = POS.map(p => S('rect', { x: XP(p) - 6, y: BY, width: 12, height: 0, class: 'barb tealf' }, g1));
+  const bv = POS.map(p => T(g1, XP(p), BY - 5, '', 'xs mono', { 'text-anchor': 'middle' }));
+  const hits = POS.map(p => { const h = S('circle', { cx: XP(p), cy: RY, r: 13, class: 'hit' }, g1); h.style.cursor = 'pointer'; return h; });
+  let kc = 3, cores = K3.slice();
+  const setBar = (i, f) => { const h = cores[i] * BS * f; setAttrs(bars[i], { y: BY - h, height: h }); setAttrs(bv[i], { y: BY - h - 5 }); setT(bv[i], f >= 1 ? cores[i] : ''); };
+  function showP(i, f) {
+    if (i < 0) { band.setAttribute('opacity', 0); setAttrs(ring, { cx: -40 }); setT(pT, 'every position measured'); d1.forEach(c => c.setAttribute('class', 'dot f-teal')); return; }
+    const p = POS[i], c = cores[i] * f;
+    setAttrs(band, { d: `M${Math.max(28, XP(p - c))},${RY}H${Math.min(572, XP(p + c))}`, opacity: 1 }); setAttrs(ring, { cx: XP(p) });
+    d1.forEach((el, j) => el.setAttribute('class', 'dot ' + (Math.abs(POS[j] - p) <= c + 1e-9 ? 'f-teal' : 'f-grey')));
+    setT(pT, f >= 1 ? `~p~ = ${p} m → core(~p~) = ${cores[i]} m` : `~p~ = ${p} m: searching along the road…`);
+  }
+  const elK = $('#k', sec), oK = $('#k-o', sec), outK = $('#k-out', sec);
+  function readK() {
+    setT(kT, '~k~ = ' + kc); oK.textContent = kc; elK.value = kc;
+    outK.innerHTML = `Core distance with <var>k</var> = ${kc} (position → core, in m):<br>` + POS.map((p, i) => `${p} → ${cores[i]}`).join(', ');
+  }
+  const allBars = () => POS.forEach((_, i) => setBar(i, 1));
+  function sweep() {
+    POS.forEach((_, i) => setBar(i, 0)); showP(-1); setT(pT, '');
+    let t = 300;
+    POS.forEach((_, i) => { ctx.after(t, () => ctx.tween(420, e => showP(i, e), () => { showP(i, 1); ctx.tween(260, e => setBar(i, e), () => setBar(i, 1)); })); t += 700; });
+    ctx.after(t + 300, () => showP(-1));
+  }
+  elK.addEventListener('input', () => { ctx.clear(); kc = +elK.value; cores = coreK(kc); allBars(); showP(-1); readK(); });
+  hits.forEach((h, i) => h.addEventListener('click', () => { ctx.clear(); allBars(); showP(i, 1); }));
+  readK(); allBars();
+
+  /* scene 2: mutual reachability links, added cheapest first */
+  const g2 = sc[2], RY2 = 362;
+  roadRow(g2, RY2);
+  const st2 = T(g2, 40, 46, '', 'hd');
+  const ex2 = T(g2, 40, 74, '150 ↔ 190: 40 m apart, but core(150) = 70 m → link cost 70 m', 'sm f-gold off');
+  const arcs = MST.map(e => {
+    const xa = XP(POS[e.i]), xb = XP(POS[e.j]), m = (xa + xb) / 2, P = e.w * 1.2;
+    const gold = POS[e.i] === 150 && POS[e.j] === 190;
+    const path = S('path', { d: `M${xa},${RY2 - 8}Q${m},${RY2 - 8 - 2 * P} ${xb},${RY2 - 8}`, class: 'arcm draw' + (gold ? ' gold' : ''), pathLength: 1 }, g2);
+    const t = T(g2, m, RY2 - 14 - P, e.w, 'xs mono halo off' + (gold ? ' f-gold' : ''), { 'text-anchor': 'middle' });
+    return { e, path, t, gold };
+  });
+  function build() {
+    arcs.forEach(a => { undraw(a.path); vis(a.t, false); }); vis(ex2, false); setT(st2, 'adding links from the cheapest…');
+    arcs.forEach((a, k) => ctx.after(400 + 560 * k, () => {
+      a.path.classList.add('on'); vis(a.t, true);
+      setT(st2, `link ${k + 1} of 9: ${POS[a.e.i]} ↔ ${POS[a.e.j]}, cost ${a.e.w} m`);
+      if (a.gold) vis(ex2, true);
+    }));
+    ctx.after(400 + 560 * arcs.length + 300, () => setT(st2, '9 links connect all 10 positions: the minimum spanning tree'));
+  }
+
+  /* scene 3: threshold on the tree */
+  const g3 = sc[3], RY3 = 62;
+  const d3 = roadRow(g3, RY3);
+  const yE = e => 404 - e * 1.2;
+  S('path', { d: `M580,${yE(215)}V404`, class: 'axis' }, g3);
+  [0, 50, 100, 150, 200].forEach(v => { S('path', { d: `M576,${yE(v)}h4`, class: 'axis' }, g3); T(g3, 584, yE(v) + 4, v, 'xs mono f-muted'); });
+  T(g3, 578, yE(215) - 8, 'link cost (m)', 'xs f-muted', { 'text-anchor': 'end' });
+  { const U = UF(NP), comp = POS.map(p => ({ x: XP(p), top: 404 }));
+    MST.forEach(e => {
+      const a = U.f(e.i), b = U.f(e.j), A = comp[a], B = comp[b], y = yE(e.w);
+      S('path', { d: `M${A.x},${A.top}V${y}H${B.x}V${B.top}`, class: 'dend' }, g3);
+      U.u(e.i, e.j); comp[U.f(e.i)] = { x: (A.x + B.x) / 2, top: y };
+    });
+    const r = comp[U.f(0)]; S('path', { d: `M${r.x},${r.top}V${yE(215)}`, class: 'dend' }, g3); }
+  const leaves = POS.map(p => S('circle', { cx: XP(p), cy: 404, r: 5, class: 'dot f-teal' }, g3));
+  const thr = S('line', { x1: 30, x2: 572, class: 'thr' }, g3);
+  const thrT = T(g3, 36, 0, '', 'sm f-rose halo');
+  const elE = $('#eps', sec), oE = $('#eps-o', sec), outE = $('#eps-out', sec);
+  let eps = 120;
+  function renderEps() {
+    const U = UF(NP); MST.forEach(e => { if (e.w <= eps) U.u(e.i, e.j); });
+    const grp = {}; POS.forEach((_, i) => { const r = U.f(i); (grp[r] = grp[r] || []).push(i); });
+    const list = Object.values(grp).sort((a, b) => a[0] - b[0]), colors = ['f-teal', 'f-blue', 'f-gold'], big = [], small = [];
+    let ci = 0;
+    list.forEach(g => { const ok = g.length >= 3, c = ok ? colors[Math.min(ci++, 2)] : 'f-grey'; (ok ? big : small).push(g); g.forEach(i => { d3[i].setAttribute('class', 'dot ' + c); leaves[i].setAttribute('class', 'dot ' + c); }); });
+    const y = yE(eps); setAttrs(thr, { y1: y, y2: y }); setAttrs(thrT, { y: y - 7 }); setT(thrT, `ε = ${eps} m`);
+    oE.textContent = eps + ' m'; elE.value = eps;
+    const fm = g => '{' + g.map(i => POS[i]).join(', ') + '}';
+    outE.innerHTML = `Links kept: cost ≤ ${eps} m (λ = ${eps > 0 ? (1000 / eps).toFixed(2) : '∞'} per km).<br>` +
+      (big.length ? `Groups with 3 or more: ${big.map(fm).join(', ')}.` : 'No group has 3 or more positions.') + '<br>' +
+      (small.length ? `Too small at this level: ${small.map(g => g.map(i => POS[i]).join(', ')).join('; ')}.` : 'No position is left out.');
+  }
+  elE.addEventListener('input', () => { eps = +elE.value; renderEps(); });
+  renderEps();
+
+  /* scene 4: condensed tree, stability, EOM */
+  const g4 = sc[4];
+  const yL = l => 76 + l * 15.4;
+  T(g4, 46, 52, '~λ~ = 1000 / ε (per km), denser ↓', 'xs f-muted');
+  S('path', { d: `M40,${yL(0)}V${yL(20.6)}`, class: 'axis' }, g4);
+  S('path', { d: `M35,${yL(20.6) - 8}L40,${yL(20.6) + 2}L45,${yL(20.6) - 8}`, class: 'axis' }, g4);
+  [0, 5, 10, 15, 20].forEach(v => { S('path', { d: `M36,${yL(v)}h4`, class: 'axis' }, g4); T(g4, 32, yL(v) + 4, v, 'xs mono f-muted', { 'text-anchor': 'end' }); });
+  const W8 = 8, rx = 310, lx = 190, rr = 430;
+  const seg = (g, x, l0, l1, n) => S('rect', { x: x - n * W8 / 2, y: yL(l0), width: n * W8, height: yL(l1) - yL(l0), class: 'icicle' }, g);
+  const gRoot = S('g', { class: 'off' }, g4), gKids = S('g', { class: 'off' }, g4), gLab = S('g', { class: 'off' }, g4);
+  const rootR = [seg(gRoot, rx, 0, 5.263, 10), seg(gRoot, rx, 5.263, 5.882, 9), seg(gRoot, rx, 5.882, 6.667, 8)];
+  S('path', { d: `M${lx},${yL(6.667)}H${rr}`, class: 'axis' }, gKids);
+  const kidR = [seg(gKids, lx, 6.667, 14.286, 4), seg(gKids, lx, 14.286, 16.667, 3), seg(gKids, rr, 6.667, 16.667, 4), seg(gKids, rr, 16.667, 20, 3)];
+  T(gKids, lx, yL(6.667) + 18, 'L', 'hd', { 'text-anchor': 'middle' }); T(gKids, rr, yL(6.667) + 18, 'R', 'hd', { 'text-anchor': 'middle' });
+  T(gLab, rx - 46, yL(5.263) + 4, '0 m leaves (ε 190)', 'xs f-muted halo', { 'text-anchor': 'end' });
+  T(gLab, rx + 42, yL(5.882) + 4, '620 m leaves (ε 170)', 'xs f-muted halo');
+  T(gLab, rx, yL(6.667) + 17, 'split at ε 150', 'xs f-muted halo', { 'text-anchor': 'middle' });
+  T(gLab, lx - 20, yL(14.286) + 4, '150 m leaves (ε 70)', 'xs f-muted halo', { 'text-anchor': 'end' });
+  T(gLab, lx - 20, yL(16.667) + 4, 'L ends (ε 60)', 'xs f-muted halo', { 'text-anchor': 'end' });
+  T(gLab, rr + 20, yL(16.667) + 4, '490 m leaves (ε 60)', 'xs f-muted halo');
+  T(gLab, rr + 20, yL(20) + 4, 'R ends (ε 50)', 'xs f-muted halo');
+  T(gLab, rx + 48, yL(2.5), '~S~ = 64.5', 'hd');
+  T(gLab, lx - 20, yL(10.5), '~S~ = 37.6', 'hd', { 'text-anchor': 'end' });
+  T(gLab, rr + 20, yL(11.5), '~S~ = 50.0', 'hd');
+  const eom1 = T(g4, 300, 418, '~S~(L) + ~S~(R) = 37.6 + 50.0 = 87.6 > ~S~(all) = 64.5', 'sm f-teal off', { 'text-anchor': 'middle' });
+  const eom2 = T(g4, 300, 436, 'EOM keeps L and R · noise: 0 m and 620 m', 'hd f-teal off', { 'text-anchor': 'middle' });
+  function cond() {
+    vis([gRoot, gKids, gLab, eom1, eom2], false);
+    rootR.forEach(r => r.setAttribute('class', 'icicle')); kidR.forEach(r => r.setAttribute('class', 'icicle'));
+    ctx.after(200, () => vis(gRoot, true)); ctx.after(900, () => vis(gKids, true)); ctx.after(1600, () => vis(gLab, true));
+    ctx.after(2400, () => vis(eom1, true));
+    ctx.after(3100, () => { vis(eom2, true); rootR.forEach(r => r.setAttribute('class', 'icicle dim')); kidR.forEach(r => r.setAttribute('class', 'icicle sel')); });
+  }
+
+  /* scene 5: ladder */
+  const g5 = sc[5];
+  const cx = 300, cy = 225, radii = [1481, 2222, 3333, 5000].map(r => r * 190 / 5000);
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const lpts = [];
+  for (let i = 0; i < 26; i++) { const a = rnd() * Math.PI * 2, r = 22 + rnd() * 196; lpts.push({ r, c: S('circle', { cx: cx + r * Math.cos(a), cy: cy + r * Math.sin(a) * 0.98, r: 5, class: 'dot f-grey' }, g5) }); }
+  const rings = radii.map((r, i) => {
+    const g = S('g', { class: 'off' }, g5);
+    S('circle', { cx, cy, r, class: 'ring' }, g);
+    T(g, cx, cy - r - 5, `trial ${i + 1}: ${fmt([1481, 2222, 3333, 5000][i])} m`, 'sm mono f-teal halo', { 'text-anchor': 'middle' });
+    return g;
+  });
+  S('circle', { cx, cy, r: 7, class: 'dot f-ink' }, g5);
+  T(g5, 300, 434, 'pairs farther apart than the current radius are not stored', 'sm f-muted halo', { 'text-anchor': 'middle' });
+
+  return {
+    step(i) {
+      ctx.clear(); showScene(sc, i);
+      if (i === 0) {
+        retail.forEach(c => c.classList.remove('dim')); rLeg.classList.remove('dim'); vis(typeNote, false);
+        undraw(hull1); undraw(hull2); vis([h1t, h2t, nt], false); noise.setAttribute('class', 'dot f-teal');
+        ctx.after(800, () => { retail.forEach(c => c.classList.add('dim')); rLeg.classList.add('dim'); vis(typeNote, true); });
+        drawIn(hull1, ctx, 1500); drawIn(hull2, ctx, 1500);
+        ctx.after(2300, () => vis([h1t, h2t], true));
+        ctx.after(2700, () => { noise.setAttribute('class', 'dot f-grey'); vis(nt, true); });
+      }
+      if (i === 1) sweep();
+      if (i === 2) build();
+      if (i === 3) renderEps();
+      if (i === 4) cond();
+      if (i === 5) {
+        rings.forEach(g => vis(g, false)); lpts.forEach(p => p.c.setAttribute('class', 'dot f-grey'));
+        radii.forEach((r, k) => ctx.after(300 + 800 * k, () => { vis(rings[k], true); lpts.forEach(p => { if (p.r <= r) p.c.setAttribute('class', 'dot f-teal'); }); }));
+      }
+    }
+  };
+};
+
+/* ================= Part 2c: centers ================= */
+FIGS.centers = (svg, sec) => {
+  plate(svg); const ctx = Ctx();
+  const sc = scenes(svg, 2);
+  const g0 = sc[0];
+  const vx = [40, 115, 190, 265, 520], vpos = [0, 100, 200, 300];
+  S('path', { d: 'M40,150H352', class: 'road' }, g0); S('path', { d: 'M388,150H560', class: 'road' }, g0);
+  S('path', { d: 'M356,138l8,24M368,138l8,24', class: 'axis' }, g0);
+  T(g0, 300, 46, 'establishments on one road (axis broken between 400 m and the far place)', 'sm f-muted', { 'text-anchor': 'middle' });
+  vx.forEach(x => { S('circle', { cx: x, cy: 150, r: 5, class: 'vtx' }, g0); S('circle', { cx: x, cy: 122, r: 8, class: 'dot f-gold' }, g0); });
+  vpos.forEach((p, k) => T(g0, vx[k], 176, p, 'sm mono f-muted', { 'text-anchor': 'middle' }));
+  const farT = T(g0, 520, 176, '', 'sm mono f-muted', { 'text-anchor': 'middle' });
+  const ring = S('circle', { cx: 190, cy: 136, r: 22, class: 'arw', 'stroke-width': 3 }, g0);
+  const vT = T(g0, 190, 92, '~v~∗', 'hd f-teal', { 'text-anchor': 'middle' });
+  const cen = S('path', { d: 'M0,-8L7,5H-7Z', class: 'f-rose' }, g0);
+  const cenT = T(g0, 0, 0, '', 'sm f-rose halo');
+  T(g0, 40, 238, 'total road distance ~M~(~v~) to all five (m)', 'sm f-muted');
+  const bars = vx.map(x => S('rect', { x: x - 18, y: 400, width: 36, height: 0, class: 'barb' }, g0));
+  const bt = vx.map(x => T(g0, x, 396, '', 'sm mono', { 'text-anchor': 'middle' }));
+  S('path', { d: 'M24,400H576', class: 'axis' }, g0);
+  const elF = $('#far', sec), oF = $('#far-o', sec), outF = $('#far-out', sec);
+  let F = 1000;
+  function renderF() {
+    const pos = [0, 100, 200, 300, F];
+    const M = pos.map(v => pos.reduce((a, x) => a + Math.abs(v - x), 0));
+    let best = 0; M.forEach((m, k) => { if (m < M[best]) best = k; });
+    const mx = Math.max(...M);
+    M.forEach((m, k) => { const h = 130 * m / mx; setAttrs(bars[k], { y: 400 - h, height: h, class: 'barb' + (k === best ? ' hot' : '') }); setAttrs(bt[k], { y: 394 - h }); setT(bt[k], fmt(m)); });
+    setAttrs(ring, { cx: vx[best] }); setAttrs(vT, { x: vx[best] });
+    setT(farT, fmt(F) + ' m');
+    const c = (600 + F) / 5;
+    const x = c <= 400 ? 40 + 0.75 * c : 388 + (c - 400) / (F - 400) * (520 - 388);
+    cen.setAttribute('transform', `translate(${x},204)`);
+    setAttrs(cenT, { x: x + (x > 380 ? -12 : 12), y: 209, 'text-anchor': x > 380 ? 'end' : 'start' });
+    setT(cenT, `centroid: ${fmt(c)} m (not a vertex)`);
+    oF.textContent = fmt(F) + ' m'; elF.value = F;
+    outF.innerHTML = `<var>M</var>(<var>v</var>) at 0, 100, 200, 300, ${fmt(F)} m: ${M.map(fmt).join(', ')}.<br>Smallest at <var>v</var>* = ${fmt(pos[best])} m. The centroid is at ${fmt(c)} m.`;
+  }
+  elF.addEventListener('input', () => { F = +elF.value; renderF(); });
+  renderF();
+
+  /* scene 1: recovery */
+  const g1 = sc[1];
+  const nodes = { a: [60, 320], b: [300, 320], c: [540, 320], d: [300, 80] };
+  ['M60,320H540', 'M300,320V80'].forEach(d => S('path', { d, class: 'road' }, g1));
+  Object.entries(nodes).forEach(([k, [x, y]]) => { S('circle', { cx: x, cy: y, r: 5.5, class: 'vtx' }, g1); });
+  T(g1, 60, 348, 'node 1', 'sm f-muted', { 'text-anchor': 'middle' }); T(g1, 300, 348, 'node 2', 'sm f-muted', { 'text-anchor': 'middle' });
+  T(g1, 540, 348, 'node 3', 'sm f-muted', { 'text-anchor': 'middle' }); T(g1, 300, 66, 'node 4', 'sm f-muted', { 'text-anchor': 'middle' });
+  const P1 = [[110, 250], [170, 300], [230, 260], [270, 330], [340, 250]];
+  P1.forEach(([x, y]) => S('circle', { cx: x, cy: y, r: 7, class: 'dot f-teal' }, g1));
+  const cen1 = S('g', { class: 'off' }, g1); S('path', { d: 'M224,270L231,283H217Z', class: 'f-rose' }, cen1); T(cen1, 210, 266, '1 · centroid', 'sm f-rose halo', { 'text-anchor': 'end' });
+  const sn1 = S('path', { d: 'M224,282V320', class: 'snap draw', pathLength: 1 }, g1);
+  const sp1 = S('g', { class: 'off' }, g1); S('circle', { cx: 224, cy: 320, r: 5, class: 'dot f-rose' }, sp1); T(sp1, 214, 304, '2–3 · snap to nearest edge', 'sm f-rose halo', { 'text-anchor': 'end' });
+  const ar1 = S('path', { d: 'M232,334Q262,352 292,334', class: 'arw rose draw', pathLength: 1, 'marker-end': 'url(#fig-centers-ah-rose)' }, g1);
+  const nn1 = S('g', { class: 'off' }, g1); S('circle', { cx: 300, cy: 320, r: 15, class: 'arw', 'stroke-width': 3 }, nn1); T(nn1, 322, 300, '4 · nearer endpoint: node 2', 'sm f-teal halo');
+  T(g1, 300, 412, 'center_method = euclidean_centroid_road_snap_fallback', 'sm mono f-muted', { 'text-anchor': 'middle' });
+
+  return {
+    step(i) {
+      ctx.clear(); showScene(sc, i);
+      if (i === 1) {
+        vis([cen1, sp1, nn1], false); undraw(sn1); undraw(ar1);
+        ctx.after(400, () => vis(cen1, true));
+        drawIn(sn1, ctx, 1100); ctx.after(1900, () => vis(sp1, true));
+        drawIn(ar1, ctx, 2500); ctx.after(3300, () => vis(nn1, true));
+      }
+    }
+  };
+};
+
+/* ================= Part 2d: network Voronoi ================= */
+FIGS.voronoi = (svg, sec) => {
+  plate(svg); const ctx = Ctx();
+  const N = [[40, 80], [200, 60], [360, 90], [540, 70], [60, 220], [210, 210], [350, 230], [520, 220], [40, 380], [190, 370], [370, 390], [550, 370]];
+  const E = [[0, 1], [1, 2], [2, 3], [4, 5], [5, 6], [6, 7], [8, 9], [9, 10], [10, 11], [0, 4], [4, 8], [1, 5], [5, 9], [2, 6], [6, 10], [3, 7], [7, 11]];
+  const SRC = { 4: 0, 5: 0, 8: 0, 3: 1, 7: 1 };
+  const len = (a, b) => Math.hypot(N[a][0] - N[b][0], N[a][1] - N[b][1]);
+  const n = N.length, adj = N.map(() => []);
+  E.forEach(([a, b]) => { const L = len(a, b); adj[a].push([b, L]); adj[b].push([a, L]); });
+  const Dn = Array(n).fill(Infinity), On = Array(n).fill(-1), done = Array(n).fill(false);
+  for (const k in SRC) { Dn[k] = 0; On[k] = SRC[k]; }
+  for (let it = 0; it < n; it++) {
+    let u = -1;
+    for (let i = 0; i < n; i++) if (!done[i] && (u < 0 || Dn[i] < Dn[u] || (Dn[i] === Dn[u] && On[i] < On[u]))) u = i;
+    if (u < 0 || Dn[u] === Infinity) break;
+    done[u] = true;
+    for (const [v, L] of adj[u]) { const nd = Dn[u] + L; if (nd < Dn[v] - 1e-9 || (Math.abs(nd - Dn[v]) < 1e-9 && On[u] < On[v])) { Dn[v] = nd; On[v] = On[u]; } }
+  }
+  const edges = E.map(([a, b]) => { const L = len(a, b); const same = On[a] === On[b]; const ts = same ? L : clamp((Dn[b] + L - Dn[a]) / 2, 0, L); return { a, b, L, same, ts }; });
+  const ownerAt = (e, t) => e.same ? On[e.a] : (t <= e.ts ? On[e.a] : On[e.b]);
+
+  const sc = scenes(svg, 3);
+  /* cells layer (scene 2) placed under the shared network */
+  const cellG = S('g', null, sc[2]);
+  const CS = 40, cells = [];
+  for (let gx = 0; gx < 15; gx++) for (let gy = 0; gy < 11; gy++) {
+    const cx = gx * CS + CS / 2, cy = gy * CS + CS / 2;
+    let best = null;
+    edges.forEach(e => {
+      const [ax, ay] = N[e.a], [bx, by] = N[e.b];
+      const dx = bx - ax, dy = by - ay; const t = clamp(((cx - ax) * dx + (cy - ay) * dy) / (dx * dx + dy * dy), 0, 1);
+      const px = ax + dx * t, py = ay + dy * t, d = Math.hypot(cx - px, cy - py);
+      if (!best || d < best.d) best = { d, e, t: t * e.L, px, py };
+    });
+    const o = ownerAt(best.e, best.t);
+    cells.push({ gx, gy, o, best, r: S('rect', { x: gx * CS, y: gy * CS, width: CS, height: CS, class: 'cell' + o + ' off' }, cellG) });
+  }
+  S('path', { d: (() => { let d = ''; for (let x = CS; x < 600; x += CS) d += `M${x},0V440`; for (let y = CS; y < 440; y += CS) d += `M0,${y}H600`; return d; })(), class: 'cellline' }, cellG);
+  const own = {}; cells.forEach(c => own[c.gx + ',' + c.gy] = c.o);
+  let dd = '';
+  cells.forEach(c => {
+    if (c.gx < 14 && own[(c.gx + 1) + ',' + c.gy] !== c.o) dd += `M${(c.gx + 1) * CS},${c.gy * CS}v${CS}`;
+    if (c.gy < 10 && own[c.gx + ',' + (c.gy + 1)] !== c.o) dd += `M${c.gx * CS},${(c.gy + 1) * CS}h${CS}`;
+  });
+  const top2 = S('g', { class: 'off' });
+  const diss = S('path', { d: dd, class: 'dissolve draw', pathLength: 1 }, top2);
+  const ex = cells.find(c => c.gx === 8 && c.gy === 3) || cells[0];
+  const exG = S('g', { class: 'off' }, top2);
+  S('rect', { x: ex.gx * CS, y: ex.gy * CS, width: CS, height: CS, class: 'cellhot' }, exG);
+  S('path', { d: `M${ex.gx * CS + CS / 2},${ex.gy * CS + CS / 2}L${ex.best.px},${ex.best.py}`, class: 'guide', 'stroke-width': 2 }, exG);
+  S('circle', { cx: ex.gx * CS + CS / 2, cy: ex.gy * CS + CS / 2, r: 3.5, class: 'vtx' }, exG);
+
+  /* shared network layer (scenes 0 and 2) */
+  const net = S('g', null, svg);
+  edges.forEach(e => S('path', { d: `M${N[e.a]}L${N[e.b]}`, class: 'road', 'stroke-width': 6 }, net));
+  const segs = edges.map(e => ({ e, A: S('line', { class: 'seg' + On[e.a] }, net), B: S('line', { class: 'seg' + On[e.b] }, net) }));
+  const splits = S('g', { class: 'off' }, net);
+  edges.forEach(e => { if (!e.same && e.ts > 0 && e.ts < e.L) { const k = e.ts / e.L; S('circle', { cx: N[e.a][0] + (N[e.b][0] - N[e.a][0]) * k, cy: N[e.a][1] + (N[e.b][1] - N[e.a][1]) * k, r: 5.5, class: 'split' }, splits); } });
+  N.forEach((p, i) => { if (SRC[i] === undefined) S('circle', { cx: p[0], cy: p[1], r: 4, class: 'vtx' }, net); else S('circle', { cx: p[0], cy: p[1], r: 9, class: 'dot ' + (SRC[i] === 0 ? 'f-teal' : 'f-blue') }, net); });
+  const leg = S('g', null, net);
+  S('rect', { x: 250, y: 12, width: 312, height: 24, rx: 4, class: 'bgp' }, leg);
+  S('circle', { cx: 262, cy: 24, r: 7, class: 'dot f-teal' }, leg); T(leg, 274, 29, 'cluster A sources', 'sm');
+  S('circle', { cx: 414, cy: 24, r: 7, class: 'dot f-blue' }, leg); T(leg, 426, 29, 'cluster B sources', 'sm');
+  svg.appendChild(top2);
+  const maxR = Math.max(...edges.map(e => Math.max(Dn[e.a] + (e.same ? e.L : e.ts), Dn[e.b] + (e.same ? e.L : e.L - e.ts))));
+  function wave(R) {
+    segs.forEach(({ e, A, B }) => {
+      const limA = e.same ? e.L : e.ts, limB = e.same ? e.L : e.L - e.ts;
+      const la = clamp(R - Dn[e.a], 0, limA), lb = clamp(R - Dn[e.b], 0, limB);
+      const [ax, ay] = N[e.a], [bx, by] = N[e.b], ux = (bx - ax) / e.L, uy = (by - ay) / e.L;
+      setAttrs(A, { x1: ax, y1: ay, x2: ax + ux * la, y2: ay + uy * la, opacity: la > 0 ? 1 : 0 });
+      setAttrs(B, { x1: bx, y1: by, x2: bx - ux * lb, y2: by - uy * lb, opacity: lb > 0 ? 1 : 0 });
+    });
+  }
+  function runWave() { ctx.clear(); vis(splits, false); wave(0); ctx.after(300, () => ctx.tween(3600, (_, k) => wave(maxR * k), () => vis(splits, true))); }
+
+  /* scene 1: one edge */
+  const g1 = sc[1];
+  const L1 = 400; let Du = 100, Dv = 300;
+  S('path', { d: 'M60,330H540', class: 'road' }, g1);
+  const sA = S('line', { y1: 330, y2: 330, class: 'seg0' }, g1), sB = S('line', { y1: 330, y2: 330, class: 'seg1' }, g1);
+  S('circle', { cx: 60, cy: 330, r: 9, class: 'dot f-teal' }, g1); S('circle', { cx: 540, cy: 330, r: 9, class: 'dot f-blue' }, g1);
+  T(g1, 60, 360, 'source of ~A~', 'sm', { 'text-anchor': 'middle' }); T(g1, 540, 360, 'source of ~B~', 'sm', { 'text-anchor': 'middle' });
+  const uN = S('circle', { cy: 330, r: 5, class: 'vtx' }, g1), vN = S('circle', { cy: 330, r: 5, class: 'vtx' }, g1);
+  const uT = T(g1, 0, 316, '~u~', 'hd', { 'text-anchor': 'middle' }), vT = T(g1, 0, 316, '~v~', 'hd', { 'text-anchor': 'middle' });
+  const spl = S('circle', { cy: 330, r: 7, class: 'split' }, g1);
+  const tsT = T(g1, 0, 404, '', 'hd', { 'text-anchor': 'middle' });
+  const lDu = T(g1, 0, 384, '', 'sm mono f-muted', { 'text-anchor': 'middle' }), lL = T(g1, 0, 384, '', 'sm mono f-muted', { 'text-anchor': 'middle' }), lDv = T(g1, 0, 384, '', 'sm mono f-muted', { 'text-anchor': 'middle' });
+  S('path', { d: 'M60,250H540', class: 'axis' }, g1);
+  T(g1, 60, 46, 'route cost to a point at offset ~t~ inside the edge', 'sm f-muted');
+  const cA = S('line', { class: 'cost0' }, g1), cB = S('line', { class: 'cost1' }, g1);
+  const cAT = T(g1, 0, 0, '~D~_{~u~} + ~t~ (via ~A~)', 'sm f-teal halo'), cBT = T(g1, 0, 0, '~D~_{~v~} + ~L~ − ~t~ (via ~B~)', 'sm f-blue halo', { 'text-anchor': 'end' });
+  const cross = S('circle', { r: 6, class: 'split' }, g1);
+  const gl = S('line', { class: 'guide' }, g1);
+  const elU = $('#du', sec), elV = $('#dv', sec), oU = $('#du-o', sec), oV = $('#dv-o', sec), outT = $('#t-out', sec);
+  function renderE() {
+    const tot = Du + L1 + Dv, s = 480 / tot, xu = 60 + Du * s, xv = xu + L1 * s;
+    const ts = clamp((Dv + L1 - Du) / 2, 0, L1), xs = xu + ts * s;
+    setAttrs(sA, { x1: 60, x2: xs }); setAttrs(sB, { x1: xs, x2: 540 });
+    setAttrs(uN, { cx: xu }); setAttrs(vN, { cx: xv }); setAttrs(uT, { x: xu }); setAttrs(vT, { x: xv }); setAttrs(spl, { cx: xs });
+    setAttrs(lDu, { x: (60 + xu) / 2 }); setT(lDu, Du > 0 ? '~D~_{~u~} = ' + Du : ''); setAttrs(lL, { x: (xu + xv) / 2 }); setT(lL, '~L~ = 400'); setAttrs(lDv, { x: (xv + 540) / 2 }); setT(lDv, Dv > 0 ? '~D~_{~v~} = ' + Dv : '');
+    setAttrs(tsT, { x: clamp(xs, 120, 480) }); setT(tsT, `~t~∗ = ${fmt(ts)} m from ~u~`);
+    const maxC = Math.max(Du + L1, Dv + L1), k = 170 / maxC, y = c => 250 - c * k;
+    setAttrs(cA, { x1: xu, y1: y(Du), x2: xv, y2: y(Du + L1) }); setAttrs(cB, { x1: xu, y1: y(Dv + L1), x2: xv, y2: y(Dv) });
+    setAttrs(cAT, { x: xv + 6, y: y(Du + L1) + 4, 'text-anchor': xv > 420 ? 'end' : 'start' });
+    if (xv > 420) setAttrs(cAT, { x: xv - 4, y: y(Du + L1) - 10 });
+    setAttrs(cBT, { x: xu - 6, y: y(Dv + L1) + 4, 'text-anchor': 'end' });
+    if (xu < 180) setAttrs(cBT, { x: xu + 4, y: y(Dv + L1) - 10, 'text-anchor': 'start' });
+    const interior = ts > 0 && ts < L1;
+    vis(cross, interior); setAttrs(cross, { cx: xs, cy: y(Du + ts) }); setAttrs(gl, { x1: xs, x2: xs, y1: y(Du + ts), y2: 322 });
+    elU.value = Du; elV.value = Dv; oU.textContent = Du + ' m'; oV.textContent = Dv + ' m';
+    const raw = (Dv + L1 - Du) / 2;
+    outT.innerHTML = `<var>t</var>* = (${Dv} + 400 − ${Du}) / 2 = ${fmt(raw)} m` + (raw !== ts ? ` → clipped to ${fmt(ts)} m` : '') + '.<br>' +
+      (ts <= 0 ? 'The whole edge belongs to cluster <var>B</var>.' : ts >= L1 ? 'The whole edge belongs to cluster <var>A</var>.' : `Cluster <var>A</var> owns the first ${fmt(ts)} m from <var>u</var>; <var>B</var> owns the last ${fmt(L1 - ts)} m.`);
+  }
+  elU.addEventListener('input', () => { Du = +elU.value; renderE(); });
+  elV.addEventListener('input', () => { Dv = +elV.value; renderE(); });
+  renderE();
+  const replay = $('#wave-replay', sec);
+  let curStep = 0;
+
+  return {
+    step(i) {
+      curStep = i; ctx.clear(); showScene(sc, i); vis(net, i !== 1); vis(top2, i === 2);
+      if (i === 0) runWave();
+      if (i === 2) {
+        wave(maxR); vis(splits, true);
+        cells.forEach(c => c.r.classList.add('off')); undraw(diss); vis(exG, false);
+        cells.forEach(c => ctx.after(150 + c.gx * 70 + c.gy * 12, () => c.r.classList.remove('off')));
+        drawIn(diss, ctx, 1500); ctx.after(2300, () => vis(exG, true));
+      }
+    },
+    init() { replay.addEventListener('click', () => { if (curStep === 0) runWave(); }); }
+  };
+};
+
+/* ================= Part 3: economy ================= */
+FIGS.economy = (svg) => {
+  const AH = plate(svg); const ctx = Ctx();
+  const sc = scenes(svg, 3);
+  const g0 = sc[0];
+  const x0 = 200, y0 = 110, cw = 150, ch = 76;
+  T(g0, 350, 66, 'user sector ~j~ (column): buys', 'sm f-muted', { 'text-anchor': 'middle' });
+  T(g0, 112, y0 + ch, 'supplier sector ~i~ (row): sells', 'sm f-muted', { 'text-anchor': 'middle', transform: `rotate(-90 112 ${y0 + ch})` });
+  ['Food', 'Retail'].forEach((n, k) => { T(g0, x0 + cw * k + cw / 2, y0 - 12, n, 'hd', { 'text-anchor': 'middle' }); T(g0, x0 - 14, y0 + ch * k + ch / 2 + 5, n, 'hd', { 'text-anchor': 'end' }); });
+  const Z = [[20, 40], [10, 5]], A = ['.20', '.20', '.10', '.025'], Xo = [100, 200];
+  const cellR = [], zT = [], aT = [], fT = [];
+  for (let r = 0; r < 2; r++) for (let c = 0; c < 2; c++) {
+    const x = x0 + c * cw, y = y0 + r * ch;
+    cellR.push(S('rect', { x, y, width: cw, height: ch, class: 'cellz' }, g0));
+    zT.push(T(g0, x + cw / 2, y + ch / 2 + 8, Z[r][c], 'big mono', { 'text-anchor': 'middle', 'font-size': 24 }));
+    fT.push(T(g0, x + cw / 2, y + 26, `${Z[r][c]} / ${Xo[c]}`, 'sm mono f-muted off', { 'text-anchor': 'middle' }));
+    aT.push(T(g0, x + cw / 2, y + 56, A[r * 2 + c], 'big mono f-teal off', { 'text-anchor': 'middle', 'font-size': 24 }));
+  }
+  const xr = S('g', { class: 'off' }, g0);
+  S('rect', { x: x0, y: y0 + 2 * ch + 14, width: 2 * cw, height: 40, class: 'xrow' }, xr);
+  T(xr, x0 - 14, y0 + 2 * ch + 40, 'total output ~x~_{~j~}', 'sm', { 'text-anchor': 'end' });
+  Xo.forEach((v, c) => T(xr, x0 + c * cw + cw / 2, y0 + 2 * ch + 41, v, 'hd mono', { 'text-anchor': 'middle' }));
+  T(xr, x0 + cw / 2, y0 + 2 * ch + 76, 'column sum 30', 'sm mono f-muted', { 'text-anchor': 'middle' });
+  T(xr, x0 + cw * 1.5, y0 + 2 * ch + 76, 'column sum 45', 'sm mono f-muted', { 'text-anchor': 'middle' });
+  const note0 = T(g0, 300, 410, '~z~_{Food,Retail} = 40: Retail buys 40 units of food output', 'sm halo', { 'text-anchor': 'middle' });
+  const note1 = T(g0, 300, 410, '~a~_{Food,Retail} = 40 / 200 = 0.20 per unit of Retail output', 'sm f-teal halo off', { 'text-anchor': 'middle' });
+  const arrCol = S('path', { d: `M${x0 + cw * 1.5},${y0 - 30}V${y0 + 6}`, class: 'arw gold off', 'marker-end': AH('gold') }, g0);
+  arrCol.classList.remove('off');
+
+  /* scene 1: graph */
+  const g1 = sc[1];
+  S('circle', { cx: 180, cy: 250, r: 50, class: 'nodeF' }, g1); T(g1, 180, 256, 'Food', 'hd', { 'text-anchor': 'middle' });
+  S('circle', { cx: 420, cy: 250, r: 50, class: 'nodeR' }, g1); T(g1, 420, 256, 'Retail', 'hd', { 'text-anchor': 'middle' });
+  const ge = [
+    S('path', { d: 'M226,230Q300,175 372,230', class: 'edgeF draw', 'stroke-width': 5, pathLength: 1, 'marker-end': AH('teal') }, g1),
+    S('path', { d: 'M374,270Q300,325 228,270', class: 'edgeR draw', 'stroke-width': 3, pathLength: 1, 'marker-end': AH('blue') }, g1),
+    S('path', { d: 'M158,206C130,120 230,120 202,206', class: 'edgeF draw', 'stroke-width': 5, pathLength: 1, stroke: 'currentColor', 'marker-end': AH('gold') }, g1),
+    S('path', { d: 'M398,206C370,120 470,120 442,206', class: 'edgeF draw', 'stroke-width': 1.8, pathLength: 1, 'marker-end': AH('gold') }, g1)
+  ];
+  ge[2].setAttribute('class', 'arw gold draw'); ge[2].setAttribute('stroke-width', 5); ge[3].setAttribute('class', 'arw gold draw'); ge[3].setAttribute('stroke-width', 1.8);
+  const gl = S('g', { class: 'off' }, g1);
+  T(gl, 300, 186, '~a~_{FR} = 0.20', 'sm f-teal halo', { 'text-anchor': 'middle' });
+  T(gl, 300, 330, '~a~_{RF} = 0.10', 'sm f-blue halo', { 'text-anchor': 'middle' });
+  T(gl, 180, 128, '~a~_{FF} = 0.20', 'sm f-gold halo', { 'text-anchor': 'middle' });
+  T(gl, 420, 128, '~a~_{RR} = 0.025', 'sm f-gold halo', { 'text-anchor': 'middle' });
+  T(g1, 300, 392, 'self-use, two-way edges, and cycles are kept', 'sm f-muted', { 'text-anchor': 'middle' });
+  T(g1, 300, 412, 'edge width follows the coefficient', 'sm f-muted', { 'text-anchor': 'middle' });
+
+  /* scene 2: MWAS */
+  const g2 = sc[2];
+  T(g2, 300, 46, 'accept ~u~ → ~v~ only if no path ~v~ ⇝ ~u~ exists yet', 'hd', { 'text-anchor': 'middle' });
+  const hiPath = S('path', { d: 'M160,340L440,340L300,110', class: 'edgeG off' }, g2);
+  const mE = [
+    { p: S('path', { d: 'M188,340H410', class: 'arw ink draw', 'stroke-width': 2.4, pathLength: 1, 'marker-end': AH('ink') }, g2), t: T(g2, 300, 368, '#1 · 50 ✓', 'sm f-teal off', { 'text-anchor': 'middle' }) },
+    { p: S('path', { d: 'M426,318L315,134', class: 'arw ink draw', 'stroke-width': 2.4, pathLength: 1, 'marker-end': AH('ink') }, g2), t: T(g2, 384, 220, '#2 · 40 ✓', 'sm f-teal off') },
+    { p: S('path', { d: 'M276,120Q150,170 152,312', class: 'arw rose draw', 'stroke-width': 2.4, 'stroke-dasharray': '1 1', pathLength: 1, 'marker-end': AH('rose') }, g2), t: T(g2, 168, 205, '#3 · 30 ✗', 'sm f-rose off', { 'text-anchor': 'end' }) },
+    { p: S('path', { d: 'M174,318L285,134', class: 'arw ink draw', 'stroke-width': 2.4, pathLength: 1, 'marker-end': AH('ink') }, g2), t: T(g2, 238, 252, '#4 · 20 ✓', 'sm f-teal off') }
+  ];
+  const why3 = T(g2, 300, 410, '#3 (~C~ → ~A~) would close the cycle ~A~ → ~B~ → ~C~ → ~A~', 'sm f-rose off', { 'text-anchor': 'middle' });
+  [['A', 160, 340], ['B', 440, 340], ['C', 300, 110]].forEach(([l, x, y]) => { S('circle', { cx: x, cy: y, r: 26, class: 'nodeN' }, g2); T(g2, x, y + 6, '~' + l + '~', 'hd', { 'text-anchor': 'middle' }); });
+
+  return {
+    step(i, prev) {
+      ctx.clear();
+      showScene(sc, i <= 1 ? 0 : i - 1);
+      if (i <= 1) {
+        const coef = i === 1;
+        cellR.forEach((r, k) => r.setAttribute('class', 'cellz' + (!coef && k === 1 ? ' hot' : '')));
+        vis(zT, !coef); vis(aT, coef); vis(fT, coef); vis(xr, coef); vis(note0, !coef); vis(note1, coef); vis(arrCol, !coef);
+      }
+      if (i === 2) { ge.forEach((p, k) => drawIn(p, ctx, 200 + 450 * k)); vis(gl, false); ctx.after(2100, () => vis(gl, true)); }
+      if (i === 3) {
+        mE.forEach(m => { undraw(m.p); vis(m.t, false); }); vis([hiPath, why3], false);
+        mE[2].p.setAttribute('stroke-dasharray', '1 1');
+        drawIn(mE[0].p, ctx, 300); ctx.after(1200, () => vis(mE[0].t, true));
+        drawIn(mE[1].p, ctx, 1400); ctx.after(2300, () => vis(mE[1].t, true));
+        ctx.after(2600, () => vis(hiPath, true));
+        drawIn(mE[2].p, ctx, 2700); ctx.after(3600, () => { vis([mE[2].t, why3], true); mE[2].p.style.opacity = '.45'; });
+        ctx.after(4300, () => vis(hiPath, false));
+        drawIn(mE[3].p, ctx, 4400); ctx.after(5300, () => vis(mE[3].t, true));
+        mE[2].p.style.opacity = '';
+      }
+    }
+  };
+};
+
+/* ================= Part 4: graph X ================= */
+FIGS.xgraph = (svg, sec) => {
+  const AH = plate(svg); const ctx = Ctx();
+  const sc = scenes(svg, 3);
+  /* scene 0: strips */
+  const g0 = sc[0];
+  const L = 60, Rr = 540, fS = L + 480 * 2.2 / 4.2, rS = L + 480 * 1.3 / 4.2;
+  T(g0, L, 66, 'Food territories', 'sm f-teal');
+  S('rect', { x: L, y: 80, width: fS - L, height: 70, class: 'terrF' }, g0); S('rect', { x: fS, y: 80, width: Rr - fS, height: 70, class: 'terrF2' }, g0);
+  T(g0, (L + fS) / 2, 104, '~F~_{1}', 'hd', { 'text-anchor': 'middle' }); T(g0, (fS + Rr) / 2, 104, '~F~_{2}', 'hd', { 'text-anchor': 'middle' });
+  const rG = S('g', { transform: 'translate(0,150)' }, g0);
+  const rTitle = T(rG, L, 66, 'Retail territories', 'sm f-blue');
+  S('rect', { x: L, y: 80, width: rS - L, height: 70, class: 'terrR' }, rG); S('rect', { x: rS, y: 80, width: Rr - rS, height: 70, class: 'terrR2' }, rG);
+  T(rG, (L + rS) / 2, 140, '~R~_{1}', 'hd', { 'text-anchor': 'middle' }); T(rG, (rS + Rr) / 2, 140, '~R~_{2}', 'hd', { 'text-anchor': 'middle' });
+  const ovl = S('g', { class: 'off' }, g0);
+  [[L, rS, '~F~_{1} ∩ ~R~_{1}'], [rS, fS, '~F~_{1} ∩ ~R~_{2}'], [fS, Rr, '~F~_{2} ∩ ~R~_{2}']].forEach(([a, b, l]) => {
+    S('path', { d: `M${a + 3},166v8H${b - 3}v-8`, class: 'axis' }, ovl);
+    T(ovl, (a + b) / 2, 194, l, 'sm', { 'text-anchor': 'middle' });
+  });
+  T(ovl, 300, 236, 'three overlaps with positive area → candidate pairs', 'sm f-muted', { 'text-anchor': 'middle' });
+  T(ovl, 300, 262, '~F~_{2} ∩ ~R~_{1} = ∅ → no edge between ~F~_{2} and ~R~_{1}', 'sm f-rose', { 'text-anchor': 'middle' });
+  const ovl2 = S('g', { class: 'off' }, g0);
+  T(ovl2, 300, 330, 'Food → Retail: ~a~_{FR} = 0.20 > 0', 'sm f-teal', { 'text-anchor': 'middle' });
+  T(ovl2, 300, 354, 'Retail → Food: ~a~_{RF} = 0.10 > 0', 'sm f-blue', { 'text-anchor': 'middle' });
+  T(ovl2, 300, 386, 'each overlapping pair gets edges in both directions', 'sm f-muted', { 'text-anchor': 'middle' });
+
+  /* scene 1: graph */
+  const g1 = sc[1];
+  const P = { F1: [100, 110], R1: [300, 110], F2: [100, 330], R2: [300, 330] };
+  const RAD = 28;
+  const EDG = [['F1', 'R1', 120, .20, 600], ['R1', 'F1', 60, .10, 600], ['F1', 'R2', 280, .20, 1400], ['R2', 'F1', 140, .10, 1400], ['F2', 'R2', 100, .20, 500], ['R2', 'F2', 50, .10, 500]];
+  const edgeEls = EDG.map(([a, b, w]) => {
+    const p = P[a], q = P[b], mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2, dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy);
+    const nx = -dy / l, ny = dx / l, c = [mx + nx * 26, my + ny * 26];
+    const u1 = Math.hypot(c[0] - p[0], c[1] - p[1]), u2 = Math.hypot(c[0] - q[0], c[1] - q[1]);
+    const s = [p[0] + (c[0] - p[0]) / u1 * RAD, p[1] + (c[1] - p[1]) / u1 * RAD], e = [q[0] + (c[0] - q[0]) / u2 * (RAD + 3), q[1] + (c[1] - q[1]) / u2 * (RAD + 3)];
+    const f = a[0] === 'F';
+    const path = S('path', { d: `M${s}Q${c} ${e}`, class: (f ? 'edgeF' : 'edgeR') + ' draw', pathLength: 1, 'stroke-width': (1.4 + w / 42).toFixed(1), 'marker-end': AH(f ? 'teal' : 'blue') }, g1);
+    const geom = S('path', { d: `M${s}Q${c} ${e}`, style: 'opacity:0;fill:none' }, g1);
+    const lx = 0.25 * s[0] + 0.5 * c[0] + 0.25 * e[0] + nx * 13, ly = 0.25 * s[1] + 0.5 * c[1] + 0.25 * e[1] + ny * 13;
+    const t = T(g1, lx, ly + 4, w, 'sm mono halo ' + (f ? 'f-teal' : 'f-blue'), { 'text-anchor': 'middle' });
+    return { path, geom, t, a, b, w };
+  });
+  const nodeEls = {};
+  Object.entries(P).forEach(([k, [x, y]]) => {
+    const c = S('circle', { cx: x, cy: y, r: RAD, class: k[0] === 'F' ? 'nodeF' : 'nodeR' }, g1);
+    const t = T(g1, x, y + 6, `~${k[0]}~_{${k[1]}}`, 'hd', { 'text-anchor': 'middle' });
+    nodeEls[k] = { c, t };
+  });
+  /* right panels */
+  const tab = S('g', { class: 'off' }, g1);
+  const cx = [372, 470, 532, 586];
+  ['edge', '~a~', '~d~ (m)', '~w~'].forEach((h, k) => T(tab, k === 0 ? cx[0] : cx[k], 70, h, 'sm f-muted', { 'text-anchor': k === 0 ? 'start' : 'end' }));
+  S('path', { d: 'M366,80H590', class: 'axis' }, tab);
+  EDG.forEach(([a, b, w, ac, d], k) => {
+    const y = 104 + k * 28;
+    T(tab, cx[0], y, `~${a[0]}~_{${a[1]}} → ~${b[0]}~_{${b[1]}}`, 'sm');
+    T(tab, cx[1], y, ac.toFixed(2), 'sm mono', { 'text-anchor': 'end' });
+    T(tab, cx[2], y, fmt(d), 'sm mono', { 'text-anchor': 'end' });
+    T(tab, cx[3], y, w, 'sm mono' + (w === 280 ? ' f-gold' : ''), { 'text-anchor': 'end', 'font-weight': w === 280 ? 700 : 400 });
+  });
+  T(tab, 366, 300, '~w~ = ~a~ × ~d~; distances invented', 'sm f-muted');
+  T(tab, 366, 324, 'heaviest edge = farthest centers', 'sm f-gold');
+  const walk = S('g', { class: 'off' }, g1);
+  T(walk, 366, 80, '1 step adds  ~α~ · ~w~', 'hd'); T(walk, 366, 110, '2 steps add  ~α~^{2} · ~w~ · ~w~', 'hd'); T(walk, 366, 140, '3 steps add  ~α~^{3} · ~w~ · ~w~ · ~w~', 'hd');
+  T(walk, 366, 196, 'this walk: ~F~_{2} → ~R~_{2} → ~F~_{1}', 'sm f-gold'); T(walk, 366, 220, 'adds ~α~^{2} × 100 × 140', 'sm f-gold');
+  T(walk, 366, 244, 'to ~K~^{out}(~F~_{2}) and ~K~^{in}(~F~_{1})', 'sm f-gold');
+  const tokW = S('circle', { r: 8, class: 'dot f-gold off' }, g1);
+  const kat = S('g', { class: 'off' }, g1);
+  const kLeg = [['~K~^{in}', 'barb tealf'], ['~K~^{out}', 'barb blue'], ['~C~', 'barb gold']];
+  kLeg.forEach(([l, c], k) => { S('rect', { x: 370 + k * 70, y: 40, width: 12, height: 12, class: c }, kat); T(kat, 388 + k * 70, 51, l, 'sm'); });
+  const order = ['F1', 'F2', 'R1', 'R2'];
+  const kBars = order.map((k, i) => {
+    const y = 78 + i * 84;
+    T(kat, 370, y, `~${k[0]}~_{${k[1]}}`, 'hd');
+    const mk = (dy, c) => ({ r: S('rect', { x: 400, y: y + dy, width: 0, height: 14, class: c }, kat), t: T(kat, 404, y + dy + 12, '', 'sm mono') });
+    return { kin: mk(6, 'barb tealf'), kout: mk(24, 'barb blue'), C: mk(42, 'barb gold') };
+  });
+  const kNote = T(kat, 370, 412, '', 'sm f-muted'), kNote2 = T(kat, 370, 430, '', 'sm f-muted');
+  const W = [[0, 0, 120, 280], [0, 0, 0, 100], [60, 0, 0, 0], [140, 50, 0, 0]]; // order F1, F2, R1, R2
+  function spectral(M) {
+    const n = M.length, s = Math.max(...M.map(r => r.reduce((a, b) => a + b, 0)));
+    let x = Array(n).fill(1), lam = 0;
+    for (let it = 0; it < 600; it++) {
+      const y = x.map((_, i) => M[i].reduce((a, w, j) => a + w * x[j], 0) + s * x[i]);
+      lam = y.reduce((a, v, i) => a + v * x[i], 0) / x.reduce((a, v) => a + v * v, 0);
+      const nm = Math.hypot(...y); x = y.map(v => v / nm);
+    }
+    return lam - s;
+  }
+  function solve(A, b) {
+    const n = b.length, M = A.map((r, i) => [...r, b[i]]);
+    for (let c = 0; c < n; c++) {
+      let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+      [M[c], M[p]] = [M[p], M[c]];
+      for (let r = 0; r < n; r++) { if (r === c) continue; const f = M[r][c] / M[c][c]; for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+    }
+    return M.map((r, i) => r[n] / r[i]);
+  }
+  const rho = spectral(W);
+  function katz(f) {
+    const a = f / rho, I = (i, j) => i === j ? 1 : 0, one = [1, 1, 1, 1];
+    const kin = solve(W.map((r, i) => r.map((_, j) => I(i, j) - a * W[j][i])), one);
+    const kout = solve(W.map((r, i) => r.map((w, j) => I(i, j) - a * w)), one);
+    const g = kin.map((v, i) => Math.sqrt(v * kout[i])), nm = Math.hypot(...g);
+    return { a, kin, kout, C: g.map(v => v / nm) };
+  }
+  const elA = $('#af', sec), oA = $('#af-o', sec), outA = $('#af-out', sec);
+  let fac = 0.85;
+  function renderKatz() {
+    const r = katz(fac), km = Math.max(...r.kin, ...r.kout);
+    order.forEach((k, i) => {
+      const b = kBars[i];
+      const put = (o, v, w, digits) => { o.r.setAttribute('width', w); setAttrs(o.t, { x: 404 + w }); setT(o.t, v.toFixed(digits)); };
+      put(b.kin, r.kin[i], 130 * r.kin[i] / km, 2); put(b.kout, r.kout[i], 130 * r.kout[i] / km, 2); put(b.C, r.C[i], 130 * r.C[i], 3);
+      nodeEls[k].c.setAttribute('r', (18 + 26 * r.C[i]).toFixed(1));
+    });
+    setT(kNote, `~ρ~(~W~) = ${rho.toFixed(1)}`); setT(kNote2, `~α~ = ${fac.toFixed(2)} / ${rho.toFixed(1)} = ${r.a.toFixed(5)}`);
+    oA.textContent = fac.toFixed(2); elA.value = fac;
+    outA.innerHTML = `ρ(<var>W</var>) = ${rho.toFixed(1)}, so α = ${fac.toFixed(2)} / ${rho.toFixed(1)} = ${r.a.toFixed(5)}.<br>` +
+      order.map((k, i) => `${k}: <var>K</var><sup>in</sup> ${r.kin[i].toFixed(2)}, <var>K</var><sup>out</sup> ${r.kout[i].toFixed(2)}, <var>C</var> ${r.C[i].toFixed(3)}`).join('<br>');
+  }
+  elA.addEventListener('input', () => { fac = +elA.value; renderKatz(); });
+  renderKatz();
+  const resetNodes = () => Object.values(nodeEls).forEach(n => n.c.setAttribute('r', RAD));
+
+  /* scene 2: geometric mean */
+  const g2 = sc[2];
+  const gx = v => 80 + (v - 0) * 46, gy = v => 380 - v * 52;
+  S('path', { d: `M80,${gy(6.2)}V380H${gx(10) + 8}`, class: 'axis' }, g2);
+  [0, 1, 3, 5, 7, 9, 10].forEach(v => { S('path', { d: `M${gx(v)},380v5`, class: 'axis' }, g2); T(g2, gx(v), 400, v, 'sm mono f-muted', { 'text-anchor': 'middle' }); });
+  [0, 1, 2, 3, 4, 5, 6].forEach(v => { S('path', { d: `M75,${gy(v)}h5`, class: 'axis' }, g2); T(g2, 70, gy(v) + 4, v, 'sm mono f-muted', { 'text-anchor': 'end' }); });
+  T(g2, 310, 426, '~K~^{in} of the node (its ~K~^{out} = 10 − ~K~^{in})', 'sm f-muted', { 'text-anchor': 'middle' });
+  let cd = ''; for (let v = 1; v <= 9.0001; v += 0.1) cd += (cd ? 'L' : 'M') + gx(v).toFixed(1) + ',' + gy(Math.sqrt(v * (10 - v))).toFixed(1);
+  S('path', { d: `M${gx(1)},${gy(5)}H${gx(9)}`, class: 'mean' }, g2);
+  T(g2, gx(9) + 6, gy(5) + 4, 'arithmetic mean = 5', 'sm f-gold');
+  S('path', { d: cd, class: 'curve' }, g2);
+  T(g2, gx(2.2), gy(4.3), 'geometric mean √(~K~^{in}~K~^{out})', 'sm f-teal halo', { 'text-anchor': 'end' });
+  [['A', 9, 3, 'start'], ['B', 5, 5, 'middle'], ['C', 1, 3, 'end']].forEach(([l, k, g, an]) => {
+    S('circle', { cx: gx(k), cy: gy(g), r: 5.5, class: 'exm' }, g2);
+    T(g2, gx(k) + (an === 'start' ? 10 : an === 'end' ? -10 : 0), gy(g) + (an === 'middle' ? -14 : 4), l, 'hd f-muted', { 'text-anchor': an });
+  });
+  const gG = S('line', { class: 'guide' }, g2), gM = S('circle', { r: 9, class: 'handle f-teal' }, g2), gTx = T(g2, 0, 0, '', 'sm halo f-teal');
+  const elKi = $('#kin', sec), oKi = $('#kin-o', sec), outKi = $('#kin-out', sec);
+  let ki = 5;
+  function renderGM() {
+    const ko = 10 - ki, g = Math.sqrt(ki * ko);
+    setAttrs(gM, { cx: gx(ki), cy: gy(g) }); setAttrs(gG, { x1: gx(ki), x2: gx(ki), y1: gy(g), y2: 380 });
+    setAttrs(gTx, { x: gx(ki) + (ki > 6 ? -14 : 14), y: gy(g) + 22, 'text-anchor': ki > 6 ? 'end' : 'start' }); setT(gTx, '~g~ = ' + g.toFixed(2));
+    oKi.textContent = ki.toFixed(1); elKi.value = ki;
+    outKi.innerHTML = `<var>K</var><sup>in</sup> = ${ki.toFixed(1)}, <var>K</var><sup>out</sup> = ${ko.toFixed(1)}.<br>Arithmetic mean = 5.00 (always). Geometric mean <var>g</var> = √(${ki.toFixed(1)} × ${ko.toFixed(1)}) = ${g.toFixed(2)}.`;
+  }
+  elKi.addEventListener('input', () => { ki = +elKi.value; renderGM(); });
+  renderGM();
+
+  function loopWalk() {
+    const e1 = edgeEls.find(e => e.a === 'F2' && e.b === 'R2'), e2 = edgeEls.find(e => e.a === 'R2' && e.b === 'F1');
+    vis(tokW, true);
+    tracer(ctx, e1.geom, null, tokW, 1300, null, () => tracer(ctx, e2.geom, null, tokW, 1300, null, () => { vis(tokW, false); if (!RM) ctx.after(900, loopWalk); }));
+  }
+
+  return {
+    step(i, prev) {
+      ctx.clear();
+      showScene(sc, i === 0 ? 0 : i <= 3 ? 1 : 2);
+      if (i === 0) {
+        vis([ovl, ovl2], false); rG.setAttribute('transform', 'translate(0,150)'); vis(rTitle, true);
+        ctx.after(700, () => ctx.tween(1100, e => rG.setAttribute('transform', `translate(0,${150 * (1 - e)})`), () => { vis(rTitle, false); vis(ovl, true); ctx.after(900, () => vis(ovl2, true)); }));
+      }
+      if (i >= 1 && i <= 3) {
+        vis(tab, i === 1); vis(walk, i === 2); vis(kat, i === 3); vis(tokW, false);
+        edgeEls.forEach(e => { e.path.classList.remove('dim'); vis(e.t, i !== 3); });
+        if (i === 3) renderKatz(); else resetNodes();
+        if (i === 1) { edgeEls.forEach((e, k) => { drawIn(e.path, ctx, 150 + k * 260); }); }
+        else edgeEls.forEach(e => { e.path.style.transition = 'none'; e.path.classList.add('on'); e.path.getBoundingClientRect(); e.path.style.transition = ''; });
+        if (i === 2) {
+          edgeEls.forEach(e => { if (!((e.a === 'F2' && e.b === 'R2') || (e.a === 'R2' && e.b === 'F1'))) e.path.classList.add('dim'); });
+          loopWalk();
+        }
+      }
+      if (i === 4) renderGM();
+    }
+  };
+};
+
+/* ================= Part 4b: point score ================= */
+FIGS.score = (svg, sec) => {
+  plate(svg); const ctx = Ctx();
+  const sc = scenes(svg, 2);
+  const g0 = sc[0];
+  const xs = d => 80 + d * 0.24, ys = s => 380 - (s - 0.28) * 2000;
+  S('path', { d: `M80,${ys(0.425)}V380H${xs(2000) + 10}`, class: 'axis' }, g0);
+  [0, 400, 800, 1200, 1600, 2000].forEach(d => { S('path', { d: `M${xs(d)},380v5`, class: 'axis' }, g0); T(g0, xs(d), 400, fmt(d), 'sm mono f-muted', { 'text-anchor': 'middle' }); });
+  T(g0, 320, 426, 'road distance ~d~_{~p~} from the cluster center (m)', 'sm f-muted', { 'text-anchor': 'middle' });
+  [0.30, 0.34, 0.40].forEach(s => { S('path', { d: `M75,${ys(s)}h5`, class: 'axis' }, g0); S('path', { d: `M80,${ys(s)}H${xs(2000)}`, class: 'gridl' }, g0); T(g0, 70, ys(s) + 4, s.toFixed(2), 'sm mono f-muted', { 'text-anchor': 'end' }); });
+  S('path', { d: `M${xs(800)},${ys(0.42)}V380`, class: 'guide' }, g0);
+  T(g0, xs(800) + 6, ys(0.418), '~Q~_{.90,~c~} = 800 m', 'sm f-muted');
+  S('path', { d: `M80,${ys(0.30)}H${xs(2000)}`, class: 'refl' }, g0);
+  T(g0, xs(2000), ys(0.30) - 8, 'center of a cluster with ~C~_{~c~} = 0.30', 'sm f-rose halo', { 'text-anchor': 'end' });
+  S('path', { d: `M${xs(0)},${ys(0.40)}L${xs(800)},${ys(0.34)}H${xs(2000)}`, class: 'curve' }, g0);
+  T(g0, xs(1200), ys(0.34) - 10, '~S~_{~p~} = 0.85 ~C~_{~c~} (cap)', 'sm f-teal halo');
+  T(g0, 92, ys(0.40) - 10, '~S~_{~p~} = ~C~_{~c~} = 0.40', 'sm f-teal halo');
+  /* ruler on top */
+  S('path', { d: `M${xs(0)},62H${xs(2000)}`, class: 'road', 'stroke-width': 6 }, g0);
+  S('circle', { cx: xs(0), cy: 62, r: 9, class: 'nodeN' }, g0); T(g0, xs(0), 44, 'center', 'sm', { 'text-anchor': 'middle' });
+  S('path', { d: `M${xs(800)},52v20`, class: 'axis' }, g0); T(g0, xs(800), 44, 'p90', 'sm f-muted', { 'text-anchor': 'middle' });
+  const est = S('circle', { cy: 62, r: 8, class: 'dot f-gold' }, g0);
+  const gl = S('line', { class: 'guide' }, g0), mk = S('circle', { r: 8, class: 'handle f-teal' }, g0), mt = T(g0, 0, 0, '', 'sm halo');
+  const elP = $('#dp', sec), oP = $('#dp-o', sec), outP = $('#dp-out', sec);
+  let dp = 200;
+  function renderP() {
+    const q = Math.min(dp / 800, 1), s = 0.40 * (1 - 0.15 * q);
+    setAttrs(est, { cx: xs(dp) }); setAttrs(mk, { cx: xs(dp), cy: ys(s) }); setAttrs(gl, { x1: xs(dp), x2: xs(dp), y1: 72, y2: ys(s) });
+    setAttrs(mt, { x: xs(dp) + (dp > 1300 ? -12 : 12), y: ys(s) + 24, 'text-anchor': dp > 1300 ? 'end' : 'start' }); setT(mt, '~S~_{~p~} = ' + s.toFixed(4));
+    oP.textContent = fmt(dp) + ' m'; elP.value = dp;
+    outP.innerHTML = `<var>q</var><sub><var>p</var></sub> = min(${fmt(dp)} / 800, 1) = ${q.toFixed(3)}${dp > 800 ? ' (capped)' : ''}.<br><var>S</var><sub><var>p</var></sub> = 0.40 × (1 − 0.15 × ${q.toFixed(3)}) = ${s.toFixed(4)}.`;
+  }
+  elP.addEventListener('input', () => { dp = +elP.value; renderP(); });
+  renderP();
+
+  const g1 = sc[1];
+  const items = [
+    'two records pass the distance/name rule → one bakery',
+    'categories + PSIC → the Food IO sector',
+    'snap to road + HDBSCAN∗ → Food cluster ~c~ = 2',
+    '1-median center; network Voronoi → territory',
+    '~a~ > 0, territories overlap, road link → ~X~ edge',
+    'balanced Katz → ~C~_{~c~} = 0.40',
+    '200 m from center, p90 = 800 m → ~S~_{~p~} = 0.385'
+  ];
+  const boxes = items.map((t, k) => {
+    const y = 22 + k * 58;
+    const r = S('rect', { x: 40, y, width: 520, height: 46, rx: 5, class: 'chain' }, g1);
+    S('rect', { x: 52, y: y + 11, width: 30, height: 24, rx: 4, class: 'f-ink' }, g1);
+    T(g1, 67, y + 28, k + 1, 'sm f-plate', { 'text-anchor': 'middle', 'font-weight': 800 });
+    T(g1, 96, y + 28, t, '');
+    if (k < 6) S('path', { d: `M300,${y + 46}v12`, class: 'axis' }, g1);
+    return r;
+  });
+  return {
+    step(i) {
+      ctx.clear(); showScene(sc, i);
+      if (i === 0) renderP();
+      if (i === 1) { boxes.forEach(b => b.setAttribute('class', 'chain')); boxes.forEach((b, k) => ctx.after(250 + k * 450, () => b.setAttribute('class', 'chain on'))); }
+    }
+  };
+};
+
+/* ================= Part 5: artifact DAG ================= */
+function dag() {
+  const svg = $('#fig-dag'); if (!svg) return;
+  const AH = markers(svg);
+  const col = [10, 170, 330, 490, 650, 810], row = [20, 112, 204], W = 140, H = 52;
+  const nodes = {
+    places: [1, 0, 'canonical +', 'classified places'], points: [2, 0, 'spatial points', ''], clusters: [3, 0, 'clusters', ''],
+    centers: [4, 0, 'centers, partitions,', 'point distances'], scores: [5, 0, 'scores', ''],
+    src: [0, 1, 'area boundary +', 'source snapshots'], roads: [1, 1, 'managed roads', ''], cent: [5, 1, 'centrality', ''],
+    econ: [0, 2, 'economy', 'definition'], trans: [1, 2, 'transactions', 'raw → effective'], coef: [2, 2, 'coefficients', ''],
+    egraph: [3, 2, 'economy graph', ''], X: [4, 2, 'graph X', '']
+  };
+  const box = k => { const [c, r] = nodes[k]; return { x: col[c], y: row[r], cx: col[c] + W / 2, cy: row[r] + H / 2 }; };
+  const E = [['src', 'places'], ['src', 'roads'], ['places', 'points'], ['roads', 'points'], ['points', 'clusters'], ['clusters', 'centers'], ['centers', 'X'], ['centers', 'scores'],
+    ['econ', 'trans'], ['trans', 'coef'], ['coef', 'egraph'], ['egraph', 'X'], ['X', 'cent'], ['cent', 'scores']];
+  const pathOf = (a, b) => {
+    const A = box(a), B = box(b);
+    if (A.y === B.y) return `M${A.x + W},${A.cy}H${B.x - 4}`;
+    if (A.x === B.x) return A.y < B.y ? `M${A.cx},${A.y + H}V${B.y - 4}` : `M${A.cx},${A.y}V${B.y + H + 4}`;
+    if (a === 'X' && b === 'cent') return `M${A.x + W},${A.cy}H${B.cx}V${B.y + H + 4}`;
+    if (a === 'src') return `M${A.x + W},${A.cy}L${B.x - 4},${B.cy}`;
+    return `M${A.x + W},${A.cy}L${B.x - 4},${B.cy}`;
+  };
+  const eEls = E.map(([a, b]) => ({ a, b, p: S('path', { d: pathOf(a, b), class: 'de', 'marker-end': AH('muted') }, svg) }));
+  const nEls = {};
+  for (const k in nodes) {
+    const { x, y } = box(k), [, , l1, l2] = nodes[k];
+    const g = S('g', { class: 'dn' }, svg);
+    S('rect', { x, y, width: W, height: H, rx: 5 }, g);
+    T(g, x + W / 2, y + (l2 ? 22 : 31), l1, 'sm', { 'text-anchor': 'middle', 'font-weight': k === 'X' ? 700 : 400 });
+    if (l2) T(g, x + W / 2, y + 39, l2, 'sm', { 'text-anchor': 'middle' });
+    nEls[k] = g;
+  }
+  const kids = {}; E.forEach(([a, b]) => (kids[a] = kids[a] || []).push(b));
+  const start = { katz: 'cent', vertex: 'roads', match: 'places', io: 'econ' };
+  const label = { katz: 'Katz α', vertex: 'vertex_digits', match: 'matching thresholds', io: 'IO table' };
+  const names = { places: 'places', points: 'spatial points', clusters: 'clusters', centers: 'centers/partitions', scores: 'scores', src: 'sources', roads: 'roads', cent: 'centrality', econ: 'economy definition', trans: 'transactions', coef: 'coefficients', egraph: 'economy graph', X: 'graph X' };
+  const out = $('#dag-out'); const timers = [];
+  function run(key) {
+    timers.forEach(clearTimeout); timers.length = 0;
+    Object.values(nEls).forEach(g => g.setAttribute('class', 'dn')); eEls.forEach(e => e.p.setAttribute('class', 'de'));
+    const s0 = start[key], depth = { [s0]: 0 }, q = [s0];
+    while (q.length) { const u = q.shift(); (kids[u] || []).forEach(v => { if (depth[v] === undefined || depth[v] < depth[u] + 1) { depth[v] = depth[u] + 1; q.push(v); } }); }
+    Object.entries(depth).forEach(([k, d]) => {
+      const f = () => { nEls[k].setAttribute('class', 'dn stale' + (k === s0 ? ' src' : '')); eEls.forEach(e => { if (e.a === k && depth[e.b] !== undefined) e.p.setAttribute('class', 'de stale'); }); };
+      if (RM) f(); else timers.push(setTimeout(f, d * 260));
+    });
+    const re = Object.keys(depth), keepN = Object.keys(nodes).filter(k => !re.includes(k));
+    out.innerHTML = `Change <strong>${label[key]}</strong> → recompute ${re.length} stages: ${re.map(k => names[k]).join(', ')}.<br>Reuse ${keepN.length} stages: ${keepN.map(k => names[k]).join(', ')}.`;
+    $$('[data-change]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.change === key)));
+  }
+  $$('[data-change]').forEach(b => b.addEventListener('click', () => run(b.dataset.change)));
+  run('katz');
+}
+
+/* ================= light / dark toggle ================= */
+(function themeToggle() {
+  const root = document.documentElement, btn = $('#theme'); if (!btn) return;
+  const mq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
+  const current = () => root.getAttribute('data-theme') || (mq && mq.matches ? 'dark' : 'light');
+  const paint = () => btn.setAttribute('aria-pressed', String(current() === 'dark'));
+  btn.addEventListener('click', () => {
+    const next = current() === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('sigma-theme', next); } catch (e) {}
+    paint();
+  });
+  if (mq && mq.addEventListener) mq.addEventListener('change', paint);
+  try { new MutationObserver(paint).observe(root, { attributes: true, attributeFilter: ['data-theme'] }); } catch (e) {}
+  paint();
+})();
+
+/* ================= scroll controller ================= */
+overview(); dag();
+const blocks = $$('.scrolly').map(sec => {
+  const svg = $('svg.fig', sec), api = FIGS[sec.dataset.fig](svg, sec);
+  if (api.init) api.init();
+  return { sec, svg, api, steps: $$('.step', sec), cap: $('.figcap', sec), figWrap: $('.fig-wrap', sec), cur: -1 };
+});
+function activate(b, i) {
+  if (i === b.cur) return;
+  const prev = b.cur; b.cur = i;
+  b.steps.forEach((s, k) => s.classList.toggle('active', k === i));
+  try { b.api.step(i, prev); } catch (err) { console.error(err); }
+  const c = b.steps[i].dataset.cap || '';
+  if (b.cap) b.cap.textContent = c;
+  b.svg.setAttribute('aria-label', c);
+}
+blocks.forEach(b => {
+  activate(b, 0);
+  b.steps.forEach((s, k) => { s.addEventListener('input', () => activate(b, k)); s.addEventListener('pointerdown', e => { if (e.target.closest('input,button,label')) activate(b, k); }); });
+});
+const narrowMQ = window.matchMedia('(max-width: 860px)');
+const parts = $$('.part'), bar = $('#bar'), now = $('#now'), navLinks = $$('.nav a');
+function update() {
+  const vh = window.innerHeight;
+  for (const b of blocks) {
+    const r = b.sec.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > vh) continue;
+    let line;
+    if (narrowMQ.matches) { const fr = b.figWrap.getBoundingClientRect(); line = fr.bottom + (vh - fr.bottom) * 0.45; }
+    else line = vh * 0.56;
+    let idx = 0;
+    b.steps.forEach((s, k) => { if (s.getBoundingClientRect().top < line) idx = k; });
+    activate(b, idx);
+  }
+  const h = document.documentElement, max = h.scrollHeight - vh;
+  bar.style.transform = `scaleX(${max > 0 ? clamp(window.scrollY / max, 0, 1) : 0})`;
+  let cur = null; parts.forEach(p => { if (p.getBoundingClientRect().top < 120) cur = p; });
+  now.textContent = cur ? cur.dataset.title : 'Overview';
+  navLinks.forEach(a => a.setAttribute('aria-current', String(!!cur && a.dataset.part === cur.id)));
+}
+let ticking = false;
+const onScroll = () => { if (ticking) return; ticking = true; requestAnimationFrame(() => { ticking = false; update(); }); };
+window.addEventListener('scroll', onScroll, { passive: true });
+window.addEventListener('resize', onScroll);
+const hash = (location.hash || '').slice(1);
+if (/^[A-Za-z0-9._~-]+$/.test(hash)) { const el = document.getElementById(hash); if (el) el.scrollIntoView(); }
+update();
+})();
+</script>
+
+<script src="tutorial-live.js" defer></script>
+</body></html>

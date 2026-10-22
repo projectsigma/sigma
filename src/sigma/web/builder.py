@@ -51,6 +51,9 @@ ROAD_VERTEX_BUDGET = 1_500_000  # automatic road inclusion limit (about 35 MB of
 POINT_BUDGET = 150_000  # the browser loads establishments only when the view holds fewer
 STATIC_FILES = (
     "index.html",
+    "tutorial.html",
+    "tutorial-live.css",
+    "tutorial-live.js",
     "app.js",
     "establishment-finder.js",
     "network-model.js",

@@ -13,7 +13,7 @@
 <header class="top">
   <div class="brand"><span class="mark">Σ</span><span><b>SIGMA</b> <span class="explorer">Explorer</span></span></div>
   <div id="area" class="area">Published results</div>
-  <div class="top-right"><span id="counts"></span><label class="theme-picker" for="theme-mode">Theme<select id="theme-mode" aria-label="Color theme"><option value="light" selected>Light</option><option value="dark">Dark</option></select></label><a class="docs-link" href="https://projectsigma.github.io/sigma/content/intro/index.html" target="_blank" rel="noopener noreferrer" title="SIGMA documentation: models, methodology, pipeline, and assumptions">Documentation ↗</a><a href="DATA_NOTICE.txt" target="_blank" rel="noopener">Data notice</a></div>
+  <div class="top-right"><span id="counts"></span><label class="theme-picker" for="theme-mode">Theme<select id="theme-mode" aria-label="Color theme"><option value="light" selected>Light</option><option value="dark">Dark</option></select></label><a id="sigma-guided-tour-link" class="docs-link" href="tutorial.html" title="Interactive method tutorial with this run’s economy and cluster results">Guided tutorial</a><a class="docs-link" href="https://projectsigma.github.io/sigma/content/intro/index.html" target="_blank" rel="noopener noreferrer" title="SIGMA documentation: models, methodology, pipeline, and assumptions">Documentation ↗</a><a href="DATA_NOTICE.txt" target="_blank" rel="noopener">Data notice</a></div>
 </header>
 <!-- sigma-explorer-toolbar-20261019-v1 -->
 <!-- sigma-explorer-refinement-20261019-v2 -->
@@ -143,5 +143,20 @@
 <script src="network-model.js" defer></script>
 <script src="establishment-finder.js" defer></script>
 <script src="app.js" defer></script>
+<!-- sigma-guided-tutorial-selection-preservation -->
+<script>
+// Pass the currently selected X node to the tutorial; the tutorial only reads
+// the current Explorer bundle and links directly back to this selection.
+(() => {
+  const link = document.getElementById('sigma-guided-tour-link');
+  if (!link) return;
+  link.addEventListener('click', () => {
+    const node = location.hash.slice(1);
+    let decoded = node;
+    try { decoded = decodeURIComponent(node); } catch (_) { /* preserve opaque ID */ }
+    link.href = 'tutorial.html' + (decoded ? '?node=' + encodeURIComponent(decoded) : '');
+  });
+})();
+</script>
 </body>
 </html>
