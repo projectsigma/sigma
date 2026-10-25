@@ -662,6 +662,50 @@
 
   // sigma-explorer-graph-legibility-20261020-v7: legible multi-ring Cytoscape overview and near-focus inspection.
   // ------------------------------------------------------------------ network diagram
+  // Keep the network graph readable regardless of Cytoscape's fit/zoom.
+  // Sizes are screen pixels converted to Cytoscape's model coordinates;
+  // topology, graph positions, sector colors, and traversal are unchanged.
+  // The graph can span from a handful of clusters to hundreds.  Remember
+  // the fitted zoom so an ordinary wheel gesture changes glyph size gently,
+  // without bringing back oversized nodes in small networks.
+  let graphGlyphFitZoom = 1;
+  function syncNetworkGlyphs() {
+    if (!cy || !network) return;
+    const count = cy.nodes().length;
+    const zoom = cy.zoom();
+    if (!count || !(zoom > 0)) return;
+    // Wheel zoom moves nodes apart/together; labels and circles respond too.
+    // Compensate for most (not all) of the zoom; clamp screen-size changes.
+    const relativeZoom = zoom / Math.max(graphGlyphFitZoom, 1e-6);
+    const glyphScale = Math.max(0.78, Math.min(1.50, Math.pow(relativeZoom, 0.35)));
+    const px = size => size * glyphScale / zoom;
+    const small = count <= 12;
+    const dense = count > 25;
+    const nodeSize = small ? 17 : count <= 25 ? 13 : count <= 80 ? 8 : 6;
+    const focusSize = small ? 23 : count <= 25 ? 18 : count <= 80 ? 14 : 12;
+    const labelSize = small ? 12 : count <= 25 ? 11 : 10.5;
+
+    cy.batch(() => {
+      cy.nodes().style({width: px(nodeSize), height: px(nodeSize),
+        'border-width': px(dense ? 0.8 : 1.25)});
+      cy.nodes('[ring >= 2]').style({width: px(Math.max(6, nodeSize - 1)),
+        height: px(Math.max(6, nodeSize - 1))});
+      cy.nodes('.labelled').style({'font-size': px(labelSize), 'text-margin-y': px(6)});
+      cy.nodes('.focus').style({width: px(focusSize), height: px(focusSize),
+        'border-width': px(1.6), 'font-size': px(small ? 12.5 : 11.5),
+        'text-margin-y': px(6)});
+      cy.edges().forEach(edge => {
+        const strength = Number(edge.data('wn')) || 0;
+        const major = edge.hasClass('focus-edge');
+        const outer = edge.hasClass('outer-edge');
+        edge.style({width: px(major ? 1.3 + 0.7 * strength :
+          dense ? 0.42 + 0.2 * strength : 0.7 + 0.4 * strength),
+          opacity: major ? 0.88 : dense ? (outer ? 0.10 : 0.22) : 0.5,
+          'arrow-scale': major ? 0.65 : dense ? 0.48 : 0.65});
+      });
+    });
+  }
+
   function drawGraph() {
     cy.elements().remove();
     $('graph-tip').hidden = true;
@@ -691,12 +735,13 @@
         distance: e.distance, weight: e.weight}, classes});
     });
     cy.add(elements);
-    // At high depth, retain labels on the center and its immediate neighbors.
-    // Farther clusters stay selectable and are described on hover.
+    // Label only the focus in dense networks; other nodes retain hover details.
     if (ids.length <= LIMIT.labelledNodes) cy.nodes().addClass('labelled');
-    else cy.nodes().filter(n => n.data('ring') <= 1).addClass('labelled');
+    else cy.nodes().filter(n => n.data('ring') === 0).addClass('labelled');
     cy.layout({name: 'concentric', concentric: n => n.data('level'), levelWidth: () => 1, minNodeSpacing: 16,
       startAngle: 1.5 * Math.PI, clockwise: true, equidistant: true, avoidOverlap: true, animate: false, fit: true, padding: 26}).run();
+    graphGlyphFitZoom = cy.zoom();
+    syncNetworkGlyphs();
     const linkCount = cy.edges().length;
     $('graph-count').textContent = `${ids.length} clusters · ${linkCount} directed edges${network.truncated ? ' (display limited)' : ''}`;
   }
@@ -1375,7 +1420,7 @@
     renderCentral();
     if (window.innerWidth < 1100) document.querySelector('.sector-panel').open = false;
 
-    cy = cytoscape({container: $('network'), elements: [], layout: {name: 'preset'}, style: [
+    cy = cytoscape({container: $('network'), elements: [], layout: {name: 'preset'}, wheelSensitivity: 0.65, style: [
       {selector: 'node', style: {'background-color': 'data(color)', 'width': 20, 'height': 20, 'border-width': 1.5, 'border-color': '#506a5b', 'opacity': 0.98, 'label': ''}},
       {selector: 'node.labelled', style: {'label': 'data(label)', 'font-size': 11, 'font-weight': 500, 'font-family': 'system-ui, sans-serif', 'color': '#4b5e53', 'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 7, 'text-background-opacity': 0, 'text-outline-width': 0}},
       {selector: 'node[ring >= 2]', style: {'width': 16, 'height': 16, 'opacity': 0.96}},
@@ -1389,6 +1434,7 @@
       {selector: 'edge.focus-edge.outgoing', style: {'line-color': '#b35a4f', 'target-arrow-color': '#b35a4f', 'source-arrow-color': '#b35a4f'}},
       {selector: 'edge.focus-edge.incoming', style: {'line-color': '#39779a', 'target-arrow-color': '#39779a', 'source-arrow-color': '#39779a'}},
     ]});
+    cy.on('zoom resize', syncNetworkGlyphs);
     // A graph hidden in a collapsed panel must resize after it becomes visible.
     // Native <details> handles keyboard/pointer toggling without custom state.
     document.querySelector('.graph-section .sidebar-disclosure').addEventListener('toggle', event => {
