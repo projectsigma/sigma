@@ -155,7 +155,12 @@ def test_bundle_is_self_contained(published: Path, tmp_path: Path):
     dest = tmp_path / "web"
     build_web_bundle(published, dest)
     html = (dest / "index.html").read_text(encoding="utf-8")
-    assert not re.search(r"""(src|href)=["']?(https?:)?//""", html)  # no CDN; works offline
+    # External navigation (e.g. Documentation) is fine; runtime assets must be local.
+    assert not re.search(
+        r"""<(?:script|link|img)\b[^>]*\b(?:src|href)=["']?(?:https?:)?//""",
+        html,
+        re.IGNORECASE,
+    )
     for name in ("maplibre-gl.js", "maplibre-gl.css", "cytoscape.min.js", "LICENSE-maplibre-gl.txt"):
         assert (dest / "vendor" / name).is_file()
 
