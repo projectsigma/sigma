@@ -1,0 +1,168 @@
+/* sigma-matte-tutorial-20261026 */
+:root,:root[data-theme="light"] {
+  --paper:#f8f7f3;--plate:#ffffff;--ink:#202b31;--muted:#758087;
+  --line:#e1e3e0;--grid:#ecece9;--teal:#bc2735;
+  --blue:#2876a2;--gold:#bc8642;--rose:#e2545d;
+  --teal-soft:#fbf0ef;--blue-soft:#eaf2fa;--gold-soft:#f8f1e5;--rose-soft:#fbf0ef;
+}
+:root[data-theme="dark"] {
+  --paper:#191818;--plate:#252323;--ink:#f1ece8;--muted:#b8afad;
+  --line:#403b3b;--grid:#373133;--teal:#eea4ae;
+  --blue:#8fb9e0;--gold:#dec08d;--rose:#e0828e;
+  --teal-soft:#422d31;--blue-soft:#2d303a;--gold-soft:#3c3330;--rose-soft:#422d31;
+}
+body,body::before {background:var(--paper);color:var(--ink)}
+.top .sigma-brand-icon {width:32px;height:32px;display:grid;place-items:center;overflow:hidden;border-radius:7px;background:none}
+.top .sigma-brand-icon img {width:100%;height:100%;display:block;object-fit:cover}
+.top {background:var(--paper);border-color:var(--line)}
+:root[data-theme="dark"] .top,:root[data-theme="dark"] .card,:root[data-theme="dark"] .live-summary {background:var(--plate);border-color:var(--line)}
+
+/* sigma-institutional-graphite-tutorial-v1: coordinated dark tokens. */
+:root[data-theme="dark"] {
+  --paper:#171718;
+  --plate:#262425;
+  --ink:#f3eeeb;
+  --muted:#bdb3b2;
+  --line:#4b4445;
+  --grid:#3b3638;
+  --teal:#e77b87;
+  --blue:#8fb9e0;
+  --gold:#e0b65a;
+  --rose:#e77b87;
+  --teal-soft:#51373c;
+  --rose-soft:#51373c;
+  --blue-soft:#302e38;
+  --gold-soft:#38322a;
+}
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] body::before {background:#171718;color:#f3eeeb;}
+:root[data-theme="dark"] .top,
+:root[data-theme="dark"] .card,
+:root[data-theme="dark"] .live-summary {background:#262425;border-color:#4b4445;}
+
+/* sigma-brand-visual-repair-20261026-v1-tutorial */
+.top .sigma-brand-icon, .top .sigma-brand-icon.brand-logo {
+  display:inline-flex!important; align-items:center!important; justify-content:center!important;
+  background:none!important; padding:0!important; overflow:hidden!important;
+  width:32px!important; height:32px!important; flex:0 0 32px!important;
+  border-radius:7px!important;
+}
+.top .sigma-brand-icon img {
+  width:32px!important; height:32px!important; display:block!important;
+  object-fit:contain!important;
+}
+/* end sigma-brand-visual-repair-20261026-v1-tutorial */
+
+/* sigma-tutorial-color-audit-20261026-v1 */
+/* Institutional Graphite: brand accents versus mathematical data colors.
+   The legacy --teal class/token is kept as a compatibility name for the
+   first explanatory data series, but its rendered color is now copper.
+   The second data series stays blue; gold, rose, and sector-coded colors
+   keep their established explanatory meanings. */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --paper:#f8f7f3;
+  --plate:#ffffff;
+  --ink:#202b31;
+  --muted:#758087;
+  --line:#e1e3e0;
+  --grid:#ecece9;
+  --teal:#ad5b37;             /* copper: former teal diagram series */
+  --teal-soft:#f8eee8;
+  --blue:#2876a2;
+  --blue-soft:#eaf2fa;
+  --gold:#bc8642;
+  --gold-soft:#f8f1e5;
+  --rose:#bd4654;
+  --rose-soft:#fbf0ef;
+  --road:#a6a1a0;
+  --grey:#a29d9b;
+  --sigma-tutorial-brand:#b11116;
+  --sigma-tutorial-brand-soft:#fcf1f0;
+  --sigma-tutorial-step-line:#d6b1b1;
+}
+:root[data-theme="dark"] {
+  color-scheme:dark;
+  --paper:#171718;
+  --plate:#262425;
+  --ink:#f3eeeb;
+  --muted:#bdb3b2;
+  --line:#4b4445;
+  --grid:#3b3638;
+  --teal:#e6a589;             /* copper series, legible on graphite */
+  --teal-soft:#45332e;
+  --blue:#8fb9e0;
+  --blue-soft:#302e38;
+  --gold:#e0b65a;
+  --gold-soft:#38322a;
+  --rose:#e77b87;
+  --rose-soft:#51373c;
+  --road:#857e80;
+  --grey:#9e9595;
+  --sigma-tutorial-brand:#e77b87;
+  --sigma-tutorial-brand-soft:#473236;
+  --sigma-tutorial-step-line:#6a444b;
+}
+
+/* Typography and navigation: BPI red, not leftover green. */
+a:not(.mark), .live-back, .live-open, .live-inline-link,
+.eyebrow, .part-no, .live-kicker,
+.top .nav a[aria-current="true"],
+.nav a[aria-current="true"],
+.live-step-title {color:var(--sigma-tutorial-brand);}
+.bar {background:var(--sigma-tutorial-brand);}
+.top .sigma-brand-text span {color:var(--muted);}
+.top .sigma-brand-icon {background:transparent;}
+.live-back:hover, .nav a:hover, .top .nav a:hover {
+  border-color:var(--sigma-tutorial-brand);
+}
+.nav a[aria-current="true"], .top .nav a[aria-current="true"] {
+  background:var(--sigma-tutorial-brand-soft);
+}
+
+/* Selected stage and published-run context: brand, not a data-series color. */
+.step.active {border-color:var(--sigma-tutorial-step-line); box-shadow:none;}
+.step.active .shield {background:var(--sigma-tutorial-brand); color:#fff;}
+.live-focus {border-left-color:var(--sigma-tutorial-brand);}
+.live-step {
+  border-color:var(--sigma-tutorial-step-line);
+  border-left-color:var(--sigma-tutorial-brand);
+  background:var(--sigma-tutorial-brand-soft);
+}
+:root[data-theme="dark"] .step.active {
+  border-color:var(--sigma-tutorial-step-line); box-shadow:none;
+}
+:root[data-theme="dark"] .live-step {border-color:var(--sigma-tutorial-step-line);border-left-color:var(--sigma-tutorial-brand);}
+:root[data-theme="dark"] .sigma-brand-text span {color:var(--muted);}
+
+/* UI controls are interactive branding, not a third economic data series. */
+.theme:hover, .pill:hover, .live-chooser select:hover {border-color:var(--sigma-tutorial-brand);}
+.theme[aria-pressed="true"], .pill[aria-pressed="true"] {
+  background:var(--sigma-tutorial-brand-soft);
+  color:var(--sigma-tutorial-brand);
+  border-color:var(--sigma-tutorial-brand);
+}
+input[type=range], input[type=checkbox] {accent-color:var(--sigma-tutorial-brand);}
+:focus-visible {outline-color:var(--sigma-tutorial-brand);}
+.live-geography svg circle[role="button"]:focus-visible {outline-color:var(--sigma-tutorial-brand);}
+
+/* Readouts: accessible emphasis without an implicit success=green palette. */
+.v-ok {color:var(--teal);} /* valid/accepted in explanatory data figures */
+.v-bad {color:var(--rose);}
+
+/* SVG figure meanings, not UI: copper first series / blue second / gold
+   featured node or path / rose rejected candidate. All existing classes and
+   marker references retain their behavior, animation and geometry. */
+.fig text.f-teal, .ovw text.f-teal, .dag text.f-teal {fill:var(--teal);}
+.fig .f-teal, .ovw .f-teal, .dag .f-teal {fill:var(--teal);}
+.fig .edgeF, .fig .cost0, .fig .terrF, .fig .terrF2,
+.fig .curve, .fig .trace, .fig .reach, .fig .hull, .fig .brk,
+.fig .seg0, .fig .ring, .fig .arcm:not(.gold),
+.fig .cand.ok, .fig .stair, .fig .flow:not(.gold):not(.ink),
+.fig .arw:not(.ink):not(.gold):not(.blue):not(.rose) {stroke:var(--teal);}
+/* Keep structural grid/axes and ordinary DAG connectors neutral. */
+.fig .gridl, .fig .guide, .fig .axis, .dag .de:not(.stale) {
+  stroke:var(--muted);
+}
+/* end sigma-tutorial-color-audit-20261026-v1 */

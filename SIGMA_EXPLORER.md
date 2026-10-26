@@ -28,6 +28,7 @@ The [README walkthrough](README.md) and [Explorer chapter in the SIGMA Jupyter B
 ```powershell
 sigma view pasig                        # build if stale and open at http://127.0.0.1:8765/
 sigma view pasig --refresh              # force rebuild of the local bundle
+sigma view pasig --ui-only               # fast UI-only refresh for an existing bundle
 sigma view pasig --no-roads              # omit visual road context; exact routes remain
 sigma export-web pasig --force           # replace the existing full local bundle
 sigma export-web pasig --public          # create a reduced public-review bundle
@@ -38,6 +39,22 @@ sigma view pasig --public               # view the public bundle; it stays publi
 By default `sigma view` reads the SIGMA workspace's published output directory, then serves `<output>\explorer`. It accepts `--workspace`, `--source-dir`, and `--output-dir`. The Python server listens on loopback only; change `--port` if needed.
 
 `export-web --public` writes to `<output>\explorer-public` and **excludes individual establishment records, names, identifiers, positions, and PSIC codes**. It retains aggregate counts, cluster centers, cluster polygons, X edges, and exact X routes. Public-profile export is a privacy-reduction measure, **not** a legal review or a guarantee of safe publication; inspect input-output, source-data, attribution, and licensing obligations. The default `export-web` profile includes individual establishments and **must not** be published without such review. A public bundle is never rebuilt with establishment-level data: `sigma view` keeps the public profile for `explorer-public` (or any folder whose marker says public), and the builder refuses to write the full local profile into such a folder.
+
+## Fast UI-only refresh
+
+For changes to Explorer or Guided Tutorial **HTML, CSS, JavaScript, logo or favicon**, first make sure an Explorer bundle has already been generated. Then run:
+
+```powershell
+sigma view pasig --ui-only
+# or for Quezon City:
+sigma view quezon_city --ui-only
+```
+
+This copies the current UI assets into the existing SIGMA-owned bundle, starts the usual loopback-only local server, and opens the browser. It **does not** regenerate tiles, routes, cluster polygons, graph JSON or establishment data; it also **does not** recompute the analytical model. The existing public/private bundle profile remains unchanged, and a missing or unrecognized bundle is refused. It may be used with `--public`, `--workspace`, `--source-dir`, `--output-dir` and `--no-browser` as appropriate.
+
+If your installed CLI reports `No such option: --ui-only`, apply this repository update, ensure you are using this checkout, and run `python -m pip install -e .` if necessary. Confirm with `sigma view --help`.
+
+**Safety and freshness:** `--ui-only` deliberately skips source-data checks and leaves the generated ownership/freshness marker unchanged. Only use it when the published SIGMA data are unchanged. Ordinary `sigma view pasig` checks freshness and may perform a full rebuild, including after code or UI changes. `sigma view pasig --refresh` explicitly forces a full rebuild; it cannot be combined with `--ui-only`. If the generated Explorer's data schema has changed, use `--refresh` instead.
 
 ## Interface
 
@@ -109,8 +126,9 @@ components, and individual point scores are not all part of the exported graph.
 The tutorial never invents them. On `--public` bundles, the tutorial reads only
 published aggregate data and does not seek individual establishment records.
 
-After installing an Explorer update, refresh derived bundles with
+For a CSS or tutorial-only change, use `sigma view pasig --ui-only` on an existing bundle.
+For changed SIGMA outputs or a required data-schema rebuild, use
 `sigma view pasig --refresh` (or another existing area slug). A plain
-`sigma view pasig` will also rebuild when the fingerprint changes. The tutorial
+`sigma view pasig` also rebuilds when the fingerprint changes. The tutorial
 is included in both local and reduced public-profile bundles.
 

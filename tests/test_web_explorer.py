@@ -547,3 +547,58 @@ def test_local_finder_index_and_public_privacy(published: Path, tmp_path: Path):
     assert not _json(public / "data/metadata.json")["has_establishment_finder"]
     assert not (public / "data/search").exists()
     assert "Test Shop" not in " ".join(p.read_text(encoding="utf-8") for p in public.rglob("*.json"))
+
+
+def test_view_ui_only_updates_assets_not_data(published: Path, monkeypatch: pytest.MonkeyPatch):
+    from typer.testing import CliRunner
+    import sigma.web
+    from sigma.cli import app
+
+    dest = published / "explorer"
+    build_web_bundle(published, dest)
+    graph_before = (dest / "data/graph.json").read_bytes()
+    marker_before = (dest / ".sigma-explorer").read_bytes()
+    original_css = (dest / "style.css").read_bytes()
+    (dest / "style.css").write_text("outdated UI css", encoding="utf-8")
+    served = []
+    monkeypatch.setattr(sigma.web, "serve_bundle", lambda d, **kw: served.append(Path(d)))
+    runner = CliRunner()
+    result = runner.invoke(app, ["view", "example", "--source-dir", str(published),
+                                 "--no-browser", "--ui-only"])
+    assert result.exit_code == 0, result.output
+    assert "UI assets refreshed" in result.output
+    assert (dest / "style.css").read_bytes() == original_css
+    assert (dest / "data/graph.json").read_bytes() == graph_before
+    assert (dest / ".sigma-explorer").read_bytes() == marker_before
+    assert served == [dest]
+
+
+def test_view_ui_only_refuses_missing_bundle_and_conflicting_refresh(published: Path):
+    from typer.testing import CliRunner
+    from sigma.cli import app
+
+    runner = CliRunner()
+    base = ["view", "example", "--source-dir", str(published), "--no-browser"]
+    missing = runner.invoke(app, base + ["--ui-only"])
+    assert missing.exit_code != 0
+    assert not (published / "explorer").exists()
+    both = runner.invoke(app, base + ["--ui-only", "--refresh"])
+    assert both.exit_code != 0
+
+
+def test_view_ui_only_preserves_public_profile(published: Path, monkeypatch: pytest.MonkeyPatch):
+    from typer.testing import CliRunner
+    import sigma.web
+    from sigma.cli import app
+
+    dest = published / "explorer-public"
+    build_web_bundle(published, dest, profile="public")
+    before = (dest / ".sigma-explorer").read_bytes()
+    monkeypatch.setattr(sigma.web, "serve_bundle", lambda *_a, **_kw: None)
+    runner = CliRunner()
+    args = ["view", "example", "--source-dir", str(published), "--public", "--ui-only"]
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0, result.output
+    assert (dest / ".sigma-explorer").read_bytes() == before
+    assert not (dest / "data/search/index.json").exists()
+

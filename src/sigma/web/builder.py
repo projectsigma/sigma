@@ -53,11 +53,16 @@ STATIC_FILES = (
     "index.html",
     "tutorial.html",
     "tutorial-live.css",
+    "sigma-tutorial-scrolly-refine.css",
     "tutorial-live.js",
     "app.js",
     "establishment-finder.js",
     "network-model.js",
     "style.css",
+    "sigma-favicon.png",
+    "sigma-logo.png",
+    "sigma-matte-tutorial.css",
+    "sigma-matte-theme.css",
     "vendor/maplibre-gl.js",
     "vendor/maplibre-gl.css",
     "vendor/cytoscape.min.js",
@@ -768,6 +773,44 @@ def _build_unstaged_bundle(
     return {"destination": str(dest), "source": str(source), "warnings": warnings,
             "route_bytes": route_bytes, **metadata["counts"]}
 
+
+
+def refresh_web_assets(bundle_dir: Path | str, *, profile: str = "local") -> int:
+    """Update *only* the static UI assets in an existing SIGMA-owned Explorer.
+
+    This is intended for CSS, HTML, JS, logo and favicon development. Data JSON,
+    geographic tiles, routes and the bundle ownership marker are left untouched.
+    The marker is deliberately NOT updated: a later ordinary `sigma view` must
+    still check published inputs and rebuild if anything has changed.
+    """
+    if profile not in {"local", "public"}:
+        raise ValueError("Explorer profile must be local or public")
+    dest = Path(bundle_dir).expanduser().resolve()
+    marker = read_marker(dest)
+    if marker is None or not (dest / "index.html").is_file():
+        raise ValueError(
+            f"--ui-only requires an existing SIGMA-owned Explorer bundle: {dest}. "
+            "First run 'sigma view <area>' to create it."
+        )
+    installed_profile = "public" if marker.get("profile") == "public" else "local"
+    if installed_profile != profile:
+        raise ValueError("--ui-only refuses to change the existing bundle's privacy profile")
+    # Preflight all resources before writing anything. Static filenames are
+    # package-controlled, not browser or user-supplied paths.
+    assets = [(name, _static_file(name).read_bytes()) for name in STATIC_FILES]
+    for name, data in assets:
+        target = dest / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # Atomic replacement of each file: avoid serving a partial CSS/JS file
+        # on Windows, and do not touch the Explorer data directory.
+        with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".sigma-ui-", delete=False) as stream:
+            tmp = Path(stream.name)
+            stream.write(data)
+        try:
+            tmp.replace(target)
+        finally:
+            tmp.unlink(missing_ok=True)
+    return len(assets)
 
 def build_web_bundle(
     source_dir: Path | str,

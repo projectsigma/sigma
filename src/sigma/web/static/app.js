@@ -13,7 +13,7 @@
 (() => {
   const $ = id => document.getElementById(id);
   const EMPTY = () => ({type: 'FeatureCollection', features: []});
-  const COLOR = {both: '#7b3fa0', outgoing: '#c0392b', incoming: '#1f6fb2', focus: '#16382a', other: '#9aa8a0'};
+  const COLOR = {both: '#7b3fa0', outgoing: '#c0392b', incoming: '#1f6fb2', focus: '#bc2735', other: '#9aa8a0'};
   const LIMIT = {graphNodes: 300, graphEdges: 1500, tableRows: 250, labelledNodes: 12};
   const showError = error => {
     $('error').hidden = false;
@@ -68,22 +68,22 @@
       const paint = (layer, key, value) => {
         if (map.getLayer(layer)) map.setPaintProperty(layer, key, value);
       };
-      paint('background', 'background-color', dark ? '#15231c' : '#f4f6f5');
-      paint('boundary-fill', 'fill-color', dark ? '#22352a' : '#ffffff');
-      paint('boundary-line', 'line-color', dark ? '#678a78' : '#71847b');
-      paint('roads-line', 'line-color', dark ? '#9eb6a6' : '#949b9b');
+      paint('background', 'background-color', dark ? '#1f1e1e' : '#f8f7f3');
+      paint('boundary-fill', 'fill-color', dark ? '#262425' : '#ffffff');
+      paint('boundary-line', 'line-color', dark ? '#74696b' : '#71847b');
+      paint('roads-line', 'line-color', dark ? '#897f80' : '#949b9b');
       paint('roads-line', 'line-opacity', network ? (dark ? 0.29 : 0.18) : (dark ? 0.53 : 0.38));
-      paint('partition-focus-line', 'line-color', dark ? '#b0dfc1' : COLOR.focus);
+      paint('partition-focus-line', 'line-color', dark ? '#e2a2ab' : COLOR.focus);
       // Match every route depth: dark/light themes affect the palette, not its meaning.
       for (let step = 1; step <= 20; step++) {
         const stem = step === 1 ? 'routes' : `routes-step-${step}`;
-        paint(step === 1 ? 'routes-casing' : `${stem}-casing`, 'line-color', dark ? '#17281f' : '#ffffff');
+        paint(step === 1 ? 'routes-casing' : `${stem}-casing`, 'line-color', dark ? '#191818' : '#ffffff');
       }
       // Against a dark map, muted/dark strokes avoid bright halos around
       // thousands of colored establishments. Preserve the focus outline.
       paint('establishments', 'circle-stroke-color', network ?
-        ['case', ['==', ['get', 'node_id'], network.focus], dark ? '#81c5a1' : COLOR.focus,
-          dark ? '#20372a' : '#ffffff'] : (dark ? '#20372a' : '#ffffff'));
+        ['case', ['==', ['get', 'node_id'], network.focus], dark ? '#e7a0a8' : COLOR.focus,
+          dark ? '#252323' : '#ffffff'] : (dark ? '#252323' : '#ffffff'));
       paint('partition-linked-fill', 'fill-opacity', network ?
         networkDepthOpacity('node_id', 0, step => fadeByStep(dark ? 0.17 : 0.105, step), 0) :
         (dark ? 0.17 : 0.105));
@@ -91,7 +91,7 @@
       paint('partition-linked-line', 'line-opacity', network ?
         networkDepthOpacity('node_id', 0, step => fadeByStep(dark ? 0.70 : 0.78, step), 0) :
         (dark ? 0.70 : 0.78));
-      paint('partition-focus-line', 'line-color', dark ? '#85bd9e' : COLOR.focus);
+      paint('partition-focus-line', 'line-color', dark ? '#e2a2ab' : COLOR.focus);
       // red = supply, blue = use, purple = both. Same hues at every depth.
       const tripleColor = ['match', ['get', 'kind'], 'both',
         dark ? '#c9a4ed' : COLOR.both, dark ? '#ef9d8b' : COLOR.outgoing];
@@ -102,29 +102,29 @@
       }
       paint('selected-point', 'circle-stroke-color', dark ? '#e9aa55' : '#d99d2c');
       if (state.partitions === 'network' && network) {
-        paint('partition-line', 'line-color', dark ? '#627d69' : '#cad6cf');
+        paint('partition-line', 'line-color', dark ? '#716769' : '#cad6cf');
         paint('partition-line', 'line-opacity', dark ? 0.18 : 0.22);
       }
     }
     // Theme Cytoscape's canvas explicitly. No text backgrounds on any node:
     // these used to obscure the focal circle with a bright label rectangle.
     if (cy && cy.style) {
-      const quiet = dark ? '#93b8a5' : '#718879';
+      const quiet = dark ? '#a29698' : '#718879';
       const outward = dark ? '#ef9d8b' : '#b35a4f';
       const inward = dark ? '#8cc8e9' : '#39779a';
       cy.style()
         .selector('node').style({
-          'border-color': dark ? '#a0c9b4' : '#506a5b'
+          'border-color': dark ? '#b9a5a8' : '#746767'
         })
         .selector('node.labelled').style({
-          color: dark ? '#d2e1d6' : '#4b5e53',
+          color: dark ? '#e3d9d7' : '#665c5e',
           'text-background-opacity': 0,
           'text-outline-width': 0
         })
         .selector('node.focus').style({
-          'background-color': dark ? '#4d9872' : '#255b45',
-          'border-color': dark ? '#a5d2b7' : '#a5c3b1',
-          color: dark ? '#e5f4e9' : '#245541',
+          'background-color': dark ? '#dd6475' : '#bc2735',
+          'border-color': dark ? '#e0b65a' : '#bc8642',
+          color: dark ? '#f3eeeb' : '#5a3737',
           'text-valign': 'bottom', 'text-margin-y': 7,
           'text-background-opacity': 0
         })
@@ -1138,7 +1138,7 @@
       const darkLinkedName = `sigma-center-linked-dark-${index}`;
       addTriangle(name, '#ffffff', sectorFill);
       addTriangle(linkedName, sectorFill, COLOR.incoming);
-      addTriangle(darkName, '#21392b', sectorFill);
+      addTriangle(darkName, '#252323', sectorFill);
       addTriangle(darkLinkedName, sectorFill, '#8cc8e9');
       centerIconByType.set(key, name);
       linkedCenterIconByType.set(key, linkedName);
@@ -1148,7 +1148,7 @@
     }
     addTriangle(baseFallback, '#ffffff', '#657f78');
     addTriangle(linkedFallback, '#657f78', COLOR.incoming);
-    addTriangle(darkFallback, '#21392b', '#657f78');
+    addTriangle(darkFallback, '#252323', '#657f78');
     addTriangle(darkLinkedFallback, '#657f78', '#8cc8e9');
     return ['get', 'center_icon'];
   }
@@ -1394,8 +1394,24 @@
   }
 
   async function initialize() {
-    $('theme-mode').addEventListener('change', e => applyTheme(e.target.value));
+    // sigma-institutional-theme-handoff-20261026-v1: persist explicit UI selection.
+    $('theme-mode').addEventListener('change', e => {
+      applyTheme(e.target.value);
+      try { localStorage.setItem('sigma-theme', themeMode); } catch (_) { /* optional storage */ }
+    });
+    let initialTheme = 'light';
+    let incomingTheme = null;
+    try { incomingTheme = new URLSearchParams(location.search).get('theme'); } catch (_) {}
+    if (incomingTheme === 'dark' || incomingTheme === 'light') {
+      initialTheme = incomingTheme;
+    } else {
+      try {
+        const saved = localStorage.getItem('sigma-theme');
+        if (saved === 'dark' || saved === 'light') initialTheme = saved;
+      } catch (_) { /* private browsing may restrict storage */ }
+    }
     applyTheme('light');
+    if (initialTheme !== 'light') applyTheme(initialTheme);
     initializeHelp();
     const [metadata, graph, tiles] = await Promise.all([getJSON('data/metadata.json'), getJSON('data/graph.json'), getJSON('data/tiles.json')]);
     meta = metadata; tileIndex = tiles; tileKeys = Object.keys(tiles.tiles || {});
@@ -1462,7 +1478,7 @@
 
     popup = new maplibregl.Popup({closeButton: false, closeOnClick: false, offset: 10, maxWidth: '300px'});
     map = new maplibregl.Map({container: 'map', attributionControl: {compact: true},
-      style: {version: 8, sources: {}, layers: [{id: 'background', type: 'background', paint: {'background-color': '#f4f6f5'}}]},
+      style: {version: 8, sources: {}, layers: [{id: 'background', type: 'background', paint: {'background-color': '#f8f7f3'}}]},
       bounds: [[meta.bounds[0], meta.bounds[1]], [meta.bounds[2], meta.bounds[3]]], fitBoundsOptions: {padding: 40}});
     map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
     map.addControl(new maplibregl.ScaleControl({unit: 'metric'}), 'bottom-right');

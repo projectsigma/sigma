@@ -1,4 +1,8 @@
-<!doctype html><html lang="en" data-theme="light"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%232d664a%27/%3E%3Ctext x=%2716%27 y=%2724%27 font-size=%2722%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Georgia,serif%27%3E%CE%A3%3C/text%3E%3C/svg%3E"></head><body>
+<!doctype html><html lang="en" data-theme="light"><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style>
+<link rel="icon" type="image/png" href="sigma-favicon.png?v=20261026-redpin-v1">
+<!-- sigma-tutorial-scrolly-refine-20261026 -->
+<link rel="stylesheet" href="sigma-tutorial-scrolly-refine.css">
+</head><body>
 <title>SIGMA, Step by Step</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="A scroll-through explanation of the SIGMA pipeline: places, roads, clusters, territories, input-output coefficients, graph X, Katz centrality, and establishment scores.">
@@ -242,11 +246,49 @@ pre.cmd{font-family:var(--mono);font-size:.86rem;background:var(--plate);border:
 }
 </style>
 <link rel="stylesheet" href="tutorial-live.css">
-<script>try{var t=localStorage.getItem('sigma-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<link rel="stylesheet" href="sigma-matte-tutorial.css">
+<script>
+// sigma-institutional-tutorial-theme-init-v1: URL from originating Explorer tab wins.
+try {
+  var requested = new URLSearchParams(location.search).get('theme');
+  var saved = null;
+  try { saved = localStorage.getItem('sigma-theme'); } catch (e) {}
+  var desired = (requested === 'dark' || requested === 'light') ? requested : saved;
+  if (desired === 'dark' || desired === 'light') {
+    document.documentElement.setAttribute('data-theme', desired);
+    try { localStorage.setItem('sigma-theme', desired); } catch (e) {}
+  }
+} catch (e) { /* invalid URL/storage should not prevent tutorial loading */ }
+</script>
 
+<style id="sigma-original-redpin-logo-v1">
+/* Header artwork only: preserve the existing light/dark surfaces and controls. */
+header.top .brand .mark.sigma-original-logo-mark {
+  display:inline-flex!important; align-items:center!important; justify-content:center!important;
+  width:42px!important; height:34px!important; flex:0 0 42px!important;
+  margin:0!important; padding:0!important; border:0!important;
+  background:transparent!important; border-radius:0!important;
+  box-shadow:none!important; overflow:visible!important; font-size:0!important;
+}
+header.top .brand .mark.sigma-original-logo-mark img {
+  display:block!important; width:42px!important; height:34px!important;
+  max-width:none!important; object-fit:contain!important; background:transparent!important;
+}
+header.top .sigma-brand-icon.sigma-original-logo-mark {
+  display:inline-flex!important; align-items:center!important; justify-content:center!important;
+  width:40px!important; height:32px!important; flex:0 0 40px!important;
+  padding:0!important; background:transparent!important; border:0!important;
+  border-radius:0!important; box-shadow:none!important; overflow:visible!important;
+  font-size:0!important; color:transparent!important;
+}
+header.top .sigma-brand-icon.sigma-original-logo-mark img {
+  display:block!important; width:40px!important; height:32px!important;
+  max-width:none!important; object-fit:contain!important; background:transparent!important;
+}
+</style>
 <header class="top gut">
   <div class="in">
-    <a class="mark" href="#top" aria-label="SIGMA Explorer · Step by step"><span class="sigma-brand-icon" aria-hidden="true">Σ</span><span class="sigma-brand-text"><b>SIGMA</b> <span>Explorer</span></span><span class="sigma-page">/ Step by step</span></a>
+    <a class="mark" href="#top" aria-label="SIGMA Explorer · Step by step"><span class="sigma-brand-icon sigma-original-logo-mark" aria-hidden="true"><img src="sigma-logo.png?v=20261026-redpin-v1" alt="" width="40" height="32"></span><span class="sigma-brand-text"><b>SIGMA</b> <span>Explorer</span></span><span class="sigma-page">/ Step by step</span></a>
     <a id="live-back-top" class="live-back" href="index.html">← Back to Explorer</a>
     <nav class="nav" aria-label="Parts">
       <a href="#places" data-part="places">1 Places</a>
@@ -652,7 +694,7 @@ pre.cmd{font-family:var(--mono);font-size:.86rem;background:var(--plate);border:
           <p>The first is economic (supplier type → user type). The second is spatial: the two cluster polygons overlap with strictly positive area. Overlap decides <em>whether</em> an edge exists; the overlap area is not part of the weight.</p>
           <p>Here <var>F</var><sub>2</sub> and <var>R</var><sub>1</sub> do not overlap, so there is no edge between them.</p>
         </article>
-        <article class="step" data-cap="Graph X from the example. Edge width follows the weight w = a × d. Teal: Food → Retail. Blue: Retail → Food.">
+        <article class="step" data-cap="Graph X from the example. Edge width follows the weight w = a × d. Copper: Food → Retail. Blue: Retail → Food.">
           <p class="stage"><span class="shield">10</span>Stage 10 · weights</p>
           <h3>The weight multiplies coefficient and distance</h3>
           <div class="eq"><var>w</var><sub><var>uv</var></sub> = <var>a</var><sub><var>t</var>(<var>u</var>),<var>t</var>(<var>v</var>)</sub> · <var>d</var><sub>R</sub>(<var>m</var><sub><var>u</var></sub>, <var>m</var><sub><var>v</var></sub>)</div>
@@ -2138,4 +2180,17 @@ update();
 </script>
 
 <script src="tutorial-live.js" defer></script>
+<script>
+// sigma-institutional-tutorial-origin-v1: keep the theme of THIS tutorial tab.
+// Preserve the node-id hash generated by tutorial-live.js.
+document.addEventListener('click', function (event) {
+  const a = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+  if (!a) return;
+  const href = a.getAttribute('href') || '';
+  if (!/^(?:\.\/)?index\.html(?:[?#]|$)/.test(href)) return;
+  const destination = new URL(href, location.href);
+  destination.searchParams.set('theme', document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+  a.href = 'index.html' + destination.search + destination.hash;
+}, true);
+</script>
 </body></html>

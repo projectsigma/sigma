@@ -7,6 +7,7 @@ from .builder import (
     bundle_is_current,
     bundle_profile,
     resolve_output_directory,
+    refresh_web_assets,
     source_fingerprint,
 )
 from .server import serve_bundle
@@ -16,6 +17,7 @@ __all__ = [
     "bundle_is_current",
     "bundle_profile",
     "resolve_output_directory",
+    "refresh_web_assets",
     "serve_bundle",
     "source_fingerprint",
 ]

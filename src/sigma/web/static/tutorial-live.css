@@ -163,3 +163,19 @@ table.t { font:12px/1.5 var(--display); }
  .theme { padding:6px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior:auto; } }
+
+/* sigma-bpi-tutorial-refresh-20261026 */
+:root {
+  --sigma-accent:#b11116;
+  --sigma-gold:#e0b65a;
+}
+.sigma-brand-icon.brand-logo {
+  background:transparent url("sigma-logo.png") center/cover no-repeat;
+  color:transparent !important;
+  font-size:0 !important;
+}
+html[data-theme="dark"] {
+  --sigma-accent:#d65a5f;
+  --sigma-gold:#e0b65a;
+}
+/* end sigma-bpi-tutorial-refresh-20261026 */
