@@ -334,3 +334,154 @@ html[data-theme="dark"] body > section.toolbar {
   border-bottom-color:#4b4445 !important;
 }
 /* sigma-header-cream-and-brand-align-v2 END */
+
+/* sigma-explorer-wordmark-tutorial-alignment-v1
+   Match the tutorial's SIGMA Explorer wordmark baseline, spacing and typography.
+   The logo artwork and header colors are unchanged. */
+header.top .brand {
+  align-items:center;
+  gap:10px;
+}
+header.top .brand > span:last-child {
+  display:inline-flex;
+  align-items:baseline;
+  gap:.3em;
+  position:relative;
+  top:1px;
+  font:400 18px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;
+  letter-spacing:normal;
+  white-space:nowrap;
+}
+header.top .brand > span:last-child strong {font-weight:700;}
+header.top .brand > span:last-child .explorer {font-weight:400;}
+
+/* sigma-action-label-toggle-v1: same switch-at-the-right behavior in both views. */
+html[data-theme] .top .top-right > #theme-toggle {
+  display:inline-flex;
+  order:99;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  flex:0 0 auto;
+  margin-left:auto;
+  min-width:105px;
+  height:32px;
+  padding:5px 10px;
+  font:500 12px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif;
+  white-space:nowrap;
+  border:1px solid var(--border);
+  border-radius:12px;
+  cursor:pointer;
+  box-shadow:none;
+}
+html[data-theme] .top .top-right > #theme-toggle svg {display:block;flex:0 0 14px;}
+html[data-theme="light"] .top .top-right > #theme-toggle {
+  background:#ffffff;
+  color:#202b31;
+  border-color:#e1e3e0;
+}
+html[data-theme="light"] .top .top-right > #theme-toggle:hover {
+  background:#fcf3f3;
+  border-color:#d9bfc1;
+}
+html[data-theme="dark"] .top .top-right > #theme-toggle {
+  background:#312d2e;
+  color:#f3eeeb;
+  border-color:#574e50;
+}
+html[data-theme="dark"] .top .top-right > #theme-toggle:hover {
+  background:#3e3436;
+  border-color:#a56d75;
+}
+html[data-theme] .top .top-right > #theme-toggle:focus-visible {
+  outline:2px solid var(--focus);
+  outline-offset:2px;
+}
+
+/* sigma-explorer-about-button-v1
+   Match the button-style 'What is SIGMA?' link in Under the Hood.
+   Remains a real anchor to the shared About page; opens a new tab. */
+html[data-theme] header.top .top-right > #sigma-about-link {
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center;
+  flex:0 0 auto;
+  min-height:32px;
+  padding:5px 11px;
+  border:1px solid #d9d4d2;
+  border-radius:8px;
+  background:#fffdfa;
+  color:#9e2533;
+  font:600 12px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif;
+  text-decoration:none !important;
+  white-space:nowrap;
+  transition:background .17s ease,border-color .17s ease;
+}
+html[data-theme="light"] header.top .top-right > #sigma-about-link:hover {
+  background:#fbf0ef;
+  border-color:#b74f5a;
+  color:#9e2533;
+  text-decoration:none !important;
+}
+html[data-theme="dark"] header.top .top-right > #sigma-about-link {
+  background:#302d2e;
+  border-color:#605456;
+  color:#ef9ca7;
+}
+html[data-theme="dark"] header.top .top-right > #sigma-about-link:hover {
+  background:#403236;
+  border-color:#ca808c;
+  color:#ffd5db;
+  text-decoration:none !important;
+}
+
+/* sigma-explorer-about-left-v1
+   Move the shared About button to the left side of the Explorer header,
+   matching the placement language used in Under the Hood. */
+html[data-theme] header.top > #sigma-about-link.sigma-about-left {
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center;
+  flex:0 0 auto;
+  min-height:32px;
+  margin-left:10px;
+  margin-right:14px;
+  padding:5px 11px;
+  border:1px solid #d9d4d2;
+  border-radius:8px;
+  background:#fffdfa;
+  color:#9e2533;
+  font:600 12px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif;
+  text-decoration:none !important;
+  white-space:nowrap;
+  transition:background .17s ease,border-color .17s ease,color .17s ease;
+}
+html[data-theme="light"] header.top > #sigma-about-link.sigma-about-left:hover {
+  background:#fbf0ef;
+  border-color:#b74f5a;
+  color:#9e2533;
+}
+html[data-theme="dark"] header.top > #sigma-about-link.sigma-about-left {
+  background:#302d2e;
+  border-color:#605456;
+  color:#ef9ca7;
+}
+html[data-theme="dark"] header.top > #sigma-about-link.sigma-about-left:hover {
+  background:#403236;
+  border-color:#ca808c;
+  color:#ffd5db;
+}
+@media (max-width: 1080px) {
+  html[data-theme] header.top > #sigma-about-link.sigma-about-left {
+    margin-left:8px;
+    margin-right:10px;
+    padding:5px 10px;
+  }
+}
+@media (max-width: 860px) {
+  html[data-theme] header.top > #sigma-about-link.sigma-about-left {
+    order:4;
+    margin-left:0;
+    margin-right:0;
+  }
+}

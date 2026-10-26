@@ -8,7 +8,17 @@ const html = fs.readFileSync(path.join(base,'index.html'),'utf8');
 const js = fs.readFileSync(path.join(base,'app.js'),'utf8');
 const css = fs.readFileSync(path.join(base,'style.css'),'utf8');
 assert.match(html, /<html lang="en" data-theme="light">/);
-assert.match(html, /id="theme-mode"[^>]*>[\s\S]*?<option value="light" selected>Light<\/option>[\s\S]*?<option value="dark">Dark<\/option>/);
+// sigma-action-label-toggle-v1: a button, not the legacy Theme dropdown.
+assert.match(html, /id="theme-toggle"[^>]*aria-pressed="false"/);
+assert.match(html, /id="theme-toggle"[^>]*>[\s\S]*?<span>Dark mode<\/span><\/button>/);
+assert(!html.includes('id="theme-mode"'), 'Legacy theme dropdown must be removed');
+assert(html.indexOf('id="theme-toggle"') > html.indexOf('href="DATA_NOTICE.txt"'),
+  'Theme button must be the rightmost Explorer header control');
+assert.match(js, /\$\('theme-toggle'\)\.addEventListener\('click'/);
+assert.match(js, /const nextLabel = dark \? 'Light mode' : 'Dark mode'/);
+const tutorial = fs.readFileSync(path.join(base,'tutorial.html'),'utf8');
+assert.match(tutorial, /sigma-action-label-toggle-v1/);
+assert.match(tutorial, /const nextLabel = dark \? 'Light mode' : 'Dark mode'/);
 const icons = [...html.matchAll(/<span\b[^>]*\bclass="control-help[^\"]*"[^>]*>/g)];
 assert(icons.length>=8, 'Missing ? help icons');
 for (const icon of icons) assert(!/\btitle=/.test(icon[0]), 'Native title tooltip remains on ? help icon');
