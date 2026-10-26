@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from importlib import resources
@@ -63,6 +64,86 @@ def _boundary(value: Any, base: Path) -> BoundarySpec | None:
     )
 
 
+def _derive_provinces(areas: dict[str, Area]) -> dict[str, Area]:
+    """Derive exact administrative provinces from the catalog's locality boundaries.
+
+    Localities without a province assignment (including independent cities)
+    are intentionally excluded from provincial membership.
+    """
+    grouped: dict[str, list[Area]] = {}
+    for area in areas.values():
+        if area.kind in {"city", "municipality"} and area.province:
+            grouped.setdefault(area.province, []).append(area)
+
+    occupied = {
+        identifier.casefold()
+        for area in areas.values()
+        for identifier in (area.slug, area.name, *area.aliases)
+    }
+    provinces: dict[str, Area] = {}
+    for name, members in sorted(grouped.items(), key=lambda item: item[0].casefold()):
+        stem = re.sub(r"[^a-z0-9]+", "_", name.casefold()).strip("_")
+        if not stem:
+            raise ValueError(f"cannot derive slug for province {name!r}")
+        slug = (
+            f"{stem}_province"
+            if stem in areas or name.casefold() in occupied
+            else stem
+        )
+        if slug in areas or slug in provinces:
+            raise ValueError(f"derived province slug collision: {slug!r}")
+
+        if any(not member.psgc_code or member.boundary is None for member in members):
+            raise ValueError(f"province {name!r} has members without PSGC boundaries")
+        reference = members[0].boundary
+        assert reference is not None
+        if not reference.field:
+            raise ValueError(f"province {name!r} requires a PSGC boundary field")
+        for member in members:
+            boundary = member.boundary
+            assert boundary is not None
+            if (boundary.gpkg, boundary.layer, boundary.field) != (
+                reference.gpkg, reference.layer, reference.field
+            ):
+                raise ValueError(f"province {name!r} mixes incompatible boundary sources")
+            if (
+                isinstance(boundary.value, tuple)
+                or boundary.value is None
+                or str(boundary.value).lstrip("0") != str(member.psgc_code).lstrip("0")
+            ):
+                raise ValueError(f"province {name!r} has an inconsistent member PSGC boundary")
+
+        member_codes = tuple(sorted({str(member.psgc_code) for member in members}))
+        if len(member_codes) != len(members):
+            raise ValueError(f"province {name!r} has duplicate member PSGC codes")
+        bbox = (
+            min(member.bbox[0] for member in members),
+            min(member.bbox[1] for member in members),
+            max(member.bbox[2] for member in members),
+            max(member.bbox[3] for member in members),
+        )
+        aliases = (
+            (f"Province of {name}",)
+            if name.casefold().endswith(" province")
+            else (f"{name} Province", f"Province of {name}")
+        )
+        provinces[slug] = Area(
+            slug=slug,
+            name=name,
+            kind="province",
+            bbox=bbox,
+            aliases=aliases,
+            members=member_codes,
+            boundary=BoundarySpec(
+                gpkg=reference.gpkg,
+                layer=reference.layer,
+                field=reference.field,
+                value=member_codes,
+            ),
+        )
+    return provinces
+
+
 @lru_cache(maxsize=8)
 def _load_areas_cached(path_text: str, mtime_ns: int, size: int) -> tuple[tuple[str, Area], ...]:
     # mtime/size are deliberately part of the cache key so edited custom catalogs
@@ -107,6 +188,8 @@ def _load_areas_cached(path_text: str, mtime_ns: int, size: int) -> tuple[tuple[
             members=members,
             boundary=_boundary(raw.get("boundary"), path.parent),
         )
+    if path == default_areas_path().resolve():
+        out.update(_derive_provinces(out))
     return tuple(out.items())
 
 

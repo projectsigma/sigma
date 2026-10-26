@@ -6,8 +6,9 @@ def test_packaged_area_catalog_contains_all_current_lgus_and_three_composites():
     localities = [a for a in areas.values() if a.kind in {"city", "municipality"}]
     composites = [a for a in areas.values() if a.kind == "composite"]
 
-    assert len(areas) == 1645
+    assert len(areas) == 1727
     assert len(localities) == 1642
+    assert sum(a.kind == "province" for a in areas.values()) == 82
     assert sum(area.kind == "city" for area in localities) == 149
     assert sum(area.kind == "municipality" for area in localities) == 1493
     assert all(area.psgc_code for area in localities)
