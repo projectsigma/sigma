@@ -1,0 +1,321 @@
+/* sigma-matte-graphite-20261026 -- loaded after all legacy theme rules */
+:root,html[data-theme="light"] {
+  --text:#202b31;--muted:#758087;--border:#e1e3e0;
+  --bg:#f8f7f3;--panel:#ffffff;--green:#bc2735;
+  --focus:#bc2735;--both:#8d6aab;--out:#bc2735;--in:#2876a2;
+}
+html[data-theme="light"] body {background:#f8f7f3;color:#202b31}
+html[data-theme="light"] .top,html[data-theme="light"] .toolbar,html[data-theme="light"] footer {background:#f8f7f3;border-color:#e1e3e0}
+html[data-theme="light"] .side,html[data-theme="light"] .side section {background:#fff}
+html[data-theme="light"] .map-panel {background:#f8f7f3;border-color:#e1e3e0}
+html[data-theme="light"] .stat {background:#fff;border-color:#e1e3e0}
+html[data-theme="light"] .map-status,html[data-theme="light"] .sector-panel,html[data-theme="light"] .map-legend {background:#fffffff5;border-color:#e1e3e0}
+html[data-theme="light"] select,html[data-theme="light"] button,html[data-theme="light"] input[type="number"] {background:#fff;border-color:#d9ddda;color:#202b31}
+html[data-theme="light"] button:hover,html[data-theme="light"] select:hover {background:#fcf3f3;border-color:#d9bfc1}
+html[data-theme="light"] .sector-item:hover,html[data-theme="light"] table.links tr:hover td {background:#fcf3f3}
+html[data-theme="light"] #network {background:radial-gradient(#e8e4e3 .45px,transparent .45px) 0 0/18px 18px,#fff;border-color:#e1e3e0}
+html[data-theme="light"] .explorer {color:#5d686c}
+html[data-theme="light"] a {color:#9e2533}
+/* Keep the user's supplied logo as a real local bundled asset. */
+.top .brand .mark {width:34px;height:34px;display:grid;place-items:center;background:none;border-radius:7px;overflow:hidden;padding:0;flex-shrink:0}
+.top .brand .mark img {width:100%;height:100%;display:block;object-fit:cover}
+html[data-theme="dark"] {
+  color-scheme:dark;
+  --text:#f1ece8;--muted:#b8afad;--border:#403b3b;
+  --bg:#191818;--panel:#252323;--green:#dd6475;
+  --focus:#dd6475;--both:#b498cd;--out:#e08276;--in:#83b2df;
+}
+html[data-theme="dark"] body,html[data-theme="dark"] .side,html[data-theme="dark"] .side section {background:#252323;color:#f1ece8}
+html[data-theme="dark"] .top,html[data-theme="dark"] .toolbar,html[data-theme="dark"] footer {background:#191818;border-color:#403b3b;color:#f1ece8}
+html[data-theme="dark"] .map-panel {background:#191818;border-color:#403b3b}
+html[data-theme="dark"] .map-status,html[data-theme="dark"] .sector-panel,html[data-theme="dark"] .map-legend {background:rgba(37,35,35,.96);border-color:#403b3b;box-shadow:0 5px 20px #0004;color:#f1ece8}
+html[data-theme="dark"] .graph-tip,html[data-theme="dark"] .sigma-help-popup,html[data-theme="dark"] .maplibregl-popup-content {background:#2d2a2a;border-color:#504749;color:#f1ece8;box-shadow:0 5px 18px #0005}
+html[data-theme="dark"] .side h2,html[data-theme="dark"] .side h3,html[data-theme="dark"] .area,html[data-theme="dark"] .brand b {color:#f1ece8}
+html[data-theme="dark"] .brand .explorer,html[data-theme="dark"] .top-right,html[data-theme="dark"] .muted,html[data-theme="dark"] small,html[data-theme="dark"] .stat .stat-label {color:#b8afad}
+html[data-theme="dark"] a {color:#ef9ca7}
+html[data-theme="dark"] select,html[data-theme="dark"] button,html[data-theme="dark"] input[type="number"],html[data-theme="dark"] .toolbar .top-custom,html[data-theme="dark"] .toolbar .depth-custom {background:#2d2a2a;border-color:#504749;color:#f1ece8}
+html[data-theme="dark"] select:hover,html[data-theme="dark"] button:hover {background:#383334;border-color:#6d5a5e}
+html[data-theme="dark"] .stat,html[data-theme="dark"] .finder-result {background:#2d2a2a;border-color:#403b3b;color:#f1ece8}
+html[data-theme="dark"] .finder-controls input,html[data-theme="dark"] .finder-controls select {background:#2d2a2a;border-color:#504749;color:#f1ece8}
+html[data-theme="dark"] .finder-result:hover,html[data-theme="dark"] .sector-item:hover,html[data-theme="dark"] table.links tr:hover td {background:#383334}
+html[data-theme="dark"] .sector-item .sector-strength {color:#bbb0ae}
+html[data-theme="dark"] .control-help {background:#312b2c;border-color:#615357;color:#dfb7ba}
+html[data-theme="dark"] .control-help:hover,html[data-theme="dark"] .control-help:focus-visible {background:#4a3438;color:#fff}
+html[data-theme="dark"] .side section,html[data-theme="dark"] .toolbar .divider {border-color:#403b3b}
+html[data-theme="dark"] #network {background:radial-gradient(#514849 .45px,transparent .45px) 0 0/18px 18px,#252323;border-color:#403b3b}
+html[data-theme="dark"] .graph-section,html[data-theme="dark"] body.theater .graph-section {background:#252323;border-color:#504749}
+html[data-theme="dark"] .toolbar .toolbar-center-triangle {background:#df8790}
+html[data-theme="dark"] .map-legend .legend-dot.center::after {background:#252323}
+html[data-theme="dark"] table.links th,html[data-theme="dark"] .connections {background:#252323;border-color:#403b3b}
+html[data-theme="dark"] table.links td {border-color:#403b3b}
+html[data-theme="dark"] .maplibregl-ctrl-group {background:#2d2a2a;border-color:#504749}
+html[data-theme="dark"] .maplibregl-ctrl-group button {background:transparent;border-color:#504749}
+html[data-theme="dark"] .maplibregl-ctrl-group button .maplibregl-ctrl-icon {filter:invert(1) brightness(1.3)}
+html[data-theme="dark"] .maplibregl-ctrl-attrib,html[data-theme="dark"] .maplibregl-ctrl-attrib a {background:#252323;color:#b8afad}
+html[data-theme="dark"] .maplibregl-popup-anchor-bottom .maplibregl-popup-tip {border-top-color:#2d2a2a}
+html[data-theme="dark"] .maplibregl-popup-anchor-top .maplibregl-popup-tip {border-bottom-color:#2d2a2a}
+html[data-theme="dark"] .maplibregl-popup-anchor-left .maplibregl-popup-tip {border-right-color:#2d2a2a}
+html[data-theme="dark"] .maplibregl-popup-anchor-right .maplibregl-popup-tip {border-left-color:#2d2a2a}
+html[data-theme="dark"] input[type="checkbox"] {accent-color:#dd6475}
+:focus-visible {outline-color:#bc2735}
+html[data-theme="dark"] :focus-visible {outline-color:#ef9ca7}
+
+/* sigma-institutional-graphite-v1: paired surfaces and accessible select states. */
+html[data-theme="dark"] {
+  --text:#f3eeeb;
+  --muted:#bdb3b2;
+  --border:#4b4445;
+  --bg:#171718;
+  --panel:#262425;
+  --green:#e77b87;
+  --focus:#e77b87;
+  --both:#b498cd;
+  --out:#e08276;
+  --in:#83b2df;
+}
+html[data-theme="dark"] body,
+html[data-theme="dark"] .side,
+html[data-theme="dark"] .side section {background:#262425;color:#f3eeeb;}
+html[data-theme="dark"] .top,
+html[data-theme="dark"] .toolbar,
+html[data-theme="dark"] footer {background:#171718;border-color:#4b4445;color:#f3eeeb;}
+html[data-theme="dark"] .map-panel {background:#171718;border-color:#4b4445;}
+html[data-theme="dark"] .map-status,
+html[data-theme="dark"] .sector-panel,
+html[data-theme="dark"] .map-legend,
+html[data-theme="dark"] .graph-tip,
+html[data-theme="dark"] .sigma-help-popup,
+html[data-theme="dark"] .maplibregl-popup-content,
+html[data-theme="dark"] .stat,
+html[data-theme="dark"] .finder-result,
+html[data-theme="dark"] table.links th,
+html[data-theme="dark"] .connections {background:#262425;border-color:#4b4445;color:#f3eeeb;}
+html[data-theme="dark"] .map-status,
+html[data-theme="dark"] .sector-panel,
+html[data-theme="dark"] .map-legend {background:rgba(38,36,37,.97);}
+html[data-theme="dark"] .stat {background:#312d2e;}
+html[data-theme="dark"] #network {
+  background:radial-gradient(#4b4445 .45px,transparent .45px) 0 0/18px 18px,#262425;
+  border-color:#4b4445;
+}
+html[data-theme="dark"] .graph-section,
+html[data-theme="dark"] body.theater .graph-section {background:#262425;border-color:#4b4445;}
+html[data-theme="dark"] .side h2,
+html[data-theme="dark"] .side h3,
+html[data-theme="dark"] .area,
+html[data-theme="dark"] .brand b {color:#f3eeeb;}
+html[data-theme="dark"] .brand .explorer,
+html[data-theme="dark"] .top-right,
+html[data-theme="dark"] .muted,
+html[data-theme="dark"] small,
+html[data-theme="dark"] .stat .stat-label {color:#bdb3b2;}
+html[data-theme="dark"] a {color:#e77b87;}
+html[data-theme="dark"] .control-help {background:#312d2e;border-color:#66575a;color:#efb7be;}
+html[data-theme="dark"] .control-help:hover,
+html[data-theme="dark"] .control-help:focus-visible {background:#493538;color:#fff;}
+html[data-theme="dark"] .side section,
+html[data-theme="dark"] .toolbar .divider,
+html[data-theme="dark"] table.links td {border-color:#4b4445;}
+html[data-theme="dark"] .finder-result:hover,
+html[data-theme="dark"] .sector-item:hover,
+html[data-theme="dark"] table.links tr:hover td {background:#312d2e;}
+html[data-theme="dark"] .finder-controls input,
+html[data-theme="dark"] .finder-controls select {background:#312d2e;border-color:#574e50;color:#f3eeeb;}
+html[data-theme="dark"] .maplibregl-ctrl-group {background:#312d2e;border-color:#4b4445;}
+html[data-theme="dark"] .maplibregl-ctrl-group button {background:transparent;border-color:#4b4445;}
+html[data-theme="dark"] .maplibregl-ctrl-attrib,
+html[data-theme="dark"] .maplibregl-ctrl-attrib a {background:#262425;color:#bdb3b2;}
+html[data-theme="dark"] .maplibregl-popup-anchor-bottom .maplibregl-popup-tip {border-top-color:#262425;}
+html[data-theme="dark"] .maplibregl-popup-anchor-top .maplibregl-popup-tip {border-bottom-color:#262425;}
+html[data-theme="dark"] .maplibregl-popup-anchor-left .maplibregl-popup-tip {border-right-color:#262425;}
+html[data-theme="dark"] .maplibregl-popup-anchor-right .maplibregl-popup-tip {border-left-color:#262425;}
+html[data-theme="dark"] .map-legend .legend-dot.center::after {background:#262425;}
+html[data-theme="dark"] input[type="checkbox"] {accent-color:#e77b87;}
+html[data-theme="dark"] .toolbar .toolbar-center-triangle {background:#e77b87;}
+
+/* The same inputs use parallel, semantic hover/focus/selected states. */
+html[data-theme="light"] {
+  --sigma-select-bg:#ffffff;
+  --sigma-select-fg:#202b31;
+  --sigma-select-border:#d9ddda;
+  --sigma-select-hover:#fcf3f3;
+  --sigma-select-hover-border:#ca9ba1;
+  --sigma-select-selected:#f8e9e9;
+  --sigma-select-accent:#bc2735;
+}
+html[data-theme="dark"] {
+  --sigma-select-bg:#312d2e;
+  --sigma-select-fg:#f3eeeb;
+  --sigma-select-border:#574e50;
+  --sigma-select-hover:#3e3436;
+  --sigma-select-hover-border:#a56d75;
+  --sigma-select-selected:#51373c;
+  --sigma-select-accent:#e77b87;
+}
+html[data-theme] select:not([multiple]),
+html[data-theme] .toolbar .top-custom,
+html[data-theme] .toolbar .depth-custom,
+html[data-theme] .finder-controls input,
+html[data-theme] input[type="number"] {
+  background-color:var(--sigma-select-bg);
+  color:var(--sigma-select-fg);
+  border-color:var(--sigma-select-border);
+  accent-color:var(--sigma-select-accent);
+}
+html[data-theme] select:not([multiple]):hover,
+html[data-theme] .toolbar .top-custom:hover,
+html[data-theme] .toolbar .depth-custom:hover {
+  background-color:var(--sigma-select-hover);
+  border-color:var(--sigma-select-hover-border);
+}
+html[data-theme] select:not([multiple]):focus,
+html[data-theme] select:not([multiple]):focus-visible,
+html[data-theme] select:not([multiple]):active,
+html[data-theme] select:not([multiple]):open,
+html[data-theme] .finder-controls input:focus-visible,
+html[data-theme] input[type="number"]:focus-visible {
+  background-color:var(--sigma-select-bg);
+  border-color:var(--sigma-select-accent);
+  outline:2px solid var(--sigma-select-accent);
+  outline-offset:2px;
+}
+html[data-theme] select:not([multiple]) option {
+  background-color:var(--sigma-select-bg);
+  color:var(--sigma-select-fg);
+}
+html[data-theme] select:not([multiple]) option:checked {
+  background-color:var(--sigma-select-selected);
+  color:var(--sigma-select-fg);
+}
+/* Enhanced dropdowns on modern Chromium; older browsers keep native selects. */
+@supports (appearance:base-select) and selector(::picker(select)) {
+  html[data-theme] select:not([multiple]),
+  html[data-theme] select:not([multiple])::picker(select) {
+    appearance:base-select;
+  }
+  html[data-theme] select:not([multiple])::picker(select) {
+    background:var(--sigma-select-bg);
+    color:var(--sigma-select-fg);
+    border:1px solid var(--sigma-select-border);
+    border-radius:9px;
+    margin-block-start:5px;
+    padding:4px;
+    box-shadow:0 14px 35px rgba(0,0,0,.24);
+    max-height:min(420px,65vh);
+    overflow-y:auto;
+  }
+  html[data-theme] select:not([multiple]) option {
+    padding:8px 10px;
+    min-height:28px;
+    border-radius:5px;
+    cursor:pointer;
+  }
+  html[data-theme] select:not([multiple]) option:hover,
+  html[data-theme] select:not([multiple]) option:focus-visible {
+    background:var(--sigma-select-hover);
+    color:var(--sigma-select-fg);
+  }
+  html[data-theme] select:not([multiple]) option:checked {
+    background:var(--sigma-select-selected);
+    color:var(--sigma-select-fg);
+  }
+  html[data-theme] select:not([multiple]) option::checkmark,
+  html[data-theme] select:not([multiple])::picker-icon {
+    color:var(--sigma-select-accent);
+  }
+}
+
+/* sigma-institutional-select-alignment-v2: match approved visual reference.
+   Chromium base-select draws its own picker icon; hide it so Chrome cannot
+   leave a detached red triangle below the Theme control. Render one chevron. */
+html[data-theme="light"] {
+  --sigma-select-chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.5 6L8 10.5L12.5 6' stroke='%23bc2735' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+html[data-theme="dark"] {
+  --sigma-select-chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.5 6L8 10.5L12.5 6' stroke='%23e77b87' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+@supports (appearance:base-select) and selector(::picker(select)) {
+  html[data-theme] select:not([multiple]) {
+    appearance:base-select;
+    box-sizing:border-box;
+    display:inline-flex;
+    align-items:center;
+    vertical-align:middle;
+    white-space:nowrap;
+    min-height:30px;
+    padding-right:31px;
+    background-image:var(--sigma-select-chevron);
+    background-repeat:no-repeat;
+    background-position:right 10px center;
+    background-size:14px 14px;
+  }
+  html[data-theme] select:not([multiple])::picker-icon {
+    display:none !important;
+    content:none !important;
+  }
+}
+/* The preview uses white toolbar surfaces in light mode, not cream. */
+html[data-theme="light"] .top,
+html[data-theme="light"] .toolbar,
+html[data-theme="light"] footer {background:#ffffff;}
+/* Dark mode tokens exactly match the approved Institutional Graphite preview. */
+html[data-theme="dark"] .top,
+html[data-theme="dark"] .toolbar,
+html[data-theme="dark"] footer {background:#1c1b1c;}
+html[data-theme="dark"] .map-panel {background:#1f1e1e;}
+html[data-theme="dark"] .map-status,
+html[data-theme="dark"] .sector-panel,
+html[data-theme="dark"] .map-legend {background:rgba(41,38,39,.97);}
+
+/* sigma-brand-visual-repair-20261026-v1 */
+/* Restore image elements rather than backgrounds on blank logo spans. */
+.top .brand .mark, .top .brand .mark.brand-logo {
+  display:inline-flex!important; align-items:center!important; justify-content:center!important;
+  background:none!important; overflow:hidden!important; padding:0!important;
+  width:34px!important; height:34px!important; flex:0 0 34px!important;
+  border-radius:7px!important;
+}
+.top .brand .mark img {display:block!important; width:34px!important; height:34px!important; object-fit:contain!important;}
+/* Drop experimental base-select rendering and its detached picker triangles. */
+html[data-theme] select:not([multiple]) {
+  -webkit-appearance:none!important; appearance:none!important;
+  display:inline-block!important; vertical-align:middle!important;
+  height:32px!important; min-height:32px!important; line-height:20px!important;
+  padding:5px 34px 5px 11px!important; box-sizing:border-box!important;
+  border-radius:8px!important;
+  background-image:var(--sigma-fixed-chevron)!important;
+  background-repeat:no-repeat!important;
+  background-position:right 11px center!important;
+  background-size:13px 13px!important;
+  border:1px solid var(--sigma-select-border)!important;
+  color:var(--sigma-select-fg)!important;
+  background-color:var(--sigma-select-bg)!important;
+  outline:none!important; box-shadow:none!important;
+}
+html[data-theme="light"] {
+  --sigma-fixed-chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.5 6L8 10.5L12.5 6' stroke='%23b11116' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+html[data-theme="dark"] {
+  --sigma-fixed-chevron:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.5 6L8 10.5L12.5 6' stroke='%23e77b87' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+html[data-theme] select:not([multiple])::picker-icon {display:none!important; content:none!important;}
+html[data-theme] select:not([multiple]):hover {
+  background-color:var(--sigma-select-hover)!important;
+  border-color:var(--sigma-select-hover-border)!important;
+}
+html[data-theme] select:not([multiple]):focus,
+html[data-theme] select:not([multiple]):focus-visible,
+html[data-theme] select:not([multiple]):open {
+  background-color:var(--sigma-select-bg)!important;
+  border-color:var(--sigma-select-accent)!important;
+  outline:none!important; box-shadow:none!important;
+}
+/* One focus indicator only, for keyboard navigation. */
+html[data-theme] select:not([multiple]):focus-visible {
+  box-shadow:0 0 0 2px var(--sigma-select-selected)!important;
+}
+html[data-theme="light"] select:not([multiple]) {color-scheme:light!important;}
+html[data-theme="dark"] select:not([multiple]) {color-scheme:dark!important;}
+html[data-theme] .theme-picker {display:inline-flex!important; align-items:center!important; gap:7px!important; vertical-align:middle!important;}
+html[data-theme] #theme-mode {width:100px!important; margin:0!important;}
+/* end sigma-brand-visual-repair-20261026-v1 */

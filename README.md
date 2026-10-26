@@ -30,6 +30,8 @@ sigma view pasig
 
 The browser opens at `http://127.0.0.1:8765/` by default. Use `sigma view pasig --refresh` after changing published outputs, or `sigma view pasig --no-browser` to print the URL without launching a browser. To prepare a portable static site from published results, use `sigma export-web pasig`; see the [Explorer guide](SIGMA_EXPLORER.md) and [illustrated workflow in the documentation book](docs/book/content/intro/explorer.md).
 
+**Fast UI iterations:** After an Explorer bundle already exists, use `sigma view pasig --ui-only` to copy the current HTML, CSS, JS, logo and favicon into that bundle and open the browser **without regenerating** its graph, geographic tiles or routes. This is useful when changing visual design or Guided Tutorial styling. It does **not** check whether SIGMA's published analytical outputs changed; use ordinary `sigma view pasig` to validate freshness or `--refresh` for a full rebuild. `--ui-only` and `--refresh` cannot be combined. See the [Explorer guide](SIGMA_EXPLORER.md).
+
 **Interpretation:** Each X node represents an **economic-type cluster**, not one firm. An edge is a **modeled spatial-economic relationship**, not evidence that two establishments actually trade. The default Explorer bundle contains individual establishment locations and should remain private unless data rights, attribution, and publication risks have been reviewed. A reduced `--public` export omits establishment-level records but is **not a guarantee of anonymity**. The separate [SIGMA documentation website](https://projectsigma.github.io/sigma/) explains the methods; it does not automatically host your local Explorer data.
 
 ## Objectives
@@ -554,6 +556,7 @@ Run `sigma view pasig` to open **SIGMA Explorer**, an interactive counterpart to
 ```powershell
 sigma view pasig                # local browser view; uses existing exports
 sigma view pasig --refresh      # refresh the derived visualization bundle
+sigma view pasig --ui-only      # copy current UI files only; reuse existing graph/routes
 sigma export-web pasig          # write <output>\explorer for portable hosting
 sigma export-web pasig --public # reduced-data bundle in <output>\explorer-public
 ```
@@ -617,6 +620,7 @@ sigma run metro_manila
 | Run full analysis/export | `sigma run pasig` |
 | Explore results in a local browser | `sigma view pasig` |
 | Rebuild Explorer from latest exports | `sigma view pasig --refresh` |
+| Refresh only Explorer UI files | `sigma view pasig --ui-only` |
 | Export browser-ready results | `sigma export-web pasig` |
 | Export reduced-data public review bundle | `sigma export-web pasig --public` |
 | Inspect cache/stage state | `sigma status pasig` |

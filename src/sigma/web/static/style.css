@@ -332,3 +332,70 @@ html[data-theme="dark"] .side .sidebar-disclosure > summary.section-head:hover h
 html[data-theme="dark"] .side .sidebar-disclosure > summary.section-head:focus-visible {
   outline-color:#a8dfb9;
 }
+
+/* sigma-bpi-brand-refresh-20261026 */
+:root {
+  --green:#b11116;
+  --focus:#8f0d12;
+  --gold:#e0b65a;
+}
+.brand .mark.brand-logo {
+  background:transparent url("sigma-logo.png") center/cover no-repeat;
+}
+.brand .mark.brand-logo,
+.sigma-brand-icon.brand-logo {
+  color:transparent !important;
+  font-size:0 !important;
+}
+.toolbar select,
+.toolbar button,
+.theme-select {
+  transition:background-color .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+select:focus-visible,
+button:focus-visible {
+  outline:2px solid rgba(177,17,22,.45);
+  outline-offset:2px;
+}
+html[data-theme="dark"] {
+  --green:#d65a5f;
+  --focus:#e77b87;
+  --gold:#e0b65a;
+}
+html[data-theme="dark"] .top,
+html[data-theme="dark"] .toolbar,
+html[data-theme="dark"] footer { background:#1c1b1c; }
+html[data-theme="dark"] .map-panel { background:#1f1e1e; }
+html[data-theme="dark"] .map-status,
+html[data-theme="dark"] .sector-panel,
+html[data-theme="dark"] .map-legend,
+html[data-theme="dark"] .stat,
+html[data-theme="dark"] .graph-tip,
+html[data-theme="dark"] .maplibregl-popup-content,
+html[data-theme="dark"] #network,
+html[data-theme="dark"] table.links th,
+html[data-theme="dark"] #error { background:#262425; }
+html[data-theme="dark"] select,
+html[data-theme="dark"] button {
+  background:#312d2e;
+  border-color:#4b4445;
+  color:var(--text);
+}
+html[data-theme="dark"] select:hover,
+html[data-theme="dark"] button:hover { background-color:#3a3536; border-color:#5a5354; }
+html[data-theme="dark"] select:focus,
+html[data-theme="dark"] button:focus { border-color:#d65a5f; box-shadow:0 0 0 2px rgba(214,90,95,.18); }
+select {
+  appearance:none;
+  -webkit-appearance:none;
+  background-image:linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%), linear-gradient(to right, transparent, transparent);
+  background-position:calc(100% - 16px) calc(50% + 1px), calc(100% - 11px) calc(50% + 1px), 100% 0;
+  background-size:5px 5px, 5px 5px, 2.6em 2.6em;
+  background-repeat:no-repeat;
+  padding-right:2.3rem;
+}
+select:hover { background-color:#f8efef; border-color:#d4b3b7; }
+select:focus { border-color:#b11116; box-shadow:0 0 0 2px rgba(177,17,22,.12); }
+option { color:inherit; background:inherit; }
+html[data-theme="dark"] option { background:#312d2e; color:#f3eeeb; }
+/* end sigma-bpi-brand-refresh-20261026 */

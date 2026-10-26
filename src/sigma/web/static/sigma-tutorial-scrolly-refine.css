@@ -1,0 +1,137 @@
+/* sigma-tutorial-scrolly-refine-20261026 */
+:root{
+  --sigma-tut-paper:#f6f2ee;
+  --sigma-tut-panel:#fffdfa;
+  --sigma-tut-panel-soft:#fbf7f2;
+  --sigma-tut-ink:#22303a;
+  --sigma-tut-muted:#6c7279;
+  --sigma-tut-line:#ddd5ce;
+  --sigma-tut-shadow:0 1px 0 rgba(34,48,58,.04),0 14px 34px rgba(34,48,58,.05);
+  --sigma-tut-grid:rgba(120,107,92,.10);
+  --sigma-tut-grid-strong:rgba(120,107,92,.16);
+  --sigma-tut-accent:#b11116;
+  --sigma-tut-accent-soft:rgba(177,17,22,.10);
+}
+html[data-theme="dark"]{
+  --sigma-tut-paper:#1f1c1d;
+  --sigma-tut-panel:#282526;
+  --sigma-tut-panel-soft:#2f2b2c;
+  --sigma-tut-ink:#f2ede8;
+  --sigma-tut-muted:#c8bcb4;
+  --sigma-tut-line:#4b4446;
+  --sigma-tut-shadow:none;
+  --sigma-tut-grid:rgba(243,238,235,.07);
+  --sigma-tut-grid-strong:rgba(243,238,235,.11);
+  --sigma-tut-accent:#e77b87;
+  --sigma-tut-accent-soft:rgba(231,123,135,.14);
+}
+
+body{
+  background:var(--sigma-tut-paper) !important;
+  color:var(--sigma-tut-ink) !important;
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif !important;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+button,input,select,textarea{font-family:inherit !important}
+
+h1,h2,h3,h4,h5,h6,
+.tutorial-title,.section-title,.stage-title,.lesson-title{
+  color:var(--sigma-tut-ink) !important;
+  font-family:inherit !important;
+  font-weight:700 !important;
+  letter-spacing:-0.015em;
+}
+
+p,li,dd,dt,figcaption,.tutorial-copy,.copy,.prose{
+  color:var(--sigma-tut-ink);
+  line-height:1.62;
+}
+small,.muted,.subtle,.caption,.eyebrow,.kicker,.lede-meta,.secondary{
+  color:var(--sigma-tut-muted) !important;
+}
+
+a{color:var(--sigma-tut-accent) !important}
+a:hover{opacity:.92}
+:focus-visible{outline:2px solid var(--sigma-tut-accent) !important; outline-offset:2px}
+
+/* restore softer cream/white editorial feel */
+.top,.tutorial-top,.site-header,.tutorial-header{
+  background:var(--sigma-tut-paper) !important;
+  border-bottom:1px solid var(--sigma-tut-line) !important;
+}
+.hero,.lede,.intro,
+.note,.card,.panel,.stage,.step,.lesson,.sigma-current-run,
+.current-run,.current-area,.run-card,.plate,.figure-plate,
+.tutorial-figure,.illustration-shell,.diagram-card,.explain-card,
+.scrolly-step,.step-card,.sticky-figure,.stage-card,.callout,
+.math-card,.topic-card,.tutorial-panel{
+  background:var(--sigma-tut-panel) !important;
+  border-color:var(--sigma-tut-line) !important;
+  box-shadow:var(--sigma-tut-shadow) !important;
+}
+.note.warn,.callout.warn,.tip,.aside,.context-card{
+  background:var(--sigma-tut-panel-soft) !important;
+}
+
+/* cleaner controls */
+button,select,.button,.pill,.toggle,.theme{
+  border-radius:12px !important;
+}
+
+/* slightly calmer spacing and rhythm */
+.section,.stage,.step,.lesson,.scrolly-step,.topic-card{
+  margin-bottom:18px !important;
+}
+.stage h2,.step h2,.lesson h2{margin-bottom:.45rem !important}
+.stage p:last-child,.step p:last-child,.lesson p:last-child{margin-bottom:0}
+
+/* lighter illustration grid */
+.gridl,
+svg .gridl,
+svg .grid line,
+svg .grid path,
+svg .grid polyline,
+svg .minor-grid line,
+svg .minor-grid path,
+svg [class*="grid"] line,
+svg [class*="grid"] path,
+svg [class*="grid"] polyline,
+svg [id*="grid"] line,
+svg [id*="grid"] path,
+svg [id*="grid"] polyline{
+  stroke:var(--sigma-tut-grid) !important;
+}
+svg .major-grid line,
+svg .major-grid path,
+svg [class*="grid"][class*="major"] line,
+svg [class*="grid"][class*="major"] path{
+  stroke:var(--sigma-tut-grid-strong) !important;
+}
+svg .gridl{stroke-width:.9 !important}
+
+/* make figures feel lighter and less boxed-in */
+.plate,.figure-plate,.tutorial-figure,.illustration-shell,.sticky-figure,.diagram-card{
+  border-radius:18px !important;
+}
+svg .bgp, svg .f-plate{ fill:var(--sigma-tut-panel) !important; }
+svg .halo{ stroke:var(--sigma-tut-panel) !important; }
+
+/* keep current brand logic but make active states feel intentional */
+.current,.is-active,.active,.selected,
+.stage[aria-current="step"],.step[aria-current="step"]{
+  border-color:var(--sigma-tut-accent) !important;
+  box-shadow:0 0 0 1px var(--sigma-tut-accent-soft), var(--sigma-tut-shadow) !important;
+}
+
+@media (min-width: 1000px){
+  .tutorial-layout,.tutorial-main,.scrolly,.scrollytelling,.story-grid,.walkthrough{
+    gap:28px !important;
+  }
+}
+
+@media (max-width: 720px){
+  body{font-size:15px !important}
+  h1{font-size:clamp(1.9rem,7vw,2.4rem) !important}
+}
+/* end sigma-tutorial-scrolly-refine-20261026 */

@@ -19,7 +19,20 @@ If the SIGMA output has changed, refresh the browser bundle:
 sigma view pasig --refresh
 ```
 
-If you have already run the analysis, you need only `sigma view pasig`. The CLI also supports custom `--workspace`, `--source-dir`, and `--output-dir` paths, and `--no-browser` or `--port` for local hosting preferences.
+If you have already run the analysis, you need only `sigma view pasig`.
+
+### Fast website-only changes
+
+When you are changing only Explorer/Guided Tutorial **HTML, CSS, JavaScript, images, logo or favicon**, update an *existing* Explorer bundle without recreating its graph, route geometries, polygons or establishment tiles:
+
+```powershell
+sigma view pasig --ui-only
+# For another already-built area:
+sigma view quezon_city --ui-only
+```
+
+`--ui-only` starts the normal local browser server, but copies only static website assets. It refuses an absent or unrecognized bundle, preserves the bundle's local/public profile, and **does not check whether the SIGMA data have changed**. Use `sigma view pasig` to check for changed outputs, or `sigma view pasig --refresh` to force regeneration; do not combine `--ui-only` with `--refresh`. Ordinary `sigma view` can rebuild after frontend code changes because the published bundle fingerprint includes frontend code.
+ The CLI also supports custom `--workspace`, `--source-dir`, and `--output-dir` paths, and `--no-browser` or `--port` for local hosting preferences.
 
 ## Explore a cluster network
 

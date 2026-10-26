@@ -994,6 +994,7 @@ def view_command(
     output_dir: Path | None = typer.Option(None, "--output-dir", file_okay=False, help="Explorer bundle directory."),
     port: int = typer.Option(8765, "--port", min=0, max=65535, help="Local port; the next free port is used if it is taken."),
     no_browser: bool = typer.Option(False, "--no-browser"),
+    ui_only: bool = typer.Option(False, "--ui-only", help="Fast UI-only update of an existing Explorer bundle; reuse all published data."),
     refresh: bool = typer.Option(False, "--refresh", help="Rebuild even when the bundle matches the latest outputs."),
     roads: bool | None = typer.Option(
         None, "--roads/--no-roads", help="Include SIGMA's published roads. Default: include unless very large."
@@ -1002,7 +1003,7 @@ def view_command(
 ) -> None:
     """Open a local-only Explorer for an area; it is rebuilt automatically after new SIGMA runs."""
     try:
-        from .web import build_web_bundle, bundle_is_current, bundle_profile, serve_bundle
+        from .web import build_web_bundle, bundle_is_current, bundle_profile, serve_bundle, refresh_web_assets
 
         source, destination = _explorer_paths(area, workspace, source_dir, output_dir)
         if public and output_dir is None:
@@ -1010,7 +1011,13 @@ def view_command(
         # A public bundle stays public: never rebuild it with establishment-level data.
         public = public or destination.name == "explorer-public" or bundle_profile(destination) == "public"
         profile = "public" if public else "local"
-        if refresh or not bundle_is_current(source, destination, include_roads=roads, profile=profile):
+        if ui_only and refresh:
+            raise ValueError("--ui-only cannot be combined with --refresh")
+        if ui_only:
+            updated = refresh_web_assets(destination, profile=profile)
+            typer.echo(f"Explorer UI assets refreshed ({updated} files); analytical data reused.")
+            typer.echo("Note: --ui-only does not check source-data freshness. Use plain 'sigma view' to validate inputs, or --refresh to rebuild data.")
+        elif refresh or not bundle_is_current(source, destination, include_roads=roads, profile=profile):
             result = build_web_bundle(source, destination, include_roads=roads, force=True, profile=profile)
             for warning in result.get("warnings", []):
                 typer.echo(f"Note: {warning}")

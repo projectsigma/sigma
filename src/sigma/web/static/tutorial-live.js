@@ -5,6 +5,11 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
+  // sigma-tutorial-return-url-repair-v1: preserve THIS tab's mode and cluster.
+  const explorerReturnUrl = id => {
+    const mode = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    return `index.html?theme=${mode}` + (id ? `#${encodeURIComponent(id)}` : '');
+  };
   const fmt = (v, dp = 0) => typeof v === 'number' && Number.isFinite(v)
     ? v.toLocaleString(undefined, {maximumFractionDigits: dp}) : '—';
   const frac = v => typeof v === 'number' && Number.isFinite(v)
@@ -18,7 +23,7 @@
   const replace = (parent, ...nodes) => parent.replaceChildren(...nodes);
   const a = (label, node) => {
     const link = text('a', label, 'live-inline-link');
-    link.href = node ? `index.html#${encodeURIComponent(node.id)}` : 'index.html';
+    link.href = explorerReturnUrl(node && node.id);
     return link;
   };
   const idStr = v => v == null ? '' : String(v);
@@ -126,9 +131,9 @@
           `${sectorLabel(nodeMap.get(idStr(links[0].to))?.type || '?')}, coefficient ${frac(links[0].coefficient)}.` :
           'No incident X links were published for this cluster.';
         replace(target, detail, text('p', linkText, 'live-focus-connection'));
-        $('live-open-cluster').href = `index.html#${encodeURIComponent(chosen.id)}`;
+        $('live-open-cluster').href = explorerReturnUrl(chosen.id);
         $('live-open-cluster').hidden = false;
-        $('live-back-top').href = `index.html#${encodeURIComponent(chosen.id)}`;
+        $('live-back-top').href = explorerReturnUrl(chosen.id);
       } else {
         replace(target, text('p', 'This published bundle has no X nodes. The original worked figures remain available.'));
         $('live-open-cluster').hidden = true;

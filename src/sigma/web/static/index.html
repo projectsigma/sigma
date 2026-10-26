@@ -5,14 +5,40 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>SIGMA Explorer</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%232d664a%27/%3E%3Ctext x=%2716%27 y=%2724%27 font-size=%2722%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27Georgia,serif%27%3E%CE%A3%3C/text%3E%3C/svg%3E">
 <link href="vendor/maplibre-gl.css" rel="stylesheet">
 <link href="style.css" rel="stylesheet">
+<link rel="stylesheet" href="sigma-matte-theme.css">
+<style id="sigma-original-redpin-logo-v1">
+/* Header artwork only: preserve the existing light/dark surfaces and controls. */
+header.top .brand .mark.sigma-original-logo-mark {
+  display:inline-flex!important; align-items:center!important; justify-content:center!important;
+  width:42px!important; height:34px!important; flex:0 0 42px!important;
+  margin:0!important; padding:0!important; border:0!important;
+  background:transparent!important; border-radius:0!important;
+  box-shadow:none!important; overflow:visible!important; font-size:0!important;
+}
+header.top .brand .mark.sigma-original-logo-mark img {
+  display:block!important; width:42px!important; height:34px!important;
+  max-width:none!important; object-fit:contain!important; background:transparent!important;
+}
+header.top .sigma-brand-icon.sigma-original-logo-mark {
+  display:inline-flex!important; align-items:center!important; justify-content:center!important;
+  width:40px!important; height:32px!important; flex:0 0 40px!important;
+  padding:0!important; background:transparent!important; border:0!important;
+  border-radius:0!important; box-shadow:none!important; overflow:visible!important;
+  font-size:0!important; color:transparent!important;
+}
+header.top .sigma-brand-icon.sigma-original-logo-mark img {
+  display:block!important; width:40px!important; height:32px!important;
+  max-width:none!important; object-fit:contain!important; background:transparent!important;
+}
+</style>
+<link rel="icon" type="image/png" href="sigma-favicon.png?v=20261026-redpin-v1">
 </head>
 <body>
 <header class="top">
-  <div class="brand"><span class="mark">Σ</span><span><b>SIGMA</b> <span class="explorer">Explorer</span></span></div>
-  <div id="area" class="area">Published results</div>
+  <div class="brand"><span class="mark sigma-original-logo-mark" aria-hidden="true"><img src="sigma-logo.png?v=20261026-redpin-v1" alt="" width="42" height="34"></span><span><strong>SIGMA</strong> <span class="explorer">Explorer</span></span></div>
+<div id="area" class="area">Published results</div>
   <div class="top-right"><span id="counts"></span><label class="theme-picker" for="theme-mode">Theme<select id="theme-mode" aria-label="Color theme"><option value="light" selected>Light</option><option value="dark">Dark</option></select></label><a id="sigma-guided-tour-link" class="docs-link" href="tutorial.html" title="Interactive method tutorial with this run’s economy and cluster results" target="_blank" rel="noopener noreferrer">Guided tutorial</a><a class="docs-link" href="https://projectsigma.github.io/sigma/content/intro/index.html" target="_blank" rel="noopener noreferrer" title="SIGMA documentation: models, methodology, pipeline, and assumptions">Documentation ↗</a><a href="DATA_NOTICE.txt" target="_blank" rel="noopener">Data notice</a></div>
 </header>
 <!-- sigma-explorer-toolbar-20261019-v1 -->
@@ -154,7 +180,11 @@
     const node = location.hash.slice(1);
     let decoded = node;
     try { decoded = decodeURIComponent(node); } catch (_) { /* preserve opaque ID */ }
-    link.href = 'tutorial.html' + (decoded ? '?node=' + encodeURIComponent(decoded) : '');
+    // sigma-institutional-tour-origin-v1: hand off selected node AND the current theme.
+    const params = new URLSearchParams();
+    if (decoded) params.set('node', decoded);
+    params.set('theme', document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+    link.href = `tutorial.html?${params.toString()}`;
   });
 })();
 </script>
