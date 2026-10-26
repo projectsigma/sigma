@@ -90,7 +90,7 @@ for (const feature of centers) {
   assert.equal(normal.stroke, expected, `${code}: unselected outline must match sector`);
   assert.equal(linked.fill, expected, `${code}: linked fill must match sector`);
   assert.equal(linked.stroke, colors.incoming, `${code}: linked outline must be blue`);
-  assert.equal(darkNormal.fill, '#21392b', `${code}: dark normal icon interior`);
+  assert.equal(darkNormal.fill, '#252323', `${code}: dark normal icon interior uses matte graphite`);
   assert.equal(darkNormal.stroke, expected, `${code}: dark normal icon sector outline`);
   assert.equal(darkLinked.fill, expected, `${code}: dark linked icon sector fill`);
   assert.equal(darkLinked.stroke, '#8cc8e9', `${code}: dark linked icon contrast outline`);
