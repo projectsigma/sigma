@@ -682,7 +682,11 @@ def _validate_and_manifest(
     unassigned_count: int,
     progress: ProgressCallback | None,
 ) -> dict[str, object]:
-    expected_areas = sorted(all_areas.values(), key=lambda area: area.slug)
+    # Province caches are derived lazily from the validated national POIs.
+    expected_areas = sorted(
+        (area for area in all_areas.values() if area.kind != 'province'),
+        key=lambda area: area.slug,
+    )
     area_counts: dict[str, int] = {}
     missing: list[str] = []
 
@@ -856,6 +860,49 @@ def prepare_all_area_osm_caches(
     return final_dir, version
 
 
+def _ensure_province_osm_cache(
+    *,
+    prepared_dir: Path,
+    area_slug: str,
+    areas_file: Path | None,
+    progress: ProgressCallback | None,
+) -> None:
+    """Materialize a missing province cache from the prepared nationwide POIs.
+
+    Province definitions were introduced after the original all-LGU preparer.
+    Existing complete national caches contain everything needed to derive a
+    province without rescanning the large OSM PBF or regenerating every LGU.
+    Other area kinds retain their existing missing-cache behavior.
+    """
+    target = prepared_dir / "areas" / f"{area_slug}.parquet"
+    if _parquet_ok(target):
+        return
+
+    area = load_areas(areas_file).get(area_slug)
+    if area is None or area.kind != "province":
+        return
+
+    national_path = prepared_dir / "national-pois.parquet"
+    if not _parquet_ok(national_path):
+        raise FileNotFoundError(
+            f"Cannot derive provincial OSM cache without prepared national POIs: {national_path}"
+        )
+
+    _emit(progress, f"OSM: deriving province cache for {area_slug} from prepared national POIs")
+    points = gpd.read_parquet(national_path)
+    boundary = load_boundary(area)
+    if points.empty:
+        frame = _empty_like(points)
+    else:
+        # As with metro composites, membership is determined by the actual
+        # union polygon, not the province's rectangular acquisition envelope.
+        candidates = points.cx[area.bbox[0]:area.bbox[2], area.bbox[1]:area.bbox[3]]
+        frame = candidates.loc[candidates.geometry.covered_by(boundary)].copy()
+
+    _atomic_parquet(frame, target)
+    _emit(progress, f"OSM: provincial cache {area_slug} prepared — {len(frame):,} POIs")
+
+
 def load_prepared_area_osm(
     *,
     cache_base: Path,
@@ -899,6 +946,10 @@ def load_prepared_area_osm(
         fallback = True
 
     area_path = prepared_dir / "areas" / f"{area_slug}.parquet"
+    _ensure_province_osm_cache(
+        prepared_dir=prepared_dir, area_slug=area_slug,
+        areas_file=areas_file, progress=progress,
+    )
     frame = read_osm_cache(area_path)
     _emit(
         progress,
