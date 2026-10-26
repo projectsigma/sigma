@@ -245,3 +245,52 @@ html header.top.gut a.mark .sigma-page {font-size:12px !important;}
   header.top.gut > .in {gap:8px !important;}
 }
 /* sigma-header-cream-and-brand-align-v2 END */
+
+/* sigma-under-the-hood-spatial-watermark-v3 */
+/* Spatial clusters, road-network geometry, and directed inter-cluster links.
+   Decorative only: illustrates SIGMA concepts, not observed data.
+   Only the hero background motif changes; the pipeline SVG and its frame stay put. */
+section.hero.gut {
+  position:relative;
+  isolation:isolate;
+  overflow:visible;
+}
+section.hero.gut::before {
+  content:"";
+  position:absolute;
+  top:0;
+  bottom:0;
+  left:50%;
+  width:100vw;
+  transform:translateX(-50%);
+  z-index:0;
+  pointer-events:none;
+  background-color:var(--sigma-tut-panel,var(--plate));
+}
+section.hero.gut::after {
+  content:"";
+  position:absolute;
+  top:10px;
+  right:-8px;
+  width:min(48vw,650px);
+  height:395px;
+  z-index:0;
+  pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20650%20395%22%20fill%3D%22none%22%20aria-hidden%3D%22true%22%3E%0A%20%20%3Cdefs%3E%0A%20%20%20%20%3CradialGradient%20id%3D%22a%22%20cx%3D%220%22%20cy%3D%220%22%20r%3D%221%22%20gradientTransform%3D%22translate%28357%20187%29%20rotate%2890%29%20scale%28195%20276%29%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20stop-color%3D%22%23dbc6a7%22%20stop-opacity%3D%22.18%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23dbc6a7%22%20stop-opacity%3D%220%22%2F%3E%3C%2FradialGradient%3E%0A%20%20%20%20%3Cmarker%20id%3D%22red%22%20viewBox%3D%220%200%2010%2010%22%20refX%3D%228%22%20refY%3D%225%22%20markerWidth%3D%225.5%22%20markerHeight%3D%225.5%22%20orient%3D%22auto-start-reverse%22%3E%3Cpath%20d%3D%22M1%201%209%205%201%209%22%20stroke%3D%22%23b11116%22%20stroke-width%3D%221.65%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fmarker%3E%0A%20%20%20%20%3Cmarker%20id%3D%22gold%22%20viewBox%3D%220%200%2010%2010%22%20refX%3D%228%22%20refY%3D%225%22%20markerWidth%3D%225.5%22%20markerHeight%3D%225.5%22%20orient%3D%22auto-start-reverse%22%3E%3Cpath%20d%3D%22M1%201%209%205%201%209%22%20stroke%3D%22%23b88a40%22%20stroke-width%3D%221.65%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fmarker%3E%0A%20%20%3C%2Fdefs%3E%0A%20%20%3Cpath%20d%3D%22M96%2079%20213%2042%20313%2083%20310%20195%20194%20223%2093%20157Z%22%20fill%3D%22%23b11116%22%20fill-opacity%3D%22.035%22%20stroke%3D%22%23b11116%22%20stroke-opacity%3D%22.17%22%20stroke-width%3D%221.25%22%20stroke-dasharray%3D%225%207%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M312%2069%20473%2048%20564%20114%20534%20205%20393%20229%20309%20193Z%22%20fill%3D%22%23bc8642%22%20fill-opacity%3D%22.055%22%20stroke%3D%22%23bc8642%22%20stroke-opacity%3D%22.25%22%20stroke-width%3D%221.25%22%20stroke-dasharray%3D%225%207%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M201%20225%20318%20196%20437%20233%20470%20354%20302%20382%20160%20311Z%22%20fill%3D%22%23647583%22%20fill-opacity%3D%22.036%22%20stroke%3D%22%23647583%22%20stroke-opacity%3D%22.20%22%20stroke-width%3D%221.25%22%20stroke-dasharray%3D%225%207%22%2F%3E%0A%20%20%3Cellipse%20cx%3D%22356%22%20cy%3D%22199%22%20rx%3D%22264%22%20ry%3D%22189%22%20fill%3D%22url%28%23a%29%22%2F%3E%0A%20%20%3Cg%20stroke%3D%22%238f938f%22%20stroke-opacity%3D%22.27%22%20stroke-width%3D%221.25%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%0A%20%20%20%20%3Cpath%20d%3D%22M83%20111%20157%2091%20212%20119%20273%2092%20365%20103%20428%2079%20518%20116%20578%2094%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M79%20182%20146%20168%20223%20181%20313%20155%20379%20178%20466%20158%20550%20181%20590%20161%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M115%20250%20177%20224%20267%20249%20337%20225%20423%20251%20501%20237%20587%20263%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M151%20319%20216%20287%20288%20308%20382%20299%20459%20329%20566%20307%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M144%2063%20146%20168%20177%20224%20151%20319%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M212%20119%20223%20181%20267%20249%20216%20287%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M273%2092%20313%20155%20337%20225%20288%20308%20302%20367%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M365%20103%20379%20178%20423%20251%20382%20299%20401%20358%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M428%2079%20466%20158%20501%20237%20459%20329%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M518%20116%20550%20181%20587%20263%20566%20307%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%20%20%3Cg%20fill%3D%22%2385929a%22%20fill-opacity%3D%22.55%22%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22146%22%20cy%3D%22168%22%20r%3D%223%22%2F%3E%3Ccircle%20cx%3D%22212%22%20cy%3D%22119%22%20r%3D%222.8%22%2F%3E%3Ccircle%20cx%3D%22223%22%20cy%3D%22181%22%20r%3D%222.7%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22273%22%20cy%3D%2292%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%22313%22%20cy%3D%22155%22%20r%3D%222.6%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22365%22%20cy%3D%22103%22%20r%3D%222.6%22%2F%3E%3Ccircle%20cx%3D%22466%22%20cy%3D%22158%22%20r%3D%222.9%22%2F%3E%3Ccircle%20cx%3D%22518%22%20cy%3D%22116%22%20r%3D%222.5%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22267%22%20cy%3D%22249%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%22337%22%20cy%3D%22225%22%20r%3D%222.7%22%2F%3E%3Ccircle%20cx%3D%22423%22%20cy%3D%22251%22%20r%3D%222.8%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22288%22%20cy%3D%22308%22%20r%3D%222.9%22%2F%3E%3Ccircle%20cx%3D%22382%22%20cy%3D%22299%22%20r%3D%222.5%22%2F%3E%3Ccircle%20cx%3D%22459%22%20cy%3D%22329%22%20r%3D%222.8%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%20%20%3Cg%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20fill%3D%22none%22%3E%0A%20%20%20%20%3Cpath%20d%3D%22M249%20137%20Q324%2064%20405%20115%22%20stroke%3D%22%23b11116%22%20stroke-opacity%3D%22.63%22%20stroke-width%3D%222.45%22%20marker-end%3D%22url%28%23red%29%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M242%20153%20Q224%20243%20304%20293%22%20stroke%3D%22%23b88a40%22%20stroke-opacity%3D%22.64%22%20stroke-width%3D%222.3%22%20marker-end%3D%22url%28%23gold%29%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M422%20131%20Q500%20171%20540%20247%22%20stroke%3D%22%23b88a40%22%20stroke-opacity%3D%22.61%22%20stroke-width%3D%222.3%22%20marker-end%3D%22url%28%23gold%29%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M333%20295%20Q441%20335%20527%20260%22%20stroke%3D%22%23b11116%22%20stroke-opacity%3D%22.57%22%20stroke-width%3D%222.35%22%20marker-end%3D%22url%28%23red%29%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%20%20%3Cg%20stroke-width%3D%221.3%22%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22235%22%20cy%3D%22143%22%20r%3D%2235%22%20stroke%3D%22%23b11116%22%20stroke-opacity%3D%22.23%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22417%22%20cy%3D%22123%22%20r%3D%2238%22%20stroke%3D%22%23b88a40%22%20stroke-opacity%3D%22.27%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22318%22%20cy%3D%22297%22%20r%3D%2233%22%20stroke%3D%22%23647583%22%20stroke-opacity%3D%22.24%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22541%22%20cy%3D%22258%22%20r%3D%2230%22%20stroke%3D%22%23b88a40%22%20stroke-opacity%3D%22.20%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22235%22%20cy%3D%22143%22%20r%3D%2221%22%20stroke%3D%22%23b11116%22%20stroke-opacity%3D%22.38%22%20stroke-dasharray%3D%222.4%204.5%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22417%22%20cy%3D%22123%22%20r%3D%2222%22%20stroke%3D%22%23b88a40%22%20stroke-opacity%3D%22.41%22%20stroke-dasharray%3D%222.4%204.5%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22318%22%20cy%3D%22297%22%20r%3D%2220%22%20stroke%3D%22%23647583%22%20stroke-opacity%3D%22.36%22%20stroke-dasharray%3D%222.4%204.5%22%2F%3E%0A%20%20%20%20%3Ccircle%20cx%3D%22541%22%20cy%3D%22258%22%20r%3D%2218%22%20stroke%3D%22%23b88a40%22%20stroke-opacity%3D%22.34%22%20stroke-dasharray%3D%222.4%204.5%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%20%20%3Cg%20stroke-width%3D%222%22%20stroke-linejoin%3D%22round%22%3E%0A%20%20%20%20%3Cpath%20d%3D%22M235%20133%20247%20154H223Z%22%20fill%3D%22%23fffdfa%22%20stroke%3D%22%23b11116%22%20stroke-opacity%3D%22.8%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M417%20113%20429%20134H405Z%22%20fill%3D%22%23fffdfa%22%20stroke%3D%22%23b88a40%22%20stroke-opacity%3D%22.8%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M318%20288%20330%20309H306Z%22%20fill%3D%22%23fffdfa%22%20stroke%3D%22%23647583%22%20stroke-opacity%3D%22.8%22%2F%3E%0A%20%20%20%20%3Cpath%20d%3D%22M541%20249%20553%20270H529Z%22%20fill%3D%22%23fffdfa%22%20stroke%3D%22%23b88a40%22%20stroke-opacity%3D%22.72%22%2F%3E%0A%20%20%3C%2Fg%3E%0A%3C%2Fsvg%3E");
+  background-repeat:no-repeat;
+  background-position:right top;
+  background-size:contain;
+  opacity:.72;
+}
+section.hero.gut > * {
+  position:relative;
+  z-index:1;
+}
+html[data-theme="dark"] section.hero.gut::after {
+  filter:brightness(1.6) saturate(.85);
+  opacity:.65;
+}
+@media (max-width:700px) {
+  section.hero.gut::after {display:none;}
+}
+/* end sigma-under-the-hood-spatial-watermark-v3 */

@@ -288,8 +288,9 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
 </style>
 <header class="top gut">
   <div class="in">
-    <a class="mark" href="#top" aria-label="SIGMA Explorer · Step by step"><span class="sigma-brand-icon sigma-original-logo-mark" aria-hidden="true"><img src="sigma-logo.png?v=20261026-redpin-v1" alt="" width="40" height="32"></span><span class="sigma-brand-text"><b>SIGMA</b> <span>Explorer</span></span><span class="sigma-page">/ Step by step</span></a>
+    <a class="mark" href="#top" aria-label="SIGMA Under the Hood · Step by step"><span class="sigma-brand-icon sigma-original-logo-mark" aria-hidden="true"><img src="sigma-logo.png?v=20261026-redpin-v1" alt="" width="40" height="32"></span><span class="sigma-brand-text"><b>SIGMA</b> <span>Under the Hood</span></span><span class="sigma-page">/ Step by step</span></a>
     <a id="live-back-top" class="live-back" href="index.html">← Back to Explorer</a>
+    <a id="sigma-about-tutorial-link" class="live-back sigma-about-link" href="about.html" target="_blank" rel="noopener noreferrer" title="What is SIGMA?">What is SIGMA?</a>
     <nav class="nav" aria-label="Parts">
       <a href="#places" data-part="places">1 Places</a>
       <a href="#roads" data-part="roads">2 Roads and clusters</a>
@@ -2117,7 +2118,16 @@ function dag() {
   const root = document.documentElement, btn = $('#theme'); if (!btn) return;
   const mq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
   const current = () => root.getAttribute('data-theme') || (mq && mq.matches ? 'dark' : 'light');
-  const paint = () => btn.setAttribute('aria-pressed', String(current() === 'dark'));
+  // sigma-action-label-toggle-v1: label names the next action.
+  const paint = () => {
+    const dark = current() === 'dark';
+    const nextLabel = dark ? 'Light mode' : 'Dark mode';
+    btn.setAttribute('aria-pressed', String(dark));
+    const label = btn.querySelector('span');
+    if (label) label.textContent = nextLabel;
+    btn.setAttribute('aria-label', `Switch to ${nextLabel.toLowerCase()}`);
+    btn.title = `Switch to ${nextLabel.toLowerCase()}`;
+  };
   btn.addEventListener('click', () => {
     const next = current() === 'dark' ? 'light' : 'dark';
     root.setAttribute('data-theme', next);

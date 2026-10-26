@@ -54,7 +54,16 @@
     themeMode = choice === 'dark' ? 'dark' : 'light';
     const dark = themeMode === 'dark';
     document.documentElement.dataset.theme = themeMode;
-    $('theme-mode').value = themeMode;
+    // sigma-action-label-toggle-v1: show the action, not the current theme.
+    const themeToggle = $('theme-toggle');
+    if (themeToggle) {
+      const nextLabel = dark ? 'Light mode' : 'Dark mode';
+      themeToggle.setAttribute('aria-pressed', String(dark));
+      const label = themeToggle.querySelector('span');
+      if (label) label.textContent = nextLabel;
+      themeToggle.setAttribute('aria-label', `Switch to ${nextLabel.toLowerCase()}`);
+      themeToggle.title = `Switch to ${nextLabel.toLowerCase()}`;
+    }
     if (ready && map && map.getLayer && map.getLayer('centers')) {
       const ids = network ? [...network.ring.keys()] : null;
       const inNetwork = ['in', ['get', 'id'], ['literal', ids || []]];
@@ -1395,8 +1404,8 @@
 
   async function initialize() {
     // sigma-institutional-theme-handoff-20261026-v1: persist explicit UI selection.
-    $('theme-mode').addEventListener('change', e => {
-      applyTheme(e.target.value);
+    $('theme-toggle').addEventListener('click', () => {
+      applyTheme(themeMode === 'dark' ? 'light' : 'dark');
       try { localStorage.setItem('sigma-theme', themeMode); } catch (_) { /* optional storage */ }
     });
     let initialTheme = 'light';

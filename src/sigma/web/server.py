@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import errno
+from importlib import resources
 import webbrowser
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -29,6 +30,32 @@ _PORT_ATTEMPTS = 20
 
 class _ExplorerHandler(SimpleHTTPRequestHandler):
     extensions_map = {**SimpleHTTPRequestHandler.extensions_map, **_TYPES}
+
+    # sigma-shared-about-route-v1: one package-owned page, not one copy per area.
+    def _serve_about(self, *, head_only: bool = False) -> None:
+        try:
+            body = resources.files("sigma.web").joinpath("static", "about.html").read_bytes()
+        except (OSError, FileNotFoundError):
+            self.send_error(404, "Shared SIGMA About page is missing")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", _TYPES[".html"])
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if not head_only:
+            self.wfile.write(body)
+
+    def do_GET(self) -> None:
+        if self.path.split("?", 1)[0] == "/about.html":
+            self._serve_about()
+            return
+        super().do_GET()
+
+    def do_HEAD(self) -> None:
+        if self.path.split("?", 1)[0] == "/about.html":
+            self._serve_about(head_only=True)
+            return
+        super().do_HEAD()
 
     def end_headers(self) -> None:
         self.send_header("X-Content-Type-Options", "nosniff")

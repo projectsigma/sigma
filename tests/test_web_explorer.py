@@ -602,3 +602,54 @@ def test_view_ui_only_preserves_public_profile(published: Path, monkeypatch: pyt
     assert (dest / ".sigma-explorer").read_bytes() == before
     assert not (dest / "data/search/index.json").exists()
 
+
+def test_about_sigmapage_is_shared_and_not_copied_into_area_bundle(published: Path, tmp_path: Path):
+    """Explorer and Under the Hood link to one page served from the SIGMA package."""
+    dest = tmp_path / "about-shared-bundle"
+    build_web_bundle(published, dest)
+    assert not (dest / "about.html").exists()  # no per-area duplicate
+    for name in ("index.html", "tutorial.html"):
+        html = (dest / name).read_text(encoding="utf-8")
+        assert 'href="about.html"' in html
+        assert '>What is SIGMA?</a>' in html
+        assert 'target="_blank"' in html
+        assert 'rel="noopener noreferrer"' in html
+    server = web_server._bind(dest, 0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/about.html"
+        with urllib.request.urlopen(url) as response:
+            assert response.status == 200
+            assert response.headers["Content-Type"].startswith("text/html")
+            assert response.headers["Cache-Control"] == "no-store"
+            page = response.read().decode("utf-8")
+        assert '<title>About SIGMA | Spatial Intelligence and Graph Modeling for Acquisition</title>' in page
+        # Public-facing About page must be brand-neutral and carry SIGMA's icon.
+        assert 'href="sigma-favicon.png?v=20261026-redpin-v1"' in page
+        text_only = re.sub(
+            r"data:image/[A-Za-z0-9.+-]+;base64,[A-Za-z0-9+/=]+", "", page
+        )
+        assert not re.search(
+            r"BPI|MSME|\bSME\b|BizLink|BizKo|Ka-Negosyo|BanKo", text_only, re.I
+        )
+        assert "Four decisions <em>a banker can act on.</em>" in page
+        assert "RM NEXT MOVE" in page
+        assert "branch coverage" in page
+        # Slide 7 visual-only polish preserves the bank-facing content.
+        assert 'sigma-about-pilot-visual-v1' in page
+        assert 'Four decisions <em>a banker can act on.</em>' in page
+        assert 'Measure the funnel.' in page
+        assert 'Qualified meetings per banker-day' in page
+        assert 'client acquisition' in page.lower()
+        with urllib.request.urlopen(f"http://127.0.0.1:{server.server_port}/sigma-favicon.png") as response:
+            assert response.headers["Content-Type"] == "image/png"
+            assert response.read() == (dest / "sigma-favicon.png").read_bytes()
+        request = urllib.request.Request(url, method="HEAD")
+        with urllib.request.urlopen(request) as response:
+            assert response.status == 200
+            assert int(response.headers["Content-Length"]) > 1000
+            assert response.read() == b""
+    finally:
+        server.shutdown()
+        server.server_close()

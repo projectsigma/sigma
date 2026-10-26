@@ -60,7 +60,7 @@ a:hover{opacity:.92}
   background:var(--sigma-tut-paper) !important;
   border-bottom:1px solid var(--sigma-tut-line) !important;
 }
-.hero,.lede,.intro,
+.hero,.intro,
 .note,.card,.panel,.stage,.step,.lesson,.sigma-current-run,
 .current-run,.current-area,.run-card,.plate,.figure-plate,
 .tutorial-figure,.illustration-shell,.diagram-card,.explain-card,
