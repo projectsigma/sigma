@@ -203,11 +203,12 @@ sigma classification-check --json
 
 ## Step 2 — Find the area you want to analyze
 
-SIGMA ships with a canonical Philippine area catalog containing **1,645 areas**:
+SIGMA exposes **1,727 selectable Philippine areas** from its canonical catalog:
 
 ```text
 1,493 municipalities
 149 cities
+82 provinces (derived from locality boundaries)
 3 composites: Metro Manila, Metro Cebu, Metro Davao
 ```
 
@@ -247,6 +248,7 @@ sigma areas list --search "<part of the place name>"
 ```powershell
 sigma areas list --kind city
 sigma areas list --kind municipality
+sigma areas list --kind province
 sigma areas list --kind composite
 ```
 
@@ -262,6 +264,8 @@ sigma areas list --kind city --search "Davao"
 sigma areas show pasig
 sigma areas show quezon_city
 sigma areas show metro_manila
+sigma areas show palawan
+sigma areas show cebu_province
 ```
 
 `areas show` prints the full area definition as JSON, including the bounding box, PSGC code where applicable, aliases, members for composites, and the packaged boundary specification.
@@ -1077,13 +1081,20 @@ sigma classification-check --json
 
 ## Area catalog
 
-The packaged catalog currently contains **1,645 areas**: 1,493 municipalities, 149 cities, and the three composites `metro_manila`, `metro_cebu`, and `metro_davao`.
+The default catalog now exposes **1,727 areas**: 1,493 municipalities, 149 cities, 82 provinces, and the three composites `metro_manila`, `metro_cebu`, and `metro_davao`. The unchanged packaged `areas.yml` defines the 1,645 original areas; provincial areas are derived from their `province` metadata. Each province is clipped to the exact union of its member PSGC locality polygons, rather than a bounding box. Localities without a province assignment, including independent highly urbanized cities, are excluded from administrative provinces.
 
 ### List every area
 
 ```powershell
 sigma areas list
+sigma areas list --kind province
+sigma areas show palawan
+sigma areas show cebu_province
+sigma load palawan
+sigma run palawan
 ```
+
+For provinces sharing a name with a locality, use the `_province` suffix (for example, `cebu_province` or `leyte_province`).
 
 ### Search for possible matches
 
@@ -1098,6 +1109,7 @@ sigma areas list --search "Cebu"
 ```powershell
 sigma areas list --kind city
 sigma areas list --kind municipality
+sigma areas list --kind province
 sigma areas list --kind composite
 ```
 
