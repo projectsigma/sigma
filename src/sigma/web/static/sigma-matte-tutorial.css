@@ -166,3 +166,82 @@ input[type=range], input[type=checkbox] {accent-color:var(--sigma-tutorial-brand
   stroke:var(--muted);
 }
 /* end sigma-tutorial-color-audit-20261026-v1 */
+
+/* sigma-header-cream-and-brand-align-v2 BEGIN */
+/* Use the Explorer's 18px name, 42x34 logo, 10px gap, and 18px left inset. */
+:root { --hdr:54px; }
+:root[data-theme="light"] header.top.gut {
+  background-color:#f8f7f3 !important;
+  border-bottom-color:#e1e3e0 !important;
+}
+:root[data-theme="dark"] header.top.gut {
+  background-color:#262425 !important;
+  border-bottom-color:#4b4445 !important;
+}
+header.top.gut {
+  box-sizing:border-box;
+  height:54px !important;
+  min-height:54px !important;
+  padding-inline:max(18px,env(safe-area-inset-left,0px)) max(18px,env(safe-area-inset-right,0px)) !important;
+}
+header.top.gut > .in {
+  max-width:none !important;
+  height:100% !important;
+  display:flex;
+  align-items:center !important;
+  gap:14px !important;
+}
+header.top.gut > .in > a.mark {
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:10px !important;
+  font:400 18px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif !important;
+  letter-spacing:normal !important;
+  text-decoration:none !important;
+}
+/* Override older inline logo rules and older 32px tutorial overrides. */
+html header.top.gut a.mark .sigma-brand-icon.sigma-original-logo-mark {
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  width:42px !important;
+  height:34px !important;
+  flex:0 0 42px !important;
+  margin:0 !important;
+  padding:0 !important;
+  background:transparent !important;
+  border:0 !important;
+  border-radius:0 !important;
+  overflow:visible !important;
+}
+html header.top.gut a.mark .sigma-brand-icon.sigma-original-logo-mark img {
+  display:block !important;
+  width:42px !important;
+  height:34px !important;
+  max-width:none !important;
+  object-fit:contain !important;
+  background:transparent !important;
+}
+html header.top.gut a.mark .sigma-brand-text {
+  display:inline-flex !important;
+  align-items:baseline !important;
+  gap:.3em !important;
+  font:400 18px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif !important;
+  letter-spacing:normal !important;
+  white-space:nowrap !important;
+  position:relative; top:1px;
+}
+html header.top.gut a.mark .sigma-brand-text b {font-weight:700 !important;}
+html header.top.gut a.mark .sigma-brand-text span {font-weight:400 !important;}
+html header.top.gut a.mark .sigma-page {font-size:12px !important;}
+@media (max-width:600px) {
+  html header.top.gut a.mark .sigma-brand-icon.sigma-original-logo-mark {
+    width:34px !important; height:28px !important; flex-basis:34px !important;
+  }
+  html header.top.gut a.mark .sigma-brand-icon.sigma-original-logo-mark img {
+    width:34px !important; height:28px !important;
+  }
+  html header.top.gut a.mark .sigma-brand-text {font-size:14px !important;}
+  header.top.gut > .in {gap:8px !important;}
+}
+/* sigma-header-cream-and-brand-align-v2 END */
