@@ -319,3 +319,18 @@ html[data-theme="dark"] select:not([multiple]) {color-scheme:dark!important;}
 html[data-theme] .theme-picker {display:inline-flex!important; align-items:center!important; gap:7px!important; vertical-align:middle!important;}
 html[data-theme] #theme-mode {width:100px!important; margin:0!important;}
 /* end sigma-brand-visual-repair-20261026-v1 */
+
+/* sigma-header-cream-and-brand-align-v2 BEGIN */
+/* One continuous cream top panel; white dropdown controls remain distinct. */
+html[data-theme="light"] body > header.top,
+html[data-theme="light"] body > section.toolbar {
+  background-color:#f8f7f3 !important;
+  border-bottom-color:#e1e3e0 !important;
+}
+/* Raised matte graphite on dark: match the Guided Tutorial header. */
+html[data-theme="dark"] body > header.top,
+html[data-theme="dark"] body > section.toolbar {
+  background-color:#262425 !important;
+  border-bottom-color:#4b4445 !important;
+}
+/* sigma-header-cream-and-brand-align-v2 END */
