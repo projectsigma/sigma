@@ -24,6 +24,19 @@ Conversely, changing `vertex_digits` invalidates road topology and propagates th
 
 This dependency-local invalidation is the practical reason the workflow is represented as a DAG rather than a monolithic script.
 
+## Storage retention is not the same as cache reuse
+
+A managed artifact is an immutable, hashed computation result, not an arbitrary scratch file.
+SIGMA may retain multiple historical recipe versions in `artifacts/` while only the current
+stage references appear in `.state/active.json`. That history consumes disk space but helps
+explain and reproduce older runs. The ordinary cleanup targets abandoned staging only;
+`--obsolete` explicitly offers old artifacts outside the active transitive dependency graph,
+subject to age, metadata checks, and a run-archive safeguard. Deleting these artifacts may
+force recomputation and compromise historical reproducibility.
+
+For safe previews, retention rules, and command examples, see
+[Workspace storage and retention](storage.md).
+
 ## Provenance versus scientific assumptions
 
 Artifact reproducibility answers: **“Can I recreate the same computation from the same identified inputs and code contract?”** It does not by itself answer: **“Was this the right modeling assumption?”**

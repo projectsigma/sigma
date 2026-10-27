@@ -399,3 +399,298 @@ select:focus { border-color:#b11116; box-shadow:0 0 0 2px rgba(177,17,22,.12); }
 option { color:inherit; background:inherit; }
 html[data-theme="dark"] option { background:#312d2e; color:#f3eeeb; }
 /* end sigma-bpi-brand-refresh-20261026 */
+
+/* sigma-sector-panel-readability-v1: human names, readable stats and hierarchy. */
+.sector-panel { width: min(410px, calc(100vw - 24px)); }
+.sector-find-controls { padding: 4px 10px 7px; display:grid; grid-template-columns: minmax(0, 1fr) 120px; gap:6px; }
+.sector-find-controls input, .sector-find-controls select {
+  min-width:0; width:100%; font:inherit; padding:5px 7px; border:1px solid var(--border);
+  border-radius:6px; background:var(--panel); color:var(--text);
+}
+.sector-find-controls input:focus-visible, .sector-find-controls select:focus-visible { outline:2px solid #568c73; outline-offset:1px; }
+.sector-field-head { display:flex; justify-content:space-between; gap:8px; padding:2px 10px 5px 41px; color:var(--muted); font-size:10px; border-bottom:1px solid var(--border); }
+.sector-item { align-items:flex-start; gap:8px; padding:8px 6px; border-bottom:1px solid var(--border); border-radius:0; }
+.sector-item > input[type="checkbox"] { flex: 0 0 auto; margin-top:4px; }
+.sector-item > .swatch { margin-top:4px; width:12px; height:12px; }
+.sector-item .sector-copy { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.sector-item .name.sector-title { display:block; flex:none; min-width:0; overflow:visible; text-overflow:clip; white-space:normal; overflow-wrap:anywhere; font-size:12px; line-height:1.35; font-weight:600; }
+.sector-item .sector-subline { display:block; font-size:10px; color:var(--muted); overflow-wrap:anywhere; line-height:1.3; }
+.sector-item .sector-metrics { flex:0 0 94px; display:flex; flex-direction:column; align-items:flex-end; gap:4px; font-variant-numeric:tabular-nums; }
+.sector-item .sector-metrics .count { font-size:11px; font-weight:600; color:var(--text); white-space:nowrap; }
+.sector-item .sector-metrics .sector-strength { color:var(--muted); font-size:10px; white-space:nowrap; }
+html[data-theme="dark"] .sector-find-controls input,
+html[data-theme="dark"] .sector-find-controls select { background:#312d2e; color:var(--text); }
+@media (max-width:900px) {
+  .sector-panel { width: min(355px, calc(100vw - 24px)); }
+  .sector-find-controls { grid-template-columns: minmax(0, 1fr) 105px; }
+  .sector-item .sector-metrics { flex-basis:82px; }
+}
+
+/* sigma-compact-sector-industry-search-v2: dense, narrow, scrollable floating panel. */
+.sector-panel { width:min(272px, calc(100vw - 20px)); max-height:calc(100% - 155px); }
+.sector-panel[open] { overflow:hidden; }
+.sector-find-controls { grid-template-columns:minmax(0, 1fr) 101px; gap:5px; padding:3px 7px 6px; }
+.sector-find-controls input, .sector-find-controls select { padding:4px 5px; font-size:11px; }
+.sector-field-head { padding:2px 9px 4px 48px; font-size:10px; }
+.sector-list { display:block; min-height:0; max-height:clamp(145px, calc(100vh - 470px), 420px);
+  overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-gutter:stable; }
+.sector-item { display:flex; align-items:center; min-width:0; gap:6px; padding:5px 4px;
+  border-bottom:1px solid var(--border); }
+.sector-item > input[type="checkbox"] { margin:0; flex:0 0 auto; }
+.sector-item > .swatch { margin:0; width:11px; height:11px; flex:0 0 11px; }
+.sector-item .name.sector-title { display:block; flex:1 1 auto; min-width:0;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; overflow-wrap:normal;
+  font-size:11px; line-height:1.3; font-weight:550; }
+.sector-item .sector-mini-count { flex:0 0 auto; font-size:10px; font-variant-numeric:tabular-nums;
+  color:var(--muted); white-space:nowrap; }
+@media (max-height:650px) { .sector-list {max-height:clamp(125px, calc(100vh - 390px), 220px);} }
+@media (max-width:900px) { .sector-panel {width:min(260px, calc(100vw - 20px));} }
+
+/* sigma-explorer-io240-sort-legend-v3: one-row subtle map legend. */
+.map-legend {
+  display:flex; flex-wrap:nowrap; align-items:center; gap:11px;
+  box-sizing:border-box; position:absolute;
+  left:12px; right:auto; bottom:12px;
+  width:max-content; max-width:calc(100% - 24px);
+  padding:6px 10px; border-radius:999px;
+  background:rgba(255,255,255,.94); border:1px solid rgba(120,130,125,.18);
+  box-shadow:0 2px 10px rgba(25,35,30,.10);
+  font-size:10px; line-height:1.25;
+  overflow-x:auto; overflow-y:hidden; scrollbar-width:none;
+  overscroll-behavior-x:contain; z-index:4;
+}
+.map-legend::-webkit-scrollbar {display:none;}
+.map-legend > span:not(.legend-note) {display:inline-flex; flex:0 0 auto; align-items:center; gap:4px; white-space:nowrap;}
+.map-legend .legend-note {display:none !important;}
+.map-legend .legend-dot {width:9px; height:9px; flex:0 0 auto;}
+.map-legend .legend-dot.center {width:13px; height:13px; flex:0 0 auto;}
+.map-legend .legend-line {width:14px; flex:0 0 auto;}
+.map-legend .legend-help {display:inline-flex; align-items:center; justify-content:center;
+  flex:0 0 15px; width:15px; height:15px; border-radius:50%;
+  border:1px solid var(--border); color:var(--muted); font-size:10px;
+  cursor:help; background:transparent;}
+html[data-theme="dark"] .map-legend {background:rgba(38,36,37,.94); border-color:#585052;
+  box-shadow:0 2px 12px rgba(0,0,0,.24);}
+html[data-theme="dark"] .map-legend .legend-help {border-color:#756b6d;}
+@media (max-width:600px) {
+  .map-legend {left:7px; bottom:7px; max-width:calc(100% - 14px); gap:8px;
+    padding:5px 8px; font-size:9px;}
+}
+/* Sector names remain one line; their canonical IDs are muted, never renamed. */
+.sector-item .sector-code {color:var(--muted); font-size:9px;
+  font-weight:400; font-variant-numeric:tabular-nums; white-space:nowrap;
+  flex:0 0 auto; opacity:.92;}
+.sector-item .name.sector-title {flex:1 1 auto; min-width:0;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.sector-item .sector-mini-count {flex:0 0 auto;}
+
+/* sigma-explorer-clean-label-column-sorts-v1: dense, aligned sector table. */
+.sector-panel { width:min(324px, calc(100vw - 20px)); }
+.sector-find-controls { display:block; padding:4px 8px 7px; }
+.sector-find-controls input { width:100%; box-sizing:border-box; }
+.sector-field-head, .sector-item {
+  display:grid; grid-template-columns:16px 11px minmax(0,1fr) 82px 40px;
+  gap:5px; align-items:center; min-width:0; box-sizing:border-box;
+}
+.sector-field-head { padding:4px 8px; border-bottom:1px solid var(--border); }
+.sector-field-head .sector-sort-button { border:0; background:transparent; color:var(--muted);
+  font:inherit; font-size:10px; font-weight:550; padding:3px 0; cursor:pointer;
+  text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sector-field-head .sector-sort-button:nth-child(1) {grid-column:3;}
+.sector-field-head .sector-sort-button:nth-child(2) {grid-column:4;}
+.sector-field-head .sector-sort-button:nth-child(3) {grid-column:5; text-align:right;}
+.sector-field-head .sector-sort-button:hover, .sector-field-head .sector-sort-button[aria-pressed="true"] {color:var(--text);}
+.sector-field-head .sector-sort-button:focus-visible {outline:2px solid var(--border);outline-offset:2px;}
+.sector-field-head .sort-direction {font-size:10px;}
+.sector-item { padding:4px 8px; border-bottom:1px solid var(--border); }
+.sector-item > input[type="checkbox"] {margin:0; justify-self:center;}
+.sector-item > .swatch {margin:0; width:10px; height:10px;}
+.sector-item .name.sector-title {display:block; min-width:0; max-width:100%; flex:none;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; overflow-wrap:normal; font-size:11px;}
+.sector-item .sector-code {display:block; color:var(--muted); font-weight:400;
+  font-size:9.5px; font-variant-numeric:tabular-nums; opacity:.9; min-width:0; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; text-align:left;}
+.sector-item .sector-mini-count {display:block; text-align:right; white-space:nowrap;
+  color:var(--muted); font-size:10px; font-variant-numeric:tabular-nums;}
+.sector-list {overflow-y:auto; overflow-x:hidden; min-height:0; scrollbar-width:thin;
+  overscroll-behavior:contain; max-height:clamp(145px,calc(100vh - 390px),530px);}
+html[data-theme="dark"] .sector-field-head .sector-sort-button {background:transparent;}
+@media(max-width:900px){.sector-panel {width:min(310px,calc(100vw - 20px));}}
+
+/* sigma-explorer-tutorial-polish-20261027-v2: industry receives ~70% of
+   the usable data columns, not the narrow remainder left by a fixed code width. */
+.sector-panel {width:min(345px,calc(100vw - 20px));}
+.sector-field-head, .sector-item {
+  grid-template-columns:14px 10px minmax(0,7fr) minmax(53px,2fr) minmax(31px,1fr);
+  gap:3px;
+  padding-left:4px;
+  padding-right:4px;
+}
+.sector-item .name.sector-title {font-size:10.8px; min-width:0; font-weight:550;}
+.sector-item .sector-code {font-size:9px; min-width:0;}
+.sector-item .sector-mini-count {font-size:9.5px; min-width:0;}
+.sector-field-head .sector-sort-button {font-size:9.8px;}
+@media (max-width:900px) {.sector-panel {width:min(330px,calc(100vw - 20px));}}
+
+/* sigma-explorer-sector-80-graph-fit-20261027-v3.
+   Industry has 4/5 of the Industry+Code pair; Places keeps its own column. */
+.sector-field-head, .sector-item {
+  grid-template-columns: 14px 10px minmax(0,4fr) minmax(47px,1fr) 34px;
+  gap:3px;
+  padding-left:4px;
+  padding-right:4px;
+}
+.sector-field-head .sector-sort-button {min-width:0; font-size:9.5px;}
+.sector-item .name.sector-title {min-width:0; font-size:10.7px;}
+.sector-item .sector-code {min-width:0; font-size:8.8px; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; color:var(--muted);}
+.sector-item .sector-mini-count {min-width:0; font-size:9px; text-align:right;}
+/* Keep these controls on one row; the search takes only spare width. */
+.sector-actions {display:flex; align-items:center; gap:4px; padding:0 5px 6px;
+  flex-wrap:nowrap; min-width:0;}
+.sector-actions .sector-quick-search {flex:1 1 auto; min-width:0; max-width:none;}
+.sector-actions .sector-quick-search input {display:block; box-sizing:border-box;
+  width:100%; min-width:0; height:27px; margin:0; padding:3px 6px;
+  font-size:10px; border-radius:6px;}
+.sector-actions > button {flex:0 0 auto; padding:3px 5px; font-size:10px; white-space:nowrap;}
+.sector-actions > .control-help {flex:0 0 auto; margin:0; width:13px; height:13px; font-size:9px;}
+@media (max-width:900px) {
+  .sector-actions {gap:3px; padding-inline:4px;}
+  .sector-actions > button {font-size:9.5px; padding-inline:4px;}
+}
+/* sigma-explorer-sector-search-fill-20261027-v1 */
+/* sigma-sector-search-uniform-border-20261027-v1: override native text-input 'inset' border (dark top/left edges). */
+.sector-actions .sector-quick-search input {
+  -webkit-appearance:none;
+  appearance:none;
+  border:1px solid var(--border);
+  border-radius:6px;
+  background:var(--panel);
+  color:var(--text);
+  box-shadow:none;
+}
+.sector-actions .sector-quick-search input:focus-visible {
+  outline:2px solid rgba(177,17,22,.20);
+  outline-offset:1px;
+  border-color:#b11116;
+}
+html[data-theme="dark"] .sector-actions .sector-quick-search input:focus-visible {
+  outline-color:rgba(214,90,95,.28);
+  border-color:#d65a5f;
+}
+/* sigma-ui-original-finder-sector-spacing-20261027-v1
+   Preserve the present floating-panel width. Give industry names all remaining
+   room; code and establishment count have small fixed widths, so no empty
+   stretch appears between them. Places must never be truncated. */
+.sector-field-head, .sector-item {
+  grid-template-columns:16px 10px minmax(0,1fr) 64px 54px;
+  column-gap:4px;
+  padding-left:8px;
+  padding-right:8px;
+}
+.sector-field-head .sector-sort-button:nth-child(3) {
+  overflow:visible;
+  text-overflow:clip;
+  white-space:nowrap;
+  font-size:10px;
+  text-align:right;
+}
+.sector-field-head .sector-sort-button:nth-child(2) {font-size:10px;}
+.sector-item .sector-code {font-size:9px; text-align:left; white-space:nowrap;}
+.sector-item .sector-mini-count {font-size:10px; text-align:right; white-space:nowrap;}
+/* Exactly one row: the existing LEFT sector search and two visibility controls. */
+.sector-actions {
+  padding-left:10px;
+  padding-right:10px;
+  gap:7px;
+  align-items:center;
+}
+.sector-actions .sector-quick-search {
+  flex:1 1 0;
+  width:auto;
+  min-width:0;
+  max-width:none;
+}
+.sector-actions > button {flex:0 0 auto;}
+@media (max-width:900px) {
+  .sector-field-head, .sector-item {
+    grid-template-columns:14px 10px minmax(0,1fr) 61px 51px;
+    column-gap:3px;
+    padding-left:6px;
+    padding-right:6px;
+  }
+  .sector-actions {padding-left:6px; padding-right:6px; gap:4px;}
+  .sector-field-head .sector-sort-button:nth-child(3) {font-size:9.5px;}
+}
+
+/* sigma-sector-name-gets-remaining-width-20261027-v1
+   Force identical, explicit tracks for column headings and data rows.
+   Industry receives >80% of the Industry+Code space on desktop.
+   Keep Code and Places compact and aligned against their RIGHT edges. */
+.sector-panel .sector-field-head,
+.sector-panel .sector-list .sector-item {
+  display: grid !important;
+  grid-template-columns: 16px 10px minmax(0, 1fr) 58px 50px !important;
+  column-gap: 3px !important;
+  align-items: center;
+  box-sizing: border-box;
+  min-width: 0;
+}
+/* The header sits outside the scroll area: align its tracks to the rows. */
+.sector-panel .sector-field-head {
+  padding-left: 19px !important;
+  padding-right: 11px !important;
+}
+.sector-panel .sector-list .sector-item {
+  padding-left: 5px !important;
+  padding-right: 5px !important;
+}
+.sector-panel .sector-list .sector-item > input[type="checkbox"] { grid-column: 1; }
+.sector-panel .sector-list .sector-item > .swatch { grid-column: 2; }
+.sector-panel .sector-list .sector-item > .sector-title {
+  grid-column: 3;
+  display: block;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.sector-panel .sector-list .sector-item > .sector-code {
+  grid-column: 4;
+  display: block;
+  min-width: 0;
+  width: 100%;
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.sector-panel .sector-list .sector-item > .sector-mini-count {
+  grid-column: 5;
+  display: block;
+  min-width: 0;
+  width: 100%;
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sector-panel .sector-field-head .sector-sort-button:nth-child(1) {grid-column:3; text-align:left;}
+.sector-panel .sector-field-head .sector-sort-button:nth-child(2) {grid-column:4; text-align:right;}
+.sector-panel .sector-field-head .sector-sort-button:nth-child(3) {
+  grid-column:5;
+  text-align:right;
+  overflow:visible;
+  text-overflow:clip;
+  font-size:10px;
+  white-space:nowrap;
+}
+/* Preserve readability when the Explorer switches to the narrow breakpoint. */
+@media (max-width:900px) {
+  .sector-panel .sector-field-head,
+  .sector-panel .sector-list .sector-item {
+    grid-template-columns: 14px 10px minmax(0, 1fr) 55px 47px !important;
+    column-gap: 2px !important;
+  }
+}

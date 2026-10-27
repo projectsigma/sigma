@@ -6,6 +6,14 @@ All primary spatial methods use one common road-distance semantics.
 
 Area-mode SIGMA derives roads from the same shared Geofabrik Philippines PBF used for OSM places. It buffers the exact study boundary by 5 km, selects a pinned motor-road profile, projects to an inferred metre-based UTM CRS, clips to the buffered polygon, and performs no geometry simplification.
 
+The national PBF scan uses a disk-backed libosmium node-location index, which can be much
+larger than the compressed PBF. This is a **temporary extraction structure**, not part of
+the durable road artifact. SIGMA attempts to remove it when extraction finishes (including
+failed extraction attempts); a Windows file-lock error is reported without masking the
+extraction result. OSM place preparation uses the same temporary-index retention policy.
+See the [storage guide](../reproducibility/storage.md) for pre-existing caches and
+workspace maintenance.
+
 Included `highway=*` values are:
 
 `motorway`, `motorway_link`, `trunk`, `trunk_link`, `primary`, `primary_link`, `secondary`, `secondary_link`, `tertiary`, `tertiary_link`, `unclassified`, `residential`, `living_street`, `service`, and `road`.

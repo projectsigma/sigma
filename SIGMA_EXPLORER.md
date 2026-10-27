@@ -78,6 +78,19 @@ Required: `sigma_points.parquet`, `sigma_X_nodes.csv`, `sigma_X_edges.csv`, and 
 
 The bundle builder compares file content hashes, checks the listed SHA-256 hashes and sizes in an authentic SIGMA export manifest where present, validates X-edge-to-route correspondences, and rejects cluster partitions without X nodes. A failed staged replacement preserves the previously published bundle. Hash checking may take noticeable disk I/O for large GeoPackages; this prioritizes correctness over instantaneous freshness checks. SIGMA's export overwrites files but never deletes old ones, so when the manifest lists the run's files, an optional file it does not list (for example a boundary left from an earlier run) is ignored and reported as a note.
 
+### Storage and cleanup
+
+An Explorer bundle is a separate, browser-ready copy of selected published data. It is **not**
+a disposable cache: SIGMA's storage cleanup preserves the current `explorer/` and
+`explorer-public/` folders, their ownership markers, and all published GIS output.
+After a successful refresh, the builder removes its own staging and replaced backup.
+If an interrupted run leaves abandoned `.explorer.staging-*`,
+`.explorer.backup-*`, or `.sigma-ui-*` files, use `sigma storage report` or
+`sigma storage prune` to preview eligible debris; `sigma storage prune --apply` removes
+only recognized candidates older than 30 days. Explorer backups are eligible only when
+a replacement bundle with its ownership marker and `index.html` exists. Close SIGMA
+viewers and other processes before applying cleanup. See [Storage maintenance](STORAGE.md).
+
 Explorer's generated data files contain only the fields explicitly selected by the builder; extra columns from SIGMA's source point dataset are not copied. Coordinates in browser geometries are rounded to six decimal places **only in the derived visualization**. Native SIGMA files remain unchanged.
 
 The site uses bundled MapLibre GL JS (4.7.1) and Cytoscape.js (3.30.4) with licenses. It does not use third-party background-map tiles: the map shows published SIGMA roads and local Explorer data. Open through `sigma view` or an HTTP server, not `file://`.

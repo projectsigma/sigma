@@ -7,6 +7,7 @@ execute:
   execute_notebooks: 'off'
 
 html:
+  favicon: ../../src/sigma/web/static/sigma-favicon.png
   use_repository_button: true
   use_issues_button: true
   use_edit_page_button: true

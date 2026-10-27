@@ -698,6 +698,16 @@ def _build_unstaged_bundle(
     # ---- metadata
     codes = sorted({n["type"] for n in nodes} | set(types), key=_sector_order)
     colors, labels = _sector_styles(codes, economy_id, label_hints)
+    # SIGMA_HIERARCHICAL_SECTOR_PALETTE_V1_WEB: match QGIS colors for adaptive hierarchical sectors.
+    from sigma.export.hierarchical_palette import discover_sector_palette as _sigma_area_colors
+    _sigma_palette = _sigma_area_colors(source, economy_id)
+    if not _sigma_palette and run.get("area_slug"):
+        # A published output directory may live outside its workspace.
+        from sigma.paths import sigma_home as _sigma_home
+        _sigma_palette = _sigma_area_colors(_sigma_home() / "workspaces" / str(run["area_slug"]), economy_id)
+    for _sigma_code, _sigma_color in _sigma_palette.items():
+        if _sigma_code in colors:
+            colors[_sigma_code] = _sigma_color
     point_counts = types.value_counts().to_dict()
     cluster_counts = pd.Series([n["type"] for n in nodes], dtype=object).value_counts().to_dict()
     sectors = [{

@@ -16,8 +16,9 @@ assert.match(src, /opacity: dark \? 0\.60 : 0\.52/);
 assert.match(src, /selector: 'edge\.mid-edge'/);
 assert.match(src, /selector: 'edge\.outer-edge'/);
 assert.match(src, /selector: 'node\[ring >= 2\]', style: \{'width': 16/);
-// The current graph deliberately labels only the focus when the network is large.
-assert.match(src, /cy\.nodes\(\)\.filter\(n => n\.data\('ring'\) === 0\)\.addClass\('labelled'\)/);
+// Dense graphs retain the focus AND adjacent-ring labels.
+assert.match(src, /cy\.nodes\(\)\.filter\(n => Number\(n\.data\('ring'\)\) <= 1\)\.addClass\('labelled'\)/);
+assert.match(src, /cy\.fit\(undefined, 24\)/); // Fit graph is the default.
 assert.match(src, /wheelSensitivity: 0\.65/);
 assert.match(src, /cy\.on\('zoom resize', syncNetworkGlyphs\)/);
 assert.match(src, /const near = cy\.nodes\(\)\.filter\(n => n\.data\('ring'\) <= 2\)/);
@@ -46,7 +47,7 @@ edges.push({source: '63:15', target: '63:17', strength: 0.05, coefficient: 0.05,
 const network = {focus: '63:0', ring, edges, truncated: false};
 const controls = {'graph-tip': {hidden: false}, 'network-empty': {hidden: true},
   'graph-count': {textContent: ''}};
-const nodes = [], links = [];
+const nodes = [], links = [], fits = [];
 const collection = arr => ({
   length: arr.length,
   filter(fn) {return collection(arr.filter(fn));},
@@ -73,20 +74,26 @@ const cy = {
   },
   edges: () => links,
   zoom: () => zoom,
+  resize() {},
+  fit(elements, padding) {fits.push({elements, padding});},
   batch(callback) {callback();},
   layout(opts) {layoutOptions = opts;return {run() {}};}
 };
 const graph = new Function('cy', '$', 'network', 'nodeIndex', 'LIMIT',
-  'compareNodes', 'shortLabel', 'sectorColor',
+  'compareNodes', 'shortLabel', 'graphNodeLabel', 'sectorColor',
   `${program}\nreturn {drawGraph, syncNetworkGlyphs};`)(cy, id => controls[id], network, nodeIndex,
     {labelledNodes: 12, graphNodes: 300, graphEdges: 1500},
-    (a,b) => a.localeCompare(b), n => `${n.type}·${n.cluster}`, () => '#46a0ba');
+    (a,b) => a.localeCompare(b), n => `${n.type}·${n.cluster}`,
+    n => `Industry\nC${n.cluster}`, () => '#46a0ba');
 // Sparse networks keep all identifiers visible without magnifying glyphs.
 network.ring = new Map([...ring].slice(0, 6));
 network.edges = edges.filter(e => network.ring.has(e.source) && network.ring.has(e.target));
 graph.drawGraph();
 assert.equal(nodes.length, 6);
 assert.equal(nodes.filter(n => n.hasClass('labelled')).length, 6);
+assert.equal(fits.at(-1).padding, 24, 'Fit graph is the default for each selection');
+assert(nodes.every(n => n.data('label').endsWith(`C${n.data('id').split(':')[1]}`)),
+  'Node labels display C-number without embedded sector codes');
 assert(Math.abs(nodes[0].appliedStyle.width * zoom - 23) < 0.01, 'Six-node focus is 23px on screen');
 assert(Math.abs(nodes[1].appliedStyle.width * zoom - 17) < 0.01, 'Six-node peers are 17px on screen');
 
@@ -95,8 +102,9 @@ network.edges = edges;
 graph.drawGraph();
 assert.equal(nodes.length, 19);
 assert.equal(links.length, edges.length);
-assert.deepEqual(nodes.filter(n => n.hasClass('labelled')).map(n => n.data('id')), ['63:0'],
-  'Large graphs label the focus; other cluster IDs remain available on hover');
+assert.deepEqual(nodes.filter(n => n.hasClass('labelled')).map(n => n.data('id')),
+  ['63:0','63:1','63:2','63:3'],
+  'Large graphs label the focus and all immediately adjacent nodes');
 assert(links.some(e => e.hasClass('mid-edge')));
 assert(links.some(e => e.hasClass('outer-edge')));
 assert.equal(layoutOptions.minNodeSpacing, 16);
@@ -114,7 +122,9 @@ for (let i = 19; i < 46; i++) {
 }
 graph.drawGraph();
 assert.equal(nodes.length, 46);
-assert.deepEqual(nodes.filter(n => n.hasClass('labelled')).map(n => n.data('id')), ['63:0']);
+assert.deepEqual(nodes.filter(n => n.hasClass('labelled')).map(n => n.data('id')),
+  ['63:0','63:1','63:2','63:3'],
+  'Dense graphs keep the adjacent-ring labels visible');
 assert(Math.abs(nodes[0].appliedStyle.width * zoom - 14) < 0.01, '46-node focus is 14px on screen');
 assert(Math.abs(nodes[1].appliedStyle.width * zoom - 8) < 0.01, '46-node peers are 8px on screen');
 assert(links.some(e => e.hasClass('outer-edge') && e.appliedStyle.opacity === 0.10));

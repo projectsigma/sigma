@@ -409,6 +409,22 @@ def _add_data_defined_size(symbol: ET.Element, field: str, *, min_value: float, 
     ET.SubElement(top, "Option", {"type": "QString", "name": "type", "value": "collection"})
 
 
+# SIGMA_HIERARCHICAL_SECTOR_PALETTE_V1_CENTER_RENDERER_HELPER
+def _categorized_center_renderer(type_order: list[str], styles: Mapping[str, SectorStyle]) -> ET.Element:
+    renderer = ET.Element("renderer-v2", {"type": "categorizedSymbol", "attr": "type",
+                    "symbollevels": "0", "forceraster": "0", "enableorderby": "0", "referencescale": "-1"})
+    categories = ET.SubElement(renderer, "categories")
+    symbols = ET.SubElement(renderer, "symbols")
+    for idx, code in enumerate(type_order):
+        style = styles[code]
+        ET.SubElement(categories, "category", {"symbol": str(idx), "label": style.display,
+                      "value": code, "type": "string", "render": "true"})
+        symbol = _simple_marker_symbol(style.color_hex, size="2", alpha="1", shape="circle")
+        symbol.attrib["name"] = str(idx)
+        symbols.append(symbol)
+    return renderer
+
+
 def _categorized_point_renderer(type_order: list[str], styles: Mapping[str, SectorStyle], *, score_min: float, score_max: float) -> ET.Element:
     renderer = ET.Element("renderer-v2", {"type": "categorizedSymbol", "attr": "type", "symbollevels": "0", "forceraster": "0", "enableorderby": "0", "referencescale": "-1"})
     categories = ET.SubElement(renderer, "categories")
@@ -547,9 +563,15 @@ def write_qgis_project(
         "./sigma_network_centers.parquet",
         "Point", crs_authid, _bounds(centers),
     )
-    centers_layer.append(
-        _single_symbol_renderer(_simple_marker_symbol("#C43C39", size="2", alpha="1", shape="circle"))
-    )
+    # SIGMA_HIERARCHICAL_SECTOR_PALETTE_V1_CENTERS: centers use the same sector colors as polygons and points.
+    center_types = sorted({str(v) for v in centers.get("type", pd.Series(dtype=str)).astype(str)},
+                          key=lambda v: (0, int(v)) if v.isdigit() else (1, v))
+    if center_types and any(str(key).startswith(("240:", "80:", "16:")) for key in styles):
+        centers_layer.append(_categorized_center_renderer(center_types, styles))
+    else:
+        centers_layer.append(
+            _single_symbol_renderer(_simple_marker_symbol("#C43C39", size="2", alpha="1", shape="circle"))
+        )
 
     partition_type_order = sorted(
         {str(v) for v in partitions.get("type", pd.Series(dtype=str)).astype(str)},

@@ -30,6 +30,65 @@
   const val = n => n && Number.isFinite(n.centrality) ? n.centrality : -Infinity;
   const maxByCentrality = (a, b) => val(b) - val(a) || idStr(a.id).localeCompare(idStr(b.id));
 
+
+  // sigma-explorer-tutorial-polish-20261027-v2: readable published identifiers.
+  // sigma-sparse-hierarchy-codes-20261027-v1: numeric display ancestry, from validated crosswalk sha256=57e95ab8ed174eb0af1530ba428fc01461eba413dd568495b7b4a6c1c2bd05ed.
+  // The published/raw sector ID remains the sole key for filters and network operations.
+  const sigmaParent80By240 = [null,1,2,3,4,5,6,7,8,9,10,11,12,13,14,14,14,14,14,14,14,14,14,15,15,15,15,15,16,16,17,18,19,19,19,19,19,19,20,21,22,23,24,25,26,26,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,28,28,28,28,28,28,29,29,29,30,30,30,30,30,30,30,30,30,31,31,31,31,32,32,32,32,33,33,33,33,33,33,33,34,34,34,35,35,36,36,37,37,37,37,37,37,37,38,39,39,40,40,40,40,41,42,42,42,42,42,42,42,42,43,43,43,43,43,43,43,43,43,43,44,44,44,44,44,44,45,45,45,45,45,45,45,46,46,46,46,46,46,46,47,47,47,47,48,48,48,48,48,48,49,50,51,52,53,54,55,56,57,57,57,57,57,57,58,59,60,60,61,62,62,63,64,64,64,64,65,65,65,65,65,65,66,67,68,68,69,70,71,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,73,74,75,76,77,78,79,80,80,80,80,80,80];
+  const sigmaParent16By80 = [null,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,5,6,6,6,7,7,7,7,7,8,8,9,9,10,10,10,10,11,11,12,13,14,14,15,15,15,16,16];
+  function sparseSectorCode(value) {
+    const raw = String(value ?? '').trim();
+    const match = /^(240|80|16):(\d+)(?::(O|OTHER))?$/i.exec(raw);
+    if (!match) return raw;
+    const tier = match[1], number = Number(match[2]);
+    const residual = Boolean(match[3]);
+    const p2 = n => String(n).padStart(2, '0');
+    const p3 = n => String(n).padStart(3, '0');
+    let parts;
+    if (tier === '240') {
+      const middle = sigmaParent80By240[number];
+      const broad = sigmaParent16By80[middle];
+      if (!middle || !broad) return raw;
+      parts = [p2(broad), p2(middle), p3(number)];
+    } else if (tier === '80') {
+      const broad = sigmaParent16By80[number];
+      if (!broad) return raw;
+      parts = [p2(broad), p2(number)];
+    } else {
+      if (!Number.isInteger(number) || number < 1 || number > 16) return raw;
+      parts = [p2(number)];
+    }
+    if (residual) parts.push('o');
+    return parts.join(':');
+  }
+
+  function sectorDisplay(sector) {
+    const rawCode = idStr(sector?.code).trim();
+    const code = sparseSectorCode(rawCode);
+    let name = idStr(sector?.label).trim() || rawCode;
+    // The published label may be e.g. "80:72:OTHER - IO80 72 · ... · Other (80:72:OTHER)".
+    const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (rawCode) {
+      name = name.replace(new RegExp('\\s*\\(' + escapeRegex(rawCode) + '\\)\\s*$', 'i'), '');
+      name = name.replace(new RegExp('^' + escapeRegex(rawCode) + '\\s*[-–—:·]\\s*', 'i'), '');
+    }
+    name = name.replace(/^IO(?:240|80|16)\s+\d+\s*[·–—-]\s*/i, '');
+    name = name.replace(/^\d+\s+(?=[A-Za-z])/, '');
+    if (/:OTHER$|:O$/i.test(rawCode)) {
+      name = name.replace(/\s*[·–—-]\s*Other(?:\s+industries)?\s*$/i, '');
+      name = name.replace(/\s*\(others?\)\s*$/i, '');
+      name = name.replace(/\s*[–—-]\s*other industries\s*$/i, '');
+      name = (name.trim() || 'Other industries') + ' (others)';
+    }
+    return {code, name:name.trim() || code};
+  }
+  function economyDisplayName(value) {
+    if (/^psa-2018-io240-hierarchical/i.test(value)) return 'Area-specific hierarchical IO economy';
+    if (/^psa-2018-io80$/i.test(value)) return 'PSA 2018 · IO80';
+    if (/^psa-2018-io16$/i.test(value)) return 'PSA 2018 · IO16';
+    return value;
+  }
+
   async function start() {
     const responses = await Promise.all(['data/metadata.json', 'data/graph.json'].map(async path => {
       const r = await fetch(path, {cache: 'no-store'});
@@ -62,6 +121,7 @@
     const counts = meta.counts || {};
     const area = meta.area || 'current study area';
     const economy = meta.economy_id || 'not identified in run metadata';
+    const economyName = economyDisplayName(economy);
     const number = n => fmt(n);
     const sampleParam = new URLSearchParams(location.search).get('node');
     const initial = sampleParam && nodeMap.get(sampleParam);
@@ -71,14 +131,15 @@
     const nodeSelect = $('live-node');
     const sectorLabel = code => {
       const s = sectorMap.get(idStr(code));
-      return s ? `${s.label} (${s.code})` : `Sector ${code}`;
+      return s ? `${sectorDisplay(s).name} · ${sectorDisplay(s).code}` : `Sector ${code}`;
     };
     const nodeLabel = node => node ? `${sectorLabel(node.type)} · cluster ${node.cluster}` : 'No cluster available';
     const edgeInfo = node => (adjacent.get(idStr(node && node.id)) || []).slice().sort((x,y) =>
       (Number(y.coefficient) || 0) - (Number(x.coefficient) || 0));
     const topSectors = [...meta.sectors].sort((x, y) => (y.points || 0) - (x.points || 0))
-      .slice(0, 3).map(s => `${s.label}: ${number(s.points)} places`).join(' · ');
-    $('live-title').textContent = `${area} · ${economy}`;
+      .slice(0, 3).map(s => `${sectorDisplay(s).name}: ${number(s.points)} places`).join(' · ');
+    $('live-title').textContent = `${area} · ${economyName}`;
+    $('live-title').title = `Source economic specification: ${economy}`;
     $('live-status').textContent = meta.profile === 'public'
       ? 'Published aggregate profile · individual places excluded'
       : 'Published local profile · individual places available in Explorer';
@@ -95,7 +156,7 @@
     }));
     for (const s of meta.sectors) {
       const option = document.createElement('option');
-      option.value = idStr(s.code); option.textContent = `${s.label} (${s.code})`;
+      option.value = idStr(s.code); option.textContent = `${sectorDisplay(s).name} · ${sectorDisplay(s).code}`;
       sectorSelect.append(option);
     }
     if (!meta.sectors.length || !nodes.length) {
@@ -149,7 +210,7 @@
       const links = node ? edgeInfo(node) : [];
       const example = links[0];
       const s = node && sectorMap.get(idStr(node.type));
-      const here = s ? `${s.label} (${s.code})` : 'the selected sector';
+      const here = s ? sectorLabel(s.code) : 'the selected sector';
       const clusterCount = (bySector.get(idStr(node?.type)) || []).length;
       const c = k => number(counts[k]);
       const note = (what, certainty = '') => [what, certainty];
@@ -171,9 +232,9 @@
       if (section === 'centers') return note(node ? `The published center of ${nodeLabel(node)} is at latitude ${fmt(node.lat, 6)}, longitude ${fmt(node.lon, 6)}, with ${number(node.members)} member establishments.` : 'No published center selected.', 'Center method and fallback diagnostics are not contained in the browser graph');
       if (section === 'voronoi') return note(`${c('partitions')} cluster polygon features are included in the bundle. These are derived area renderings; view the selected network partitions in Explorer.`, 'A partition need not contain establishments everywhere in its area');
       if (section === 'economy') {
-        if (idx === 0) return note(`Current economic specification: ${economy}, with ${number(meta.sectors.length)} types visible in this area. Explorer publishes derived X links, not the full national transactions matrix Z.`, 'Do not infer transaction amounts from coefficients');
+        if (idx === 0) return note(`Current economic specification: ${economyName}, with ${number(meta.sectors.length)} types visible in this area. Explorer publishes derived X links, not the full national transactions matrix Z.`, 'Do not infer transaction amounts from coefficients');
         if (idx === 1) return note(example ? `For a published local X link, the input–output coefficient a is ${frac(example.coefficient)} from ${sectorLabel(nodeMap.get(idStr(example.from))?.type)} to ${sectorLabel(nodeMap.get(idStr(example.to))?.type)}.` : `No local X edge is available to illustrate coefficients.`, 'Observed in model output; not evidence of direct firm-to-firm trade');
-        return note(`The economy identifier is ${economy}. Explorer does not publish the full coefficient matrix or distinguish optional preprocessing parameters here.`, 'Consult the source economic artifacts for the full table');
+        return note(`The economic specification is ${economyName}. Explorer does not publish the full coefficient matrix or distinguish optional preprocessing parameters here.`, 'Consult the source economic artifacts for the full table');
       }
       if (section === 'xgraph') {
         if (idx === 0) return note(`${c('clusters')} X nodes and ${c('edges')} directed X links (or ${c('linked_pairs')} linked node pairs) appear in ${area}.`, 'Sector coupling is a model, not confirmed commercial trade');
@@ -185,7 +246,7 @@
         if (idx === 0) return note(`Published establishment-score range in ${area}: ${fmt(meta.score_range?.[0], 6)} to ${fmt(meta.score_range?.[1], 6)}.`, meta.profile === 'public' ? 'Individual establishment records are omitted from this bundle' : 'Inspect an individual published establishment score by selecting its point in Explorer');
         return note(node ? `For ${nodeLabel(node)}, the published cluster centrality is ${fmt(node.centrality, 6)}. The tutorial’s point-level worked example is illustrative.` : 'Choose an X cluster above to inspect its published centrality.', 'No artificial establishment score is derived from the cluster center');
       }
-      return note(`This is a ${meta.profile || 'unknown'} profile for ${area}, using ${economy}. Top sectors by place count: ${topSectors || 'none published'}.`, 'The dataset is a snapshot of previously computed SIGMA outputs, not a live economic feed');
+      return note(`This is a ${meta.profile || 'unknown'} profile for ${area}, using ${economyName}. Top sectors by place count: ${topSectors || 'none published'}.`, 'The dataset is a snapshot of previously computed SIGMA outputs, not a live economic feed');
     };
     const notes = [];
     for (const scrolly of document.querySelectorAll('.scrolly')) {
@@ -269,3 +330,4 @@
     console.error('SIGMA guided tour', error);
   });
 })();
+// sigma-explorer-tutorial-polish-20261027-v2

@@ -56,6 +56,20 @@ sigma view pasig
 
 The artifact DAG means a repeated run does not blindly rerun every computation. A stage is reused when the recipe fingerprint and stored files still match the requested inputs, parameters, source identities, and implementation version.
 
+## 5. Inspect storage without disturbing results
+
+```bash
+sigma storage report                 # disk inventory and largest files
+sigma storage prune                  # preview; does not delete
+sigma storage prune --apply          # aged, abandoned temporary files only
+sigma storage report --obsolete      # optionally review historical artifacts
+```
+
+Shared OSM node-location indexes are discarded after extraction; versioned artifacts and
+published Explorer/QGIS outputs are retained. The `--obsolete` flag is a separate,
+explicit decision that may sacrifice older-run reproducibility. See the
+[storage and retention guide](../reproducibility/storage.md) before opting in.
+
 ## Read one run as a scientific object
 
 A useful way to audit a result is to follow this sequence:

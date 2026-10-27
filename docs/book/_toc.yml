@@ -23,6 +23,7 @@ parts:
   - caption: Reproducibility and interpretation
     chapters:
       - file: content/reproducibility/artifacts
+      - file: content/reproducibility/storage
       - file: content/reference/defaults
       - file: content/reference/outputs
       - file: content/reference/method_lineage

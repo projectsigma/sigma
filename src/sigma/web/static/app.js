@@ -253,10 +253,33 @@
     window.addEventListener('resize', closeHelp);
   }
 
-  const sectorLabel = code => (sectors.get(code) || {}).label || code;
+  const sectorLabel = code => sectors.has(String(code)) ? sectorPresentation(sectors.get(String(code))).name : String(code);
   const sectorColor = code => (sectors.get(code) || {}).color || '#657f78';
-  const nodeLabel = n => `${sectorLabel(n.type)} · cluster ${n.cluster}`;
-  const shortLabel = n => `${n.type}·${n.cluster}`;
+  const nodeLabel = n => `${sectorLabel(n.type)} · ${sectorCode(n.type)} · cluster ${n.cluster}`;
+  const shortLabel = n => {
+    const name = sectorLabel(n.type);
+    return `${name.length > 22 ? name.slice(0,19).trimEnd() + '…' : name} · ${n.cluster}`;
+  };
+  // sigma-explorer-tutorial-polish-20261027-v2: multiline graph names, single short code.
+  const sectorCode = code => sparseSectorCode(code);
+  function graphNodeLabel(n) {
+    const raw = sectorLabel(n.type).trim();
+    // Limit graph-glyph text only; full names remain available on hover.
+    const words = raw.split(/\s+/);
+    const lines = [''];
+    for (const word of words) {
+      const last = lines.length - 1;
+      if (lines[last] && (lines[last].length + word.length + 1 > 20)) {
+        if (lines.length === 2) { // no fourth line on dense cluster diagrams
+          const existing = lines[last];
+          lines[last] = (existing.length > 22 ? existing.slice(0, 21).trimEnd() : existing).replace(/[\s,;:-]+$/, '') + '…';
+          break;
+        }
+        lines.push(word);
+      } else lines[last] += (lines[last] ? ' ' : '') + word;
+    }
+    return [...lines, `C${n.cluster}`].join('\n');
+  }
   const swatch = code => el('i', {className: 'swatch', style: {background: sectorColor(code)}});
   const compareNodes = (a, b) => {
     const x = nodeIndex.get(a), y = nodeIndex.get(b);
@@ -602,7 +625,7 @@
       return;
     }
     const n = nodeIndex.get(selection.id), p = selection.point;
-    $('selected-code').textContent = `Sector ${n.type} · Cluster ${n.cluster}`;
+    $('selected-code').textContent = `${sectorCode(n.type)} · Cluster ${n.cluster}`;
     $('place-name').textContent = p ? p.name : nodeLabel(n);
     $('place-description').textContent = p ? sectorLabel(p.type) : 'Cluster center (network 1-median of the cluster)';
     const linked = (pairIndex.get(n.id) || new Map()).size;
@@ -692,16 +715,16 @@
     const dense = count > 25;
     const nodeSize = small ? 17 : count <= 25 ? 13 : count <= 80 ? 8 : 6;
     const focusSize = small ? 23 : count <= 25 ? 18 : count <= 80 ? 14 : 12;
-    const labelSize = small ? 12 : count <= 25 ? 11 : 10.5;
+    const labelSize = small ? 10.4 : count <= 25 ? 9.8 : 9.2;
 
     cy.batch(() => {
       cy.nodes().style({width: px(nodeSize), height: px(nodeSize),
         'border-width': px(dense ? 0.8 : 1.25)});
       cy.nodes('[ring >= 2]').style({width: px(Math.max(6, nodeSize - 1)),
         height: px(Math.max(6, nodeSize - 1))});
-      cy.nodes('.labelled').style({'font-size': px(labelSize), 'text-margin-y': px(6)});
+      cy.nodes('.labelled').style({'font-size': px(labelSize), 'text-margin-y': px(6), 'text-max-width': px(122)});
       cy.nodes('.focus').style({width: px(focusSize), height: px(focusSize),
-        'border-width': px(1.6), 'font-size': px(small ? 12.5 : 11.5),
+        'border-width': px(1.6), 'font-size': px(small ? 10.5 : 9.5),
         'text-margin-y': px(6)});
       cy.edges().forEach(edge => {
         const strength = Number(edge.data('wn')) || 0;
@@ -726,7 +749,7 @@
     const strongest = Math.max(1e-12, ...network.edges.map(e => e.strength));
     const elements = ids.map(id => {
       const n = nodeIndex.get(id), ring = network.ring.get(id);
-      return {group: 'nodes', data: {id, label: shortLabel(n), color: sectorColor(n.type), ring, level: maxRing - ring + 1},
+      return {group: 'nodes', data: {id, label: graphNodeLabel(n), color: sectorColor(n.type), ring, level: maxRing - ring + 1},
         classes: id === network.focus ? 'focus' : ''};
     });
     const directedIds = new Set(network.edges.map(e => `${e.source}\u0000${e.target}`));
@@ -746,9 +769,12 @@
     cy.add(elements);
     // Label only the focus in dense networks; other nodes retain hover details.
     if (ids.length <= LIMIT.labelledNodes) cy.nodes().addClass('labelled');
-    else cy.nodes().filter(n => n.data('ring') === 0).addClass('labelled');
+    else cy.nodes().filter(n => Number(n.data('ring')) <= 1).addClass('labelled');
     cy.layout({name: 'concentric', concentric: n => n.data('level'), levelWidth: () => 1, minNodeSpacing: 16,
       startAngle: 1.5 * Math.PI, clockwise: true, equidistant: true, avoidOverlap: true, animate: false, fit: true, padding: 26}).run();
+    // Default to Fit graph for every selection, never Focus nearby.
+    cy.resize();
+    cy.fit(undefined, 24);
     graphGlyphFitZoom = cy.zoom();
     syncNetworkGlyphs();
     const linkCount = cy.edges().length;
@@ -775,7 +801,7 @@
   function initializeFinder() {
     const query = $('finder-query'), filter = $('finder-sector');
     for (const sector of sectors.values()) {
-      filter.append(el('option', {value: sector.code, textContent: `${sector.code} - ${sector.label}`}));
+      filter.append(el('option', {value: sector.code, textContent: `${sectorPresentation(sector).name} · ${sectorPresentation(sector).code}`}));
     }
     if (!meta.has_establishment_finder || !meta.has_points) {
       query.disabled = true;
@@ -970,38 +996,140 @@
     return scores;
   }
 
+  // sigma-sector-panel-readability-v1: sector identity first; ID and metrics secondary.
+  // sigma-explorer-clean-label-column-sorts-v1: one source for all human sector names.
+  // sigma-sparse-hierarchy-codes-20261027-v1: numeric display ancestry, from validated crosswalk sha256=57e95ab8ed174eb0af1530ba428fc01461eba413dd568495b7b4a6c1c2bd05ed.
+  // The published/raw sector ID remains the sole key for filters and network operations.
+  const sigmaParent80By240 = [null,1,2,3,4,5,6,7,8,9,10,11,12,13,14,14,14,14,14,14,14,14,14,15,15,15,15,15,16,16,17,18,19,19,19,19,19,19,20,21,22,23,24,25,26,26,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,28,28,28,28,28,28,29,29,29,30,30,30,30,30,30,30,30,30,31,31,31,31,32,32,32,32,33,33,33,33,33,33,33,34,34,34,35,35,36,36,37,37,37,37,37,37,37,38,39,39,40,40,40,40,41,42,42,42,42,42,42,42,42,43,43,43,43,43,43,43,43,43,43,44,44,44,44,44,44,45,45,45,45,45,45,45,46,46,46,46,46,46,46,47,47,47,47,48,48,48,48,48,48,49,50,51,52,53,54,55,56,57,57,57,57,57,57,58,59,60,60,61,62,62,63,64,64,64,64,65,65,65,65,65,65,66,67,68,68,69,70,71,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,72,73,74,75,76,77,78,79,80,80,80,80,80,80];
+  const sigmaParent16By80 = [null,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,4,4,4,4,5,6,6,6,7,7,7,7,7,8,8,9,9,10,10,10,10,11,11,12,13,14,14,15,15,15,16,16];
+  function sparseSectorCode(value) {
+    const raw = String(value ?? '').trim();
+    const match = /^(240|80|16):(\d+)(?::(O|OTHER))?$/i.exec(raw);
+    if (!match) return raw;
+    const tier = match[1], number = Number(match[2]);
+    const residual = Boolean(match[3]);
+    const p2 = n => String(n).padStart(2, '0');
+    const p3 = n => String(n).padStart(3, '0');
+    let parts;
+    if (tier === '240') {
+      const middle = sigmaParent80By240[number];
+      const broad = sigmaParent16By80[middle];
+      if (!middle || !broad) return raw;
+      parts = [p2(broad), p2(middle), p3(number)];
+    } else if (tier === '80') {
+      const broad = sigmaParent16By80[number];
+      if (!broad) return raw;
+      parts = [p2(broad), p2(number)];
+    } else {
+      if (!Number.isInteger(number) || number < 1 || number > 16) return raw;
+      parts = [p2(number)];
+    }
+    if (residual) parts.push('o');
+    return parts.join(':');
+  }
+
+  function sectorPresentation(s) {
+    const code = String(s.code ?? '').trim();
+    const matched = /^(240|80|16):(\d+)(?::(O|OTHER))?$/i.exec(code);
+    const raw = String(s.label || '').trim();
+    let name = raw || code;
+    // Published custom-sector captions repeat the sector code and IO resolution.
+    if (name.startsWith(code)) name = name.slice(code.length).replace(/^\s*[-–—:]\s*/, '');
+    if (matched) {
+      name = name.replace(new RegExp('^IO' + matched[1] + '\\s+' + Number(matched[2]) + '\\s*[·–—-]\\s*', 'i'), '');
+      name = name.replace(new RegExp('^' + Number(matched[2]) + '\\s+(?=[A-Za-z])', 'i'), '');
+      // Also support padded source identifiers, e.g. IO16 03.
+      name = name.replace(/^IO(?:240|80|16)\s+\d+\s*[·–—-]\s*/i, '');
+      name = name.replace(/^\d+\s+(?=[A-Za-z])/, '');
+    }
+    // sigma-canonical-sparse-hierarchy-v1: published sparse codes use clean names.
+    const canonical = /^\d{2}(?::\d{2}(?::(?:\d{3}|o))?|:o)?$/.test(code);
+    if (canonical) {
+      name = name.replace(/^IO(?:240|80|16)\s+\d+\s*[·–—-]\s*/i, '');
+      name = name.replace(/^\d+\s+(?=[A-Za-z])/, '');
+    }
+    const residual = Boolean(matched && matched[3]) || (canonical && /:o$/.test(code));
+    if (residual) {
+      // Remove only generic residual suffixes; do not alter official non-residual
+      // industries such as "Other personal service activities" (IO240 240).
+      name = name.replace(/\s*[-–—·]\s*Other(?:\s+industries)?\s*$/i, '');
+      name = name.replace(/\s*\(others?\)\s*$/i, '').trim();
+      name = name.replace(/\s*[-–—]\s*other industries\s*$/i, '').trim();
+      name = (name || 'Other industries') + ' (others)';
+    }
+    const kind = matched ? ({'240':'Detailed industry','80':'Industry group','16':'Broad group'}[matched[1]]) : 'Industry';
+    return {code:sparseSectorCode(code), rawCode:code, name: name.trim() || code, kind: kind + (residual ? ' · residual' : ''), residual};
+  }
+
+  const io240Parents = {"io80":{"01":1,"02":2,"03":3,"04":4,"05":5,"06":6,"07":7,"08":8,"09":9,"10":10,"11":11,"12":12,"13":13,"14":14,"15":23,"16":28,"17":30,"18":31,"19":32,"20":38,"21":39,"22":40,"23":41,"24":42,"25":43,"26":44,"27":46,"28":69,"29":75,"30":78,"31":87,"32":91,"33":95,"34":102,"35":105,"36":107,"37":109,"38":116,"39":117,"40":119,"41":123,"42":124,"43":132,"44":142,"45":148,"46":155,"47":162,"48":166,"49":172,"50":173,"51":174,"52":175,"53":176,"54":177,"55":178,"56":179,"57":180,"58":186,"59":187,"60":188,"61":190,"62":191,"63":193,"64":194,"65":198,"66":204,"67":205,"68":206,"69":208,"70":209,"71":210,"72":211,"73":228,"74":229,"75":230,"76":231,"77":232,"78":233,"79":234,"80":235},"io16":{"01":1,"02":39,"03":46,"04":172,"05":176,"06":177,"07":180,"08":191,"09":194,"10":204,"11":209,"12":211,"13":228,"14":229,"15":231,"16":234}};
+  const sectorSortState = {key: 'code', descending: false};
+  function io240Rank(s) {
+    const code = String(s.code);
+    // Canonical sparse hierarchy is the stored sector identity.
+    const sparse = /^(\d{2})(?::(\d{2})(?::(\d{3}|o))?|:o)?$/.exec(code);
+    if (sparse) {
+      const broad = sparse[1], middle = sparse[2], child = sparse[3];
+      const rank = child && child !== 'o' ? Number(child) :
+        middle ? io240Parents.io80[middle] : io240Parents.io16[broad];
+      const tier = child && child !== 'o' ? 0 : middle ? 1 : 2;
+      return [Number.isFinite(rank) ? rank : Infinity, tier];
+    }
+    const m = /^(240|80|16):(\d+)(?::(?:O|OTHER))?$/i.exec(code);
+    if (!m) return [Infinity, 9];
+    const rank = m[1] === '240' ? Number(m[2]) :
+      m[1] === '80' ? io240Parents.io80[String(Number(m[2])).padStart(2,'0')] :
+      io240Parents.io16[String(Number(m[2])).padStart(2,'0')];
+    return [Number.isFinite(rank) ? rank : Infinity, m[1] === '240' ? 0 : m[1] === '80' ? 1 : 2];
+  }
+  function compareSectorCodes(a, b) {
+    const x = io240Rank(a), y = io240Rank(b);
+    return (x[0]-y[0]) || (x[1]-y[1]) || String(a.code).localeCompare(String(b.code),undefined,{numeric:true});
+  }
   function renderSectors() {
     const list = $('sector-list');
     list.replaceChildren();
     const linked = displayedSectorStrength();
-    const codeOrder = (a, b) => String(a.code).localeCompare(String(b.code), undefined,
-      {numeric: true, sensitivity: 'base'});
-    const ordered = [...sectors.values()].sort((a, b) => {
-      if (!network || hidden.size === sectors.size) return codeOrder(a, b);
-      if (network) {
-        const aa = linked.get(a.code), bb = linked.get(b.code);
-        if ((aa !== undefined) !== (bb !== undefined)) return aa !== undefined ? -1 : 1;
-        if (aa !== undefined && aa !== bb) return bb - aa;
-      }
-      const ga = globalSectorStrength.get(a.code) ?? -1;
-      const gb = globalSectorStrength.get(b.code) ?? -1;
-      return (gb - ga) || String(a.label).localeCompare(String(b.label));
+    const needle = ($('sector-search')?.value || '').trim().toLocaleLowerCase();
+    const nameOf = s => sectorPresentation(s).name;
+    const ordered = [...sectors.values()].filter(s => {
+      const p = sectorPresentation(s);
+      return !needle || (p.name + ' ' + p.code + ' ' + p.kind + ' ' + s.label).toLocaleLowerCase().includes(needle);
+    }).sort((a,b) => {
+      let n;
+      if (sectorSortState.key === 'name') n = nameOf(a).localeCompare(nameOf(b));
+      else if (sectorSortState.key === 'places') n = a.points - b.points;
+      else n = compareSectorCodes(a,b);
+      return (sectorSortState.descending ? -n : n) || compareSectorCodes(a,b);
     });
     for (const s of ordered) {
-      const box = el('input', {type: 'checkbox', checked: !hidden.has(s.code)});
-      box.addEventListener('change', () => { box.checked ? hidden.delete(s.code) : hidden.add(s.code); sectorsChanged(); });
-      const inSelection = network && linked.has(s.code);
-      const score = inSelection ? linked.get(s.code) : globalSectorStrength.get(s.code);
-      const description = inSelection ? 'Strongest visible direct link to selected cluster' :
-        'Largest link coefficient anywhere in the published graph' ;
-      list.append(el('label', {className: 'sector-item',
-          title: `${s.label}: ${s.points.toLocaleString()} establishments, ${s.clusters} clusters. ${description}: ${isNum(score) ? fmtCoef(score) : 'not available'}`},
-        box, swatch(s.code), el('span', {className: 'name', textContent: s.label}),
-        el('span', {className: 'sector-strength', title: description,
-          textContent: isNum(score) ? fmtCoef(score) : '—'}),
-        el('span', {className: 'count', textContent: s.points.toLocaleString()})));
+      const p = sectorPresentation(s);
+      const checkbox = el('input',{type:'checkbox',checked:!hidden.has(s.code)});
+      checkbox.addEventListener('change', () => {
+        checkbox.checked ? hidden.delete(s.code) : hidden.add(s.code);
+        sectorsChanged();
+      });
+      const score = network && linked.has(s.code) ? linked.get(s.code) : globalSectorStrength.get(s.code);
+      const description = network && linked.has(s.code) ? 'Strongest direct network coefficient' : 'Largest network coefficient';
+      const label = el('label', {className:'sector-item',
+        title:`${p.name}\nCode ${p.code} · ${p.kind}\n${s.points.toLocaleString()} establishments · ${s.clusters} clusters\n${description}: ${isNum(score) ? fmtCoef(score) : 'not available'}`},
+        checkbox, swatch(s.code),
+        el('span',{className:'name sector-title',textContent:p.name}),
+        el('span',{className:'sector-code',textContent:p.code}),
+        el('span',{className:'sector-mini-count',textContent:s.points.toLocaleString(),
+          title:`${s.points.toLocaleString()} establishments`}));
+      list.append(label);
     }
-    $('sector-count').textContent = `${sectors.size - hidden.size} of ${sectors.size} shown`;
+    $('sector-count').textContent = needle ?
+      `${ordered.length} matching · ${sectors.size-hidden.size} of ${sectors.size} shown` :
+      `${sectors.size-hidden.size} of ${sectors.size} shown`;
+    document.querySelectorAll('[data-sector-order]').forEach(button => {
+      const selected = button.dataset.sectorOrder === sectorSortState.key;
+      const direction = selected ? (sectorSortState.descending ? '↓' : '↑') : '↕';
+      const glyph = button.querySelector('.sort-direction');
+      if (glyph) glyph.textContent = direction;
+      button.setAttribute('aria-pressed',String(selected));
+      button.title = `Sort by ${button.dataset.sectorOrder}${selected ? (sectorSortState.descending ? ', descending' : ', ascending') : ''}`;
+    });
   }
 
   function sectorsChanged() {
@@ -1014,7 +1142,7 @@
   function describe(feature) {
     const p = feature.properties, id = feature.layer.id;
     if (id === 'establishments') {
-      return [p.name, sectorLabel(p.type), `Cluster ${p.type}·${p.cluster} · SIGMA score ${fmtNum(p.score)}`];
+      return [p.name, `${sectorLabel(p.type)} · ${sectorCode(p.type)}`, `Cluster ${p.cluster} · SIGMA score ${fmtNum(p.score)}`];
     }
     if (id === 'centers') {
       const n = nodeIndex.get(p.id);
@@ -1395,6 +1523,16 @@
     $('zoom-network').addEventListener('click', zoomToNetwork);
     $('sectors-all').addEventListener('click', () => { hidden.clear(); sectorsChanged(); });
     $('sectors-none').addEventListener('click', () => { for (const code of sectors.keys()) hidden.add(code); sectorsChanged(); });
+    $('sector-search').addEventListener('input', renderSectors);
+    document.querySelectorAll('[data-sector-order]').forEach(button => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.sectorOrder;
+        if (!['name','code','places'].includes(key)) return;
+        if (sectorSortState.key === key) sectorSortState.descending = !sectorSortState.descending;
+        else { sectorSortState.key = key; sectorSortState.descending = key === 'places'; }
+        renderSectors();
+      });
+    });
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
       if (document.body.classList.contains('theater')) toggleTheater();
@@ -1447,9 +1585,9 @@
 
     cy = cytoscape({container: $('network'), elements: [], layout: {name: 'preset'}, wheelSensitivity: 0.65, style: [
       {selector: 'node', style: {'background-color': 'data(color)', 'width': 20, 'height': 20, 'border-width': 1.5, 'border-color': '#506a5b', 'opacity': 0.98, 'label': ''}},
-      {selector: 'node.labelled', style: {'label': 'data(label)', 'font-size': 11, 'font-weight': 500, 'font-family': 'system-ui, sans-serif', 'color': '#4b5e53', 'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 7, 'text-background-opacity': 0, 'text-outline-width': 0}},
+      {selector: 'node.labelled', style: {'label': 'data(label)', 'font-size': 10, 'font-weight': 400, 'text-wrap': 'wrap', 'text-max-width': 122, 'font-family': 'system-ui, sans-serif', 'color': '#4b5e53', 'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 7, 'text-background-opacity': 0, 'text-outline-width': 0}},
       {selector: 'node[ring >= 2]', style: {'width': 16, 'height': 16, 'opacity': 0.96}},
-      {selector: 'node.focus', style: {'width': 28, 'height': 28, 'background-color': '#255b45', 'border-width': 1.5, 'border-color': '#a5c3b1', 'opacity': 1, 'label': 'data(label)', 'font-family': 'system-ui, sans-serif', 'font-size': 11, 'font-weight': 'bold', 'color': '#245541', 'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 7, 'text-outline-width': 0, 'text-background-opacity': 0, 'z-index': 10}},
+      {selector: 'node.focus', style: {'width': 28, 'height': 28, 'background-color': '#255b45', 'border-width': 1.5, 'border-color': '#a5c3b1', 'opacity': 1, 'label': 'data(label)', 'font-family': 'system-ui, sans-serif', 'font-size': 9.8, 'font-weight': 700, 'text-wrap': 'wrap', 'text-max-width': 122, 'color': '#245541', 'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 7, 'text-outline-width': 0, 'text-background-opacity': 0, 'z-index': 10}},
       {selector: 'edge', style: {'width': 'mapData(wn, 0, 1, 0.9, 2.2)', 'line-color': '#718879', 'opacity': 0.52, 'curve-style': 'bezier', 'control-point-step-size': 15, 'target-arrow-color': '#718879', 'source-arrow-color': '#718879', 'arrow-scale': 0.78}},
       {selector: 'edge.mid-edge', style: {'opacity': 0.68, 'z-index': 3}},
       {selector: 'edge.outer-edge', style: {'opacity': 0.43}},
@@ -1517,3 +1655,6 @@
 
   initialize().catch(showError);
 })();
+// sigma-explorer-tutorial-polish-20261027-v2
+// sigma-explorer-sector-80-graph-fit-20261027-v3
+// sigma-ui-original-finder-sector-spacing-20261027-v1
