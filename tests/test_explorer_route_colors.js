@@ -40,6 +40,6 @@ assert(js.includes("const tripleColor = ['match', ['get', 'kind'], 'both',"), 'T
 assert(js.includes("`routes-step-${step}`"), 'Theme updates all steps');
 assert(js.includes('const routeLayers = [];'), 'Map hover recognizes deeper routes');
 assert(html.includes('purple = reciprocal X links'), 'Explain the meaning of purple');
-assert(html.includes('<i class="legend-line both"></i>Both directions (reciprocal)'), 'Purple legend entry exists');
+assert(html.includes('<i class="legend-line both"></i>Both</span>'), 'Compact reciprocal legend entry exists');
 assert(css.includes('.legend-line.both { color:var(--both); }'), 'Purple legend entry uses the modeled color');
 console.log('PASS: stable red/blue/purple palette, all steps, draw order, theme and legend.');
