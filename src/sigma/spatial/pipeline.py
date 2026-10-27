@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import shapely
 
+from sigma._cache_cleanup import remove_temporary_node_index
 from sigma.artifacts import ArtifactRecipe, ArtifactRef, ArtifactWrite
 from sigma.economy import Economy
 from sigma.economy.io_utils import read_vector
@@ -370,13 +371,18 @@ class SpatialPipeline:
                 / "road-node-index"
                 / f"{geofabrik.sha256}.nodes.cache"
             )
-            roads = self.roads.load(
-                geofabrik.path,
-                area=self.place_pipeline.area,
-                boundary=boundary,
-                node_cache=node_cache,
-                progress=self.progress,
-            )
+            try:
+                roads = self.roads.load(
+                    geofabrik.path,
+                    area=self.place_pipeline.area,
+                    boundary=boundary,
+                    node_cache=node_cache,
+                    progress=self.progress,
+                )
+            finally:
+                remove_temporary_node_index(
+                    node_cache, progress=self.progress, label="managed roads"
+                )
             source_id = geofabrik.source_id
             metadata = {
                 "road_source_mode": "geofabrik",

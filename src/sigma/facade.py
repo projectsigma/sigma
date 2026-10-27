@@ -543,7 +543,10 @@ class Sigma:
                 f"'sigma load {slug}' first (or pass --workspace if using a custom workspace). "
                 f"You may inspect or filter {path} before running the analysis."
             )
-        return path
+        # Only select an area-specific preview when it belongs to this exact
+        # Economy and the editable baseline has not changed since construction.
+        from .economy.hierarchical_auto import selected_places
+        return selected_places(self.workspace.root, self.economy) or path
 
     def _publish_places_handoff(self, ref: ArtifactRef) -> Path:
         pipeline = self._place_pipeline()

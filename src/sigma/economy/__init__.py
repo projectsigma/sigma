@@ -1,6 +1,10 @@
 """Economic domain model, numerical pipeline, and built-in resources."""
 from .coefficients import effective_technical_coefficients
 from .graph import EconomicGraphResult, build_economic_graph
+from .hierarchical import (
+    HierarchicalResult, activate_hierarchical_places,
+    build_hierarchical_economy, reconciliation, write_hierarchical_package,
+)
 from .model import Economy, Sector, SectorCatalog
 from .mwas import (
     MWASResult,
@@ -14,6 +18,11 @@ from .pipeline import EconomyPipeline, EconomyRunConfig
 from .preprocess import PreprocessingResult, preprocess_transactions
 
 __all__ = [
+    "HierarchicalResult",
+    "activate_hierarchical_places",
+    "build_hierarchical_economy",
+    "reconciliation",
+    "write_hierarchical_package",
     "Economy",
     "Sector",
     "SectorCatalog",

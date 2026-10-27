@@ -7,6 +7,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+from .._cache_cleanup import remove_temporary_node_index
 from ..area.catalog import load_areas
 from ..area.boundary import load_boundary
 from ..places.osm import extract_national_osm_pois, read_osm_cache
@@ -365,11 +366,14 @@ def _prepare_national_stage(
     # A failed libosmium pass may leave a partial location index. Restart this stage cleanly.
     node_cache.unlink(missing_ok=True)
 
-    points = extract_national_osm_pois(
-        pbf_file,
-        node_cache=node_cache,
-        progress=progress,
-    )
+    try:
+        points = extract_national_osm_pois(
+            pbf_file,
+            node_cache=node_cache,
+            progress=progress,
+        )
+    finally:
+        remove_temporary_node_index(node_cache, progress=progress, label="OSM preparation")
     _atomic_parquet(points, path)
     _set_stage(
         directory,

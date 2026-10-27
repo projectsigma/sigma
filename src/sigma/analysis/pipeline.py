@@ -13,6 +13,7 @@ import pandas as pd
 from sigma.artifacts import ArtifactRecipe, ArtifactRef, ArtifactWrite
 from sigma.execution import ExecutionPlanner
 from sigma.places.frame_io import read_geoframe, write_geoframe
+from sigma.progress_detail import detail_phase  # SIGMA_DETAILED_PROGRESS_V1
 from sigma.stages import StageSpec
 from sigma.workspace import SigmaWorkspace
 
@@ -138,7 +139,7 @@ class AnalysisPipeline:
     def _recipe_x(self, planner, deps) -> ArtifactRecipe:
         return ArtifactRecipe.build(
             "analysis.x",
-            implementation_version="directed-spatial-economic-x-v1",
+            implementation_version="directed-spatial-economic-x-v2-geoparquet",
             dependencies={
                 name: deps[name]
                 for name in (*self._spatial_x_dependencies, self._economic_graph_stage)
@@ -168,17 +169,20 @@ class AnalysisPipeline:
         )
 
         nodes = self._node_table(graph)
-        edges, paths = self._edge_outputs(graph, road)
+        with detail_phase(
+            self.progress,
+            f"network X: constructing shortest-road-path geometries for {graph.number_of_edges():,} edges",
+        ):
+            edges, paths = self._edge_outputs(graph, road, progress=self.progress)
         disconnected_out = self._disconnected_output(disconnected)
+        if self.progress is not None:
+            self.progress(
+                f"network X: prepared {len(nodes):,} nodes, {len(edges):,} edges, "
+                f"{len(paths):,} paths, {len(disconnected_out):,} disconnected overlaps"
+            )
 
-        nodes.to_csv(write.output("x_nodes.csv"), index=False, lineterminator="\n")
-        edges.to_csv(
-            write.output("x_edges.csv"), index=False, float_format="%.17g", lineterminator="\n"
-        )
-        disconnected_out.to_csv(
-            write.output("disconnected_overlap_pairs.csv"), index=False, lineterminator="\n"
-        )
-        write_geoframe(paths, write.output("x_paths.json"))
+        # Capture graph diagnostics before releasing the routing-heavy X graph.
+        # `paths` is the independent WGS84 GeoDataFrame needed for publication.
         metadata = {
             "node_count": graph.number_of_nodes(),
             "edge_count": graph.number_of_edges(),
@@ -191,6 +195,18 @@ class AnalysisPipeline:
             "edge_weight": "technical_coefficient * road_distance",
             "road_distance_crs": str(road.crs),
         }
+        del graph  # release all embedded road_path arrays before path serialization
+        nodes.to_csv(write.output("x_nodes.csv"), index=False, lineterminator="\n")
+        edges.to_csv(
+            write.output("x_edges.csv"), index=False, float_format="%.17g", lineterminator="\n"
+        )
+        disconnected_out.to_csv(
+            write.output("disconnected_overlap_pairs.csv"), index=False, lineterminator="\n"
+        )
+        # GeoParquet stores binary geometry efficiently; JSON would materialize
+        # ~255k hex-WKB strings plus one enormous in-memory JSON string.
+        with detail_phase(self.progress, f"network X: writing {len(paths):,} paths as GeoParquet"):
+            paths.to_parquet(write.output("x_paths.parquet"), index=False)
         write.output("x.json").write_text(
             json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
@@ -224,12 +240,14 @@ class AnalysisPipeline:
         )
 
     @staticmethod
-    def _edge_outputs(graph: nx.DiGraph, road) -> tuple[pd.DataFrame, gpd.GeoDataFrame]:
+    def _edge_outputs(graph: nx.DiGraph, road, *, progress=None) -> tuple[pd.DataFrame, gpd.GeoDataFrame]:
         table_rows: list[dict[str, object]] = []
         path_rows: list[dict[str, object]] = []
         geometries = []
-        for source, target, data in sorted(
-            graph.edges(data=True), key=lambda edge: (str(edge[0]), str(edge[1]))
+        total_paths = graph.number_of_edges()
+        for finished, (source, target, data) in enumerate(
+            sorted(graph.edges(data=True), key=lambda edge: (str(edge[0]), str(edge[1]))),
+            start=1,
         ):
             source_data = graph.nodes[source]
             target_data = graph.nodes[target]
@@ -258,6 +276,11 @@ class AnalysisPipeline:
                 }
             )
             geometries.append(road.path_geometry(road_path))
+            if progress is not None and (finished % 25000 == 0 or finished == total_paths):
+                progress(
+                    f"network X: route geometries {finished:,}/{total_paths:,} "
+                    f"({100 * finished / total_paths:.1f}%)"
+                )
         table = pd.DataFrame(table_rows, columns=_X_EDGE_COLUMNS)
         path_columns = [
             "from_id", "from_type", "from_cluster", "to_id", "to_type", "to_cluster",
@@ -307,14 +330,20 @@ class AnalysisPipeline:
         )
 
     def _exec_centrality(self, planner, recipe, deps, write: ArtifactWrite):
-        x = self.load_x(deps["analysis.x"])
-        result = compute_centrality(
-            x.graph,
-            method=self.config.centrality_method,
-            direction=self.config.centrality_direction,
-            katz_alpha_factor=self.config.katz_alpha_factor,
-            katz_beta=self.config.katz_beta,
-        )
+        with detail_phase(self.progress, "centrality: reconstructing directed X graph (without route geometry)"):
+            x = self.load_x(deps["analysis.x"], include_paths=False)
+        with detail_phase(
+            self.progress,
+            f"centrality: computing {self.config.centrality_method} for "
+            f"{len(x.nodes):,} nodes and {len(x.edges):,} edges",
+        ):
+            result = compute_centrality(
+                x.graph,
+                method=self.config.centrality_method,
+                direction=self.config.centrality_direction,
+                katz_alpha_factor=self.config.katz_alpha_factor,
+                katz_beta=self.config.katz_beta,
+            )
         rows = []
         for row in x.nodes.itertuples(index=False):
             node_id = str(row.node_id)
@@ -385,14 +414,17 @@ class AnalysisPipeline:
         )
 
     def _exec_scores(self, planner, recipe, deps, write: ArtifactWrite):
-        points = self.spatial.read_point_distances(deps["spatial.point_distances"])
-        centrality = self.load_centrality(deps["analysis.centrality"])
-        scores = tempered_point_scores(
-            points,
-            centrality.values,
-            distance_tempering=self.config.distance_tempering,
-        )
-        write_geoframe(scores, write.output("scores.json"))
+        with detail_phase(self.progress, "scoring: reading point distances and cluster centrality"):
+            points = self.spatial.read_point_distances(deps["spatial.point_distances"])
+            centrality = self.load_centrality(deps["analysis.centrality"])
+        with detail_phase(self.progress, f"scoring: computing scores for {len(points):,} establishments"):
+            scores = tempered_point_scores(
+                points,
+                centrality.values,
+                distance_tempering=self.config.distance_tempering,
+            )
+        with detail_phase(self.progress, f"scoring: serializing {len(scores):,} point scores"):
+            write_geoframe(scores, write.output("scores.json"))
         return {
             "rows": len(scores),
             "crs": str(scores.crs),
@@ -474,7 +506,7 @@ class AnalysisPipeline:
             raise ValueError("ArtifactRef is not an analysis.scores artifact")
         return read_geoframe(ref.path / "scores.json")
 
-    def load_x(self, ref: ArtifactRef | None = None) -> XResult:
+    def load_x(self, ref: ArtifactRef | None = None, *, include_paths: bool = True) -> XResult:
         ref = ref or self.workspace.artifact("analysis.x")
         if ref is None:
             raise RuntimeError("analysis.x has not been prepared")
@@ -506,7 +538,22 @@ class AnalysisPipeline:
         for column in ("source_cluster", "target_cluster"):
             if column in disconnected.columns:
                 disconnected[column] = disconnected[column].map(int)
-        paths = read_geoframe(ref.path / "x_paths.json")
+        if include_paths:
+            parquet_path = ref.path / "x_paths.parquet"
+            paths = (
+                gpd.read_parquet(parquet_path)
+                if parquet_path.is_file()
+                else read_geoframe(ref.path / "x_paths.json")
+            )
+            # GeoParquet can restore EPSG:4326 as a verbose PROJJSON CRS.
+            # Validate the actual CRS, then use the stable canonical label that
+            # SIGMA's public API and pre-GeoParquet artifacts already expose.
+            if paths.crs is None or paths.crs.to_epsg() != 4326:
+                raise ValueError("analysis X paths must use EPSG:4326")
+            paths = paths.set_crs("EPSG:4326", allow_override=True)
+        else:
+            # Centrality needs edge weights and topology but no route geometries.
+            paths = gpd.GeoDataFrame(geometry=gpd.GeoSeries([], crs="EPSG:4326"))
         graph = nx.DiGraph()
         for row in nodes.itertuples(index=False):
             graph.add_node(

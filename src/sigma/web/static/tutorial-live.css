@@ -179,3 +179,6 @@ html[data-theme="dark"] {
   --sigma-gold:#e0b65a;
 }
 /* end sigma-bpi-tutorial-refresh-20261026 */
+/* sigma-explorer-tutorial-polish-20261027-v2: tidy long run-sector choices. */
+#live-title {overflow-wrap:anywhere;}
+.live-chooser select {text-overflow:ellipsis;}

@@ -140,6 +140,9 @@ sigma run --help
 sigma view --help
 sigma export-web --help
 sigma status --help
+sigma storage --help
+sigma storage report --help
+sigma storage prune --help
 sigma analysis run --help
 ```
 
@@ -505,6 +508,48 @@ sigma run pasig
 
 should reuse valid upstream artifacts. A configuration/input change invalidates only the affected stage and descendants.
 
+### Inspect and reclaim disk space
+
+Shared OSM extraction creates large temporary libosmium node-location indexes. SIGMA removes
+those indexes when extraction finishes, including when extraction raises an exception. If
+Windows holds an index open, deletion produces a warning rather than failing the stage.
+A cache left by an *older* SIGMA version is not automatically purged merely by upgrading.
+
+Workspace results are different: versioned artifacts under `artifacts/` support selective
+recomputation and provenance; `output/` contains GIS deliverables, and `output/explorer/`
+contains the derived browser bundle. Do **not** delete these directories indiscriminately.
+
+```powershell
+# Size inventory, largest files/stages, and eligible cleanup candidates (read-only)
+sigma storage report
+
+# Preview old interrupted staging and temporary files; no deletion
+sigma storage prune
+
+# Apply the conservative cleanup to SIGMA-owned debris idle for >= 30 days
+# Close SIGMA processes and GIS viewers before running this.
+sigma storage prune --apply
+
+# Limit maintenance to one workspace
+sigma storage report --workspace "$HOME\Documents\SIGMA\workspaces\pasig"
+```
+
+Deletion of superseded immutable artifacts is **separate and opt-in**:
+
+```powershell
+sigma storage report --obsolete            # preview
+sigma storage prune --obsolete --apply     # deletes eligible old versions
+sigma storage prune --quarantine --apply   # deletes eligible old corrupt quarantines
+```
+
+`--obsolete` preserves the active dependency graph, but can remove history needed to
+reproduce older parameter sets. If the graph is unsafe/incomplete or run archives exist,
+obsolete-artifact pruning is disabled. All pruning requires `--apply`; the default age
+threshold is 30 days, adjustable with `--older-than-days N`. Current exports, Explorer,
+reviewed places, and run archives are not pruned. The command does **not** clean the
+shared `sources/` directory. See [Storage maintenance](STORAGE.md) and the
+[storage and retention guide](docs/book/content/reproducibility/storage.md) for details.
+
 ---
 
 ## Step 7 — Find and open the final outputs
@@ -628,6 +673,10 @@ sigma run metro_manila
 | Export browser-ready results | `sigma export-web pasig` |
 | Export reduced-data public review bundle | `sigma export-web pasig --public` |
 | Inspect cache/stage state | `sigma status pasig` |
+| Report workspace disk use and largest files | `sigma storage report` |
+| Preview workspace cleanup (no deletion) | `sigma storage prune` |
+| Remove aged abandoned temporary files | `sigma storage prune --apply` |
+| Preview superseded immutable artifacts | `sigma storage report --obsolete` |
 | Run only road preparation | `sigma network prepare ...` |
 | Run only spatial branch | `sigma spatial run ...` |
 | Build only economic graph | `sigma economy graph ...` |

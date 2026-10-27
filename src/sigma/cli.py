@@ -45,11 +45,13 @@ spatial_app = typer.Typer(help="Spatial clustering/centers/partitions.", no_args
 economy_app = typer.Typer(help="Economic-table and directed-graph stages.", no_args_is_help=True)
 analysis_app = typer.Typer(help="X, centrality, and point-score stages.", no_args_is_help=True)
 areas_app = typer.Typer(help="Inspect the canonical area catalog.", no_args_is_help=True)
+storage_app = typer.Typer(help="Inventory and clean old SIGMA workspace files.", no_args_is_help=True)
 app.add_typer(network_app, name="network")
 app.add_typer(spatial_app, name="spatial")
 app.add_typer(economy_app, name="economy")
 app.add_typer(analysis_app, name="analysis")
 app.add_typer(areas_app, name="areas")
+app.add_typer(storage_app, name="storage")
 
 _CLI_QUIET = False
 
@@ -102,6 +104,104 @@ def _workspace_for(
 def _echo_json(payload: Any) -> None:
     typer.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2, default=str))
 
+
+def _storage_workspace_paths(workspace: Path | None) -> list[Path]:
+    if workspace is not None:
+        return [workspace.expanduser().resolve()]
+    base = sigma_home() / "workspaces"
+    if not base.is_dir():
+        return []
+    return sorted(
+        p for p in base.iterdir()
+        if p.is_dir() and not p.is_symlink() and (p / "workspace.json").is_file()
+    )
+
+
+def _storage_size(nbytes: int) -> str:
+    if nbytes >= 1024 ** 3:
+        return f"{nbytes / (1024 ** 3):.2f} GiB"
+    return f"{nbytes / (1024 ** 2):.1f} MiB"
+
+
+def _storage_inspect(
+    workspace: Path | None, *, older_than_days: int,
+    obsolete: bool, quarantine: bool, apply: bool,
+) -> None:
+    from .storage import inspect_workspace, prune
+
+    paths = _storage_workspace_paths(workspace)
+    if not paths:
+        typer.echo("No SIGMA workspaces found.")
+        return
+    grand_total = 0
+    for path in paths:
+        report = inspect_workspace(
+            path, older_than_days=older_than_days, obsolete=obsolete,
+            quarantine=quarantine,
+        )
+        typer.echo(f"\n{report.workspace}")
+        for category, size in report.categories.items():
+            if size:
+                typer.echo(f"  {category}: {_storage_size(size)}")
+        if report.stage_sizes:
+            typer.echo("  Largest artifact stages:")
+            for name, size in sorted(
+                report.stage_sizes.items(), key=lambda item: item[1], reverse=True
+            )[:5]:
+                typer.echo(f"    {name}: {_storage_size(size)}")
+        if report.largest_files:
+            typer.echo("  Largest files (diagnostic only):")
+            for filename, size in report.largest_files[:5]:
+                typer.echo(f"    {_storage_size(size)} {filename}")
+        if report.protected_reason:
+            typer.echo(f"  Protected: {report.protected_reason}")
+        for candidate, status in prune(report, apply=apply):
+            typer.echo(
+                f"  {status}: {_storage_size(candidate.bytes)} "
+                f"[{candidate.category}] {candidate.path}"
+            )
+            if status == "deleted" or not apply:
+                grand_total += candidate.bytes
+    mode = "Deleted" if apply else "Previewed for cleanup"
+    typer.echo(f"\n{mode}: {_storage_size(grand_total)}")
+    if not apply:
+        typer.echo("Nothing was deleted. Use 'sigma storage prune --apply' to act on this preview.")
+
+
+@storage_app.command("report")
+def storage_report(
+    workspace: Path | None = typer.Option(None, "--workspace", help="Inspect one workspace (default: all)."),
+    obsolete: bool = typer.Option(False, "--obsolete", help="Also preview superseded immutable artifacts."),
+    quarantine: bool = typer.Option(False, "--quarantine", help="Also preview old quarantines."),
+    older_than_days: int = typer.Option(30, "--older-than-days", min=1),
+) -> None:
+    """Inspect storage, without deleting anything."""
+    _storage_inspect(
+        workspace, older_than_days=older_than_days,
+        obsolete=obsolete, quarantine=quarantine, apply=False,
+    )
+
+
+@storage_app.command("prune")
+def storage_prune(
+    workspace: Path | None = typer.Option(None, "--workspace", help="Prune one workspace (default: all)."),
+    apply: bool = typer.Option(False, "--apply", help="Actually remove the reviewed candidates."),
+    obsolete: bool = typer.Option(
+        False, "--obsolete", help="Opt in to removing unreferenced immutable artifacts."
+    ),
+    quarantine: bool = typer.Option(False, "--quarantine", help="Opt in to removing old quarantines."),
+    older_than_days: int = typer.Option(30, "--older-than-days", min=1),
+) -> None:
+    """Remove old SIGMA-created staging; nothing happens without --apply.
+
+    Stop SIGMA jobs first. Current exports, Explorer bundles, user-reviewed places,
+    and current artifacts and their dependencies are protected. Obsolete artifacts
+    are never pruned unless explicitly requested with --obsolete.
+    """
+    _storage_inspect(
+        workspace, older_than_days=older_than_days,
+        obsolete=obsolete, quarantine=quarantine, apply=apply,
+    )
 
 def _economy(spec: str | None) -> Economy:
     if spec is None:
@@ -244,7 +344,12 @@ def _job(
     *, area: str, workspace: Path, roads: Path | RoadSource | None, roads_layer: str | None,
     output_dir: Path | None, source_store: Path | None, economy: str | None,
     areas_file: Path | None, config: SigmaConfig, progress=None,
+    prefer_hierarchical: bool = True,
 ) -> Sigma:
+    from .economy.hierarchical_auto import auto_economy
+    resolved_economy = _economy(economy)
+    if prefer_hierarchical and economy is None and config.spatial.classification is None:
+        resolved_economy = auto_economy(workspace) or resolved_economy
     return Sigma(
         area,
         workspace=workspace,
@@ -252,7 +357,7 @@ def _job(
         roads_layer=roads_layer,
         output_dir=output_dir,
         source_store=source_store,
-        economy=_economy(economy),
+        economy=resolved_economy,
         config=config,
         areas_file=areas_file,
         progress=progress,
@@ -392,13 +497,28 @@ def run_command(
             centrality_method=centrality_method, centrality_direction=centrality_direction,
             distance_tempering=distance_tempering,
         )
+        if (economy is None and config.spatial.classification is None
+                and (Path(workspace) / "places" / "places.parquet").is_file()):
+            from .economy.hierarchical_auto import read_profile, profile_is_current
+            profile = read_profile()
+            if profile is not None and not profile_is_current(workspace, profile):
+                if progress is not None:
+                    progress("rebuilding this area's hierarchical sector partition")
+                _hierarchical_build_from_profile(workspace, profile)
+            if profile is None and not (workspace / "hierarchical" / "economy" / "economy.yml").is_file():
+                typer.echo("Hierarchical IO240 not configured; running the IO80 economy. "
+                           "Configure once with 'sigma economy hierarchical-configure --help'.", err=True)
         job = _job(
             area=area, workspace=workspace, roads=road_source, roads_layer=roads_layer,
             output_dir=output_dir, source_store=shared_store, economy=economy,
             areas_file=areas_file, config=config, progress=progress,
         )
         if progress is not None:
-            progress(f"analysis input: {job.places_path}")
+            # Keep the public CLI compatible with jobs that expose places_path
+            # without the private resolver (including CLI integration fakes).
+            resolver = getattr(job, "_require_loaded_places", None)
+            input_path = resolver() if callable(resolver) else job.places_path
+            progress(f"analysis input: {input_path}")
             progress("starting spatial, economic, X, centrality, scoring, and export stages")
         result = job.run(force=force)
         payload = {"run_manifest": str(result.run_manifest) if result.run_manifest else None,
@@ -442,10 +562,21 @@ def load(
         )
         job = _job(area=area, workspace=workspace, roads=None, roads_layer=None,
                    output_dir=output_dir, source_store=shared_store, economy=economy,
-                   areas_file=areas_file, config=config, progress=progress)
+                   areas_file=areas_file, config=config, progress=progress,
+                   prefer_hierarchical=False)
         if progress is not None:
             progress(f"loading places for {area}: OSM + Overture reconciliation and economic labelling")
         result = job.load(force=force)
+        if economy is None and (Path(workspace) / "places" / "places.parquet").is_file():
+            from .economy.hierarchical_auto import read_profile
+            profile = read_profile()
+            if profile is None:
+                typer.echo("Hierarchical IO240 not configured: using IO80. Run "
+                           "'sigma economy hierarchical-configure --help' for one-time setup.", err=True)
+            else:
+                if progress is not None:
+                    progress("constructing area-specific IO240/IO80/IO16 residual economy")
+                _hierarchical_build_from_profile(workspace, profile)
         payload = {"canonical": _artifact_payload(result.canonical),
                    "psic": _artifact_payload(result.psic_classified),
                    "classified": _artifact_payload(result.classified_places),
@@ -525,6 +656,365 @@ def spatial_run(
                    "point_distances": _artifact_payload(result.points_with_center_distance),
                    "partitions": _artifact_payload(result.partitions)}
         _echo_json(payload) if json_output else typer.echo(result.partitions.artifact_id)
+    except (SigmaError, OSError, ValueError, KeyError) as exc:
+        _handle_error(exc)
+
+
+@economy_app.command("hierarchical-build")
+def hierarchical_build(
+    workspace: Path = typer.Option(..., "--workspace", file_okay=False,
+                                   help="Existing workspace containing loaded places/places.parquet"),
+    io240_dir: Path = typer.Option(..., "--io240-dir", exists=True, file_okay=False,
+                                   help="IO240 Economy directory with sectors, transactions, and total_output"),
+    crosswalk: Path = typer.Option(..., "--crosswalk", exists=True, dir_okay=False,
+                                   help="CSV with io240_code,io80_code,io16_code parent mapping"),
+    output_dir: Path | None = typer.Option(None, "--output-dir", file_okay=False),
+    replace: bool = typer.Option(False, "--replace", help="Replace previously generated hierarchical outputs"),
+    strict_coarse: bool = typer.Option(False, "--strict-coarse", help="Error if a broad place tag has no residual sector"),
+    min_places: int = typer.Option(
+        1, "--min-places", min=1,
+        help="Keep an IO240 sector (or a whole IO80 sector) only if at least this many places "
+             "support it; thinner ones fold into the next coarser group. 1 keeps every observed sector. "
+             "Setting it to the run's --min-cluster-size avoids sectors too small to form a cluster.",
+    ),
+    activate: bool = typer.Option(False, "--activate", help="Back up and replace loaded places GeoParquet"),
+    check_psa: bool = typer.Option(False, "--check-psa", help="Report IO80/IO16 discrepancies with bundled PSA tables"),
+    cluster_report_threshold: int = typer.Option(
+        5, "--cluster-report-threshold", min=1,
+        help="Only for diagnostics: report assigned sectors with fewer than this many places; "
+             "does not change partition selection (controlled by --min-places).",
+    ),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Build residual IO240/IO80/IO16 sectors and retag already-loaded places."""
+    import tempfile
+    import shutil
+    from uuid import uuid4
+    import yaml
+    import pandas as pd
+    import numpy as np
+    import geopandas as gpd
+    from .economy.hierarchical import (
+        activate_hierarchical_places, build_hierarchical_economy,
+        reconciliation, require_sigma_io80_io16, tagging_consistency,
+        write_hierarchical_package, _file_sha256,
+    )
+    from .errors import EconomyValidationError
+
+    def _overlaps(a: Path, b: Path) -> bool:
+        return a == b or a in b.parents or b in a.parents
+
+    def _owned_previous_build(folder: Path) -> None:
+        """Never allow --replace to recursively delete arbitrary user data.
+
+        Supports v3's exact published file set, as well as v4/v5 output with a
+        marker file. Reject anything unfamiliar, even in an otherwise valid package.
+        An empty folder (for example, created in advance by the user) is accepted.
+        """
+        if not any(folder.iterdir()):
+            return
+        expected_root = {"economy", "places.parquet", ".sigma-hierarchical-manifest.json"}
+        expected_economy = {
+            "economy.yml", "sectors.csv", "transactions.csv", "total_output.csv",
+            "membership.csv", "audit.json",
+        }
+        present_root = {f.name for f in folder.iterdir()}
+        if not {"economy", "places.parquet"} <= present_root or not present_root <= expected_root:
+            raise ValueError("--replace requires a previously generated hierarchical directory "
+                             "with no unrelated files; refusing to delete user data")
+        nested = folder / "economy"
+        if not nested.is_dir() or not (folder / "places.parquet").is_file():
+            raise ValueError("--replace target is not a complete hierarchical output")
+        present_economy = {f.name for f in nested.iterdir()}
+        if present_economy != expected_economy or not all((nested / n).is_file() for n in present_economy):
+            raise ValueError("--replace target contains missing or unrelated economy files")
+        metadata = yaml.safe_load((nested / "economy.yml").read_text(encoding="utf-8"))
+        if not isinstance(metadata, dict) or not isinstance(metadata.get("derivation"), dict):
+            raise ValueError("--replace target lacks hierarchical derivation provenance")
+        if metadata["derivation"].get("source_kind") != "hierarchical_io240_residual":
+            raise ValueError("--replace target is not a SIGMA hierarchical generated economy")
+        manifest = folder / ".sigma-hierarchical-manifest.json"
+        if manifest.exists():
+            marker = json.loads(manifest.read_text(encoding="utf-8"))
+            if marker.get("artifact_kind") != "sigma-hierarchical-residual" or marker.get("schema_version") != 1:
+                raise ValueError("--replace target has an unrecognized SIGMA manifest")
+
+    try:
+        workspace = workspace.expanduser().resolve()
+        original = workspace / "places" / "places.parquet"
+        if not original.is_file():
+            raise ValueError(f"load the area first; missing {original}")
+        destination = (output_dir or workspace / "hierarchical").expanduser().resolve()
+        # Never write over the workspace, its managed folders, its export folder,
+        # or the shared source store ('--replace' moves the destination away).
+        protected = [workspace / name for name in ("artifacts", "places", "sources", "runs", "output", "workspace.json")]
+        metadata_path = workspace / "workspace.json"
+        if metadata_path.is_file():
+            stored = json.loads(metadata_path.read_text(encoding="utf-8"))
+            for key in ("output_dir", "artifact_store_root", "source_store_root"):
+                if stored.get(key):
+                    protected.append(Path(str(stored[key])).expanduser().resolve())
+        if destination == workspace or destination in workspace.parents or any(
+                _overlaps(destination, p) for p in protected):
+            raise ValueError("hierarchical output must be separate from the workspace's managed, "
+                             "export, and source-store folders")
+        # --replace must not destroy the IO240 source or its hierarchy CSV.
+        source_dir = io240_dir.expanduser().resolve()
+        hierarchy_file = crosswalk.expanduser().resolve()
+        if _overlaps(destination, source_dir) or _overlaps(destination, hierarchy_file):
+            raise ValueError("hierarchical output may not contain or replace the IO240 source or crosswalk")
+        if activate:
+            backup = original.with_name("places.pre-hierarchical.parquet")
+            if backup.exists():
+                raise ValueError(f"activation backup already exists: {backup}")
+        if destination.exists() and not replace:
+            raise ValueError(f"output directory already exists: {destination}; use --replace to rebuild")
+        if destination.exists() and not destination.is_dir():
+            raise ValueError(f"hierarchical destination is not a directory: {destination}")
+        if destination.exists() and replace:
+            _owned_previous_build(destination)
+        io240 = Economy.from_directory(io240_dir)
+        if len(io240.sectors) != 240:
+            raise ValueError(f"expected exactly 240 IO240 source sectors; found {len(io240.sectors)}")
+        parents = pd.read_csv(crosswalk, dtype=str, keep_default_na=False)
+        # A complete official 240-to-80-to-16 hierarchy must have all parent sectors.
+        # Do not silently accept a crosswalk that lumps unrelated parents together.
+        for column, expected in (("io240_code", 240), ("io80_code", 80), ("io16_code", 16)):
+            if column not in parents or parents[column].nunique() != expected:
+                raise ValueError(f"crosswalk must describe exactly {expected} distinct {column} values")
+        # Only IO240 -> IO80 links are new information; codes and links above IO80
+        # must be SIGMA's own PSA structure (its IO80 table sums exactly to its IO16 table).
+        require_sigma_io80_io16(parents)
+        consistency = tagging_consistency(parents)
+        crosswalk_file_sha256 = _file_sha256(hierarchy_file)
+        places_sha256 = _file_sha256(original)
+        places = gpd.read_parquet(original)
+        if ("economy_source" in places and
+                places["economy_source"].astype(str).eq("hierarchical_io240_io80_io16").any()):
+            raise ValueError("input places already carry hierarchical labels; restore original before rebuilding")
+        try:
+            result = build_hierarchical_economy(
+                places, io240, parents, strict_coarse=strict_coarse, min_places=min_places
+            )
+        except EconomyValidationError as exc:
+            if consistency["consistent"]:
+                raise
+            raise EconomyValidationError(
+                f"{exc} -- note: the crosswalk disagrees with SIGMA's tagging references on "
+                f"{len(consistency['io240_parent_mismatches'])} IO240 parent link(s) and "
+                f"{len(consistency['io80_parent_mismatches'])} IO80 parent link(s), e.g. "
+                f"{(consistency['io240_parent_mismatches'] + consistency['io80_parent_mismatches'])[:3]}"
+            ) from exc
+        diagnostics = dict(result.diagnostics)
+        diagnostics["places_input"] = {"path": str(original), "sha256": places_sha256}
+        diagnostics["crosswalk_input"] = {"path": str(hierarchy_file), "sha256": crosswalk_file_sha256}
+        diagnostics["tagging_consistency"] = consistency
+        # Report potential clustering losses independently of partition-selection policy.
+        diagnostics["cluster_report_threshold"] = int(cluster_report_threshold)
+        diagnostics["observed_sectors_below_cluster_threshold"] = [
+            {"economy_code": code, "assigned_places": count}
+            for code, count in sorted(diagnostics["assigned_places_by_final_sector"].items())
+            if count < cluster_report_threshold
+        ]
+        if check_psa:
+            diagnostics["reference_checks"] = {
+                key: reconciliation(io240, parents, Economy.builtin(key), resolution=key)
+                for key in ("io80", "io16")
+            }
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        # All output files are completed and verified before replacing any existing
+        # result or modifying the loaded places. Publication and activation share
+        # one rollback scope; the old output survives until both steps succeed.
+        with tempfile.TemporaryDirectory(prefix=".sigma-hierarchical-build-", dir=destination.parent) as temporary:
+            stage = Path(temporary) / "complete"
+            stage.mkdir()
+            write_hierarchical_package(result, stage / "economy")
+            (stage / "economy" / "audit.json").write_text(
+                json.dumps(diagnostics, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            # A content hash of the provided crosswalk, as distinct from the
+            # canonical parent mapping digest, belongs in run-visible lineage.
+            meta_file = stage / "economy" / "economy.yml"
+            meta = yaml.safe_load(meta_file.read_text(encoding="utf-8"))
+            meta["derivation"]["crosswalk_file_sha256"] = crosswalk_file_sha256
+            meta_file.write_text(yaml.safe_dump(meta, sort_keys=False, allow_unicode=True), encoding="utf-8")
+            result.places.to_parquet(stage / "places.parquet", index=False)
+            (stage / ".sigma-hierarchical-manifest.json").write_text(
+                json.dumps({
+                    "artifact_kind": "sigma-hierarchical-residual",
+                    "schema_version": 1,
+                    "partition_sha256": result.diagnostics["partition_sha256"],
+                    "sector_code_scheme": result.diagnostics["sector_code_scheme"],
+                    "source_economy_fingerprint": io240.economy_fingerprint,
+                }, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            loaded = Economy.from_directory(stage / "economy")
+            # Economy fingerprints hash IEEE-754 bytes. Pandas CSV parsing can
+            # change their last bits without changing the economic data.  Check
+            # exact identities and lineage, then validate numbers with tolerance.
+            built = result.economy
+            if (
+                loaded.economy_id != built.economy_id
+                or loaded.sector_fingerprint != built.sector_fingerprint
+                or loaded.label != built.label
+                or loaded.version != built.version
+                or loaded.reference_year != built.reference_year
+            ):
+                raise EconomyValidationError(
+                    "written hierarchical Economy changed sector identities or metadata"
+                )
+            loaded_derivation = loaded.provenance.get("metadata", {}).get("derivation")
+            if (
+                not isinstance(loaded_derivation, dict)
+                or any(loaded_derivation.get(k) != v for k, v in built.provenance.items())
+                or loaded_derivation.get("crosswalk_file_sha256") != crosswalk_file_sha256
+            ):
+                raise EconomyValidationError(
+                    "written hierarchical Economy lost or changed derivation provenance"
+                )
+            stored_z = loaded.Z_raw.to_numpy(dtype=float)
+            built_z = built.Z_raw.to_numpy(dtype=float)
+            if not np.allclose(stored_z, built_z, rtol=1e-14, atol=1e-10):
+                maximum = float(np.abs(stored_z - built_z).max())
+                raise EconomyValidationError(
+                    f"written hierarchical transactions changed beyond CSV precision "
+                    f"(maximum absolute difference: {maximum:.12g})"
+                )
+            if loaded.x is None or built.x is None:
+                raise EconomyValidationError("hierarchical Economy lost its gross-output vector")
+            stored_x = loaded.x.to_numpy(dtype=float)
+            built_x = built.x.to_numpy(dtype=float)
+            if not np.allclose(stored_x, built_x, rtol=1e-14, atol=1e-10):
+                maximum = float(np.abs(stored_x - built_x).max())
+                raise EconomyValidationError(
+                    f"written hierarchical gross output changed beyond CSV precision "
+                    f"(maximum absolute difference: {maximum:.12g})"
+                )
+            preview_check = gpd.read_parquet(stage / "places.parquet")
+            if len(preview_check) != len(result.places) or (
+                preview_check.economy_code.fillna("").astype(str).tolist()
+                != result.places.economy_code.fillna("").astype(str).tolist()
+            ):
+                raise EconomyValidationError("written places preview failed roundtrip validation")
+            # A previous load/activation must not be replaced with a preview
+            # constructed against different source bytes.
+            if _file_sha256(original) != places_sha256:
+                raise ValueError("loaded places changed during the build; refusing to publish")
+            # The prior published package MUST NOT be moved into TemporaryDirectory.
+            # A failed restore can otherwise make its cleanup permanently delete the
+            # only remaining copy. Keep it as a durable sibling until success.
+            previous = None
+            if destination.exists():
+                previous = destination.with_name(
+                    f"{destination.name}.previous-{uuid4().hex}"
+                )
+                destination.rename(previous)
+            try:
+                stage.rename(destination)
+            except BaseException as publish_error:
+                if previous is not None:
+                    try:
+                        previous.rename(destination)
+                    except BaseException as restore_error:
+                        raise OSError(
+                            f"publication failed: {publish_error}; restoration also failed: "
+                            f"{restore_error}. Previous package preserved at {previous}"
+                        ) from publish_error
+                raise
+            if activate:
+                try:
+                    activate_hierarchical_places(
+                        original, destination / "places.parquet",
+                        expected_original_sha256=places_sha256,
+                    )
+                except BaseException as activation_error:
+                    # The previous package is durable independently of temp cleanup.
+                    # Move the failed new package aside before attempting to restore.
+                    try:
+                        destination.rename(Path(temporary) / "failed")
+                        if previous is not None:
+                            previous.rename(destination)
+                    except BaseException as restore_error:
+                        raise OSError(
+                            f"activation failed: {activation_error}; restoring the preview "
+                            f"also failed: {restore_error}. The previous package remains "
+                            f"at {previous if previous is not None and previous.exists() else destination}; "
+                            f"inspect the active places and output before retrying"
+                        ) from activation_error
+                    raise
+            # The replacement is now successfully published (and activated if
+            # requested); only now is it safe to clean up the previous package.
+            # On a Windows lock, retain it instead of turning success into failure.
+            if previous is not None and previous.exists():
+                try:
+                    shutil.rmtree(previous)
+                except OSError as cleanup_error:
+                    typer.echo(
+                        f"Warning: previous hierarchical output retained at {previous}: "
+                        f"{cleanup_error}", err=True,
+                    )
+        economy_dir = destination / "economy"
+        tagged_path = destination / "places.parquet"
+        payload = {
+            "economy_directory": str(economy_dir),
+            "tagged_places_preview": str(tagged_path),
+            "activated": bool(activate),
+            "sector_count": len(result.economy.sectors),
+            "min_places": int(min_places),
+            "folded_io240_sectors": len(result.diagnostics["folded_io240_codes"]),
+            "unresolved_places": result.diagnostics["unresolved_place_count"],
+            "unassigned_coarse_places": result.diagnostics["unassigned_coarse_place_count"],
+            "coarse_residual_assumption_places": result.diagnostics["coarse_residual_assumption_place_count"],
+            "observed_sectors_below_min_places": result.diagnostics["observed_sectors_below_min_places"],
+            "observed_sectors_below_cluster_threshold": diagnostics["observed_sectors_below_cluster_threshold"],
+            "crosswalk_matches_tagging_references": bool(consistency["consistent"]),
+            "next_command": "sigma run <area> (auto-detects this matching economy)",
+        }
+        _echo_json(payload) if json_output else typer.echo(json.dumps(payload, indent=2))
+    except (SigmaError, OSError, ValueError, KeyError) as exc:
+        _handle_error(exc)
+
+
+@economy_app.command("hierarchical-configure")
+def hierarchical_configure(
+    io240_dir: Path = typer.Option(..., "--io240-dir", exists=True, file_okay=False),
+    crosswalk: Path = typer.Option(..., "--crosswalk", exists=True, dir_okay=False),
+    min_places: int = typer.Option(5, "--min-places", min=1),
+    check_psa: bool = typer.Option(True, "--check-psa/--no-check-psa"),
+) -> None:
+    """Once per SIGMA installation: select real IO240 inputs for per-area builds."""
+    from .economy.hierarchical_auto import save_profile
+    try:
+        dest = save_profile(io240_dir, crosswalk, min_places=min_places, check_psa=check_psa)
+        typer.echo(f"Configured area-specific hierarchical IO240 references: {dest}")
+        typer.echo("Next: sigma load <area>; then sigma run <area> (no --economy required).")
+    except (SigmaError, OSError, ValueError, KeyError) as exc:
+        _handle_error(exc)
+
+
+def _hierarchical_build_from_profile(workspace: Path, profile: dict, *, json_output: bool = False) -> None:
+    # Reuse the same validated, transactional builder as the manual CLI command.
+    hierarchical_build(
+        workspace=workspace, io240_dir=Path(profile["io240_dir"]),
+        crosswalk=Path(profile["crosswalk"]), output_dir=None,
+        replace=True, strict_coarse=False, min_places=profile["min_places"],
+        activate=False, check_psa=profile["check_psa"],
+        cluster_report_threshold=5, json_output=json_output,
+    )
+
+
+@economy_app.command("hierarchical-refresh")
+def hierarchical_refresh(
+    workspace: Path = typer.Option(..., "--workspace", file_okay=False),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Reconstruct one area's hierarchy after editing/filtering its base places."""
+    from .economy.hierarchical_auto import read_profile
+    try:
+        profile = read_profile()
+        if profile is None:
+            raise ValueError("IO240 references not configured; run 'sigma economy hierarchical-configure' first")
+        _hierarchical_build_from_profile(workspace, profile, json_output=json_output)
     except (SigmaError, OSError, ValueError, KeyError) as exc:
         _handle_error(exc)
 
@@ -1032,3 +1522,4 @@ def view_command(
 
 if __name__ == "__main__":
     app()
+# sigma-canonical-sparse-hierarchy-v1

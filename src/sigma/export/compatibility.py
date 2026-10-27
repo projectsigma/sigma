@@ -30,6 +30,7 @@ from sigma.stages import StageSpec
 from sigma.workspace import SigmaWorkspace
 
 from .qgis import WGS84, annotate_types, as_wgs84, build_sector_styles, write_qgis_project
+from sigma.progress_detail import detail_phase  # SIGMA_DETAILED_PROGRESS_V1
 from .spatial import build_x_node_outputs, spatial_summary, write_outputs_description, write_spatial_geopackage
 
 
@@ -241,6 +242,14 @@ class ExportPipeline:
         elif "places.classified" in deps and self.places is not None:
             tagged = self.places.read_classified(deps["places.classified"])
         sector_styles = build_sector_styles(self.economy.economy.sectors)
+        # SIGMA_HIERARCHICAL_SECTOR_PALETTE_V1_EXPORT: area-specific colors; no economic data are changed.
+        from dataclasses import replace as _sigma_palette_replace
+        from sigma.export.hierarchical_palette import load_sector_palette as _sigma_area_colors
+        _sigma_colors = _sigma_area_colors(self.workspace.root, self.economy.economy.economy_id)
+        if _sigma_colors:
+            sector_styles = {code: _sigma_palette_replace(style, color_hex=_sigma_colors[code])
+                             if code in _sigma_colors else style
+                             for code, style in sector_styles.items()}
 
         if tagged is not None:
             tagged = as_wgs84(annotate_types(tagged, sector_styles))
@@ -278,7 +287,8 @@ class ExportPipeline:
             shutil.copy2(economic_ref.path / "economic_graph.csv", write.output("sigma_economic_graph.csv"))
             outputs["sigma_economic_graph.csv"] = "sigma_economic_graph.csv"
 
-        x = self.analysis.load_x(deps["analysis.x"])
+        with detail_phase(self.progress, "export: loading directed X and its saved road paths"):
+            x = self.analysis.load_x(deps["analysis.x"])
         centrality = self.analysis.load_centrality(deps["analysis.centrality"])
         scores_analysis = self.analysis.read_scores(deps["analysis.scores"])
         centrality_table = self.analysis.read_centrality_table(deps["analysis.centrality"])
@@ -300,10 +310,16 @@ class ExportPipeline:
         node_table.to_csv(write.output("sigma_X_nodes.csv"), index=False, float_format="%.17g", lineterminator="\n")
         x.edges.to_csv(write.output("sigma_X_edges.csv"), index=False, float_format="%.17g", lineterminator="\n")
         x.disconnected.to_csv(write.output("sigma_disconnected_overlap_pairs.csv"), index=False, lineterminator="\n")
-        published_points.to_parquet(write.output("sigma_points.parquet"), index=False)
-        write_spatial_geopackage(
-            write.output("sigma_spatial_outputs.gpkg"), partitions, node_geo, x_paths
-        )
+        with detail_phase(self.progress, f"export: writing {len(published_points):,} scored points to GeoParquet"):
+            published_points.to_parquet(write.output("sigma_points.parquet"), index=False)
+        with detail_phase(
+            self.progress,
+            f"export: writing GeoPackage ({len(partitions):,} partitions, "
+            f"{len(node_geo):,} centers, {len(x_paths):,} route geometries)",
+        ):
+            write_spatial_geopackage(
+                write.output("sigma_spatial_outputs.gpkg"), partitions, node_geo, x_paths
+            )
 
         roads = as_wgs84(read_geoframe(deps["transport.roads"].path / "roads.json"))
         boundary = None
@@ -327,6 +343,8 @@ class ExportPipeline:
             outputs["sigma_boundary.parquet"] = "sigma_boundary.parquet"
 
             project_name = f"{self.workspace.area.slug}.qgz"
+            if self.progress is not None:
+                self.progress("export: creating QGIS project and sector styling")
             write_qgis_project(
                 write.output(project_name),
                 area_name=self.workspace.area.name,
@@ -389,9 +407,10 @@ class ExportPipeline:
 
         # Unified manifest describes the immutable bundle's dependency lineage and files.
         current_files = []
-        for name in sorted(outputs):
-            path = write.path / outputs[name]
-            current_files.append({"name": name, "size": path.stat().st_size, "sha256": _sha256(path)})
+        with detail_phase(self.progress, f"export: checksumming {len(outputs)} published artifacts"):
+            for name in sorted(outputs):
+                path = write.path / outputs[name]
+                current_files.append({"name": name, "size": path.stat().st_size, "sha256": _sha256(path)})
         unified = {
             "schema_version": 1,
             "sigma_version": __version__,
