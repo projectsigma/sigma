@@ -10,12 +10,16 @@ const css = fs.readFileSync(path.join(dir,'style.css'),'utf8');
 assert(html.includes('sigma-explorer-polish-20261019-v5'));
 assert(css.includes('sigma-explorer-polish-20261019-v5'));
 assert.match(css, /\.top \.top-right \{ display:flex; align-items:center;/);
-assert.match(js, /textContent: isNum\(score\) \? fmtCoef\(score\) : '—'/);
+// Coefficient remains available in sector tooltip, without a dense metric column.
+assert.match(js, /const score = network && linked\.has\(s\.code\)/);
+assert.match(js, /\$\{description\}: \$\{isNum\(score\) \? fmtCoef\(score\) : 'not available'\}/);
 assert(!js.includes('`Strength ${fmtCoef(score)}`'), 'Do not render word Strength');
 assert.match(js, /labelledNodes: 12/);
 assert.match(js, /selector: 'node.focus', style: \{'width': 28, 'height': 28/);
 assert.match(js, /'background-color': dark \? '#dd6475' : '#bc2735'/);
 assert.match(js, /selector: 'edge.focus-edge', style: \{'opacity': 0\.96/);
-assert.match(js, /if \(!network \|\| hidden\.size === sectors\.size\) return codeOrder\(a, b\)/);
+assert.match(js, /const sectorSortState = \{key: 'code', descending: false\}/);
+assert.match(js, /if \(sectorSortState\.key === 'name'\)/);
+assert.match(js, /else n = compareSectorCodes\(a,b\)/);
 assert.match(js, /function displayedSectorStrength\(\)/);
 console.log('PASS: theme aligned, coefficient numbers kept, graph nodes/labels polished.');

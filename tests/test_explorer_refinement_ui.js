@@ -15,7 +15,13 @@ for (const id of ['graph-fit','theater-toggle','zoom-network','sectors-all','sec
   assert.match(html, new RegExp(`id="${id}"[^>]*>[\\s\\S]*?<\\/button>\\s*<span class="control-help`), `Button help missing: ${id}`);
 }
 assert.match(js, /function displayedSectorStrength\(\)/);
-assert.match(js, /globalSectorStrength\.get\(a\.code\)/);
+// Sector ordering is now user-controlled (Industry / Code / Places).
+assert.match(js, /const sectorSortState = \{key: 'code', descending: false\}/);
+assert.match(js, /sectorSortState\.key === 'name'/);
+assert.match(js, /sectorSortState\.key === 'places'/);
+assert.match(js, /compareSectorCodes\(a,b\)/);
+// Coefficient strengths remain available in sector detail tooltips.
+assert.match(js, /globalSectorStrength\.get\(s\.code\)/);
 assert.match(js, /renderSectors\(\);  \/\/ Re-rank sectors/);
 assert.match(js, /recordSectorStrength\(nodeIndex\.get\(e\.from\), e\.coefficient\)/);
 assert.match(js, /'circle-opacity', ids \?\s*networkDepthOpacity\('node_id', 0\.96, step => fadeByStep\(0\.90, step\), 0\.025\)/);
@@ -24,4 +30,4 @@ assert.match(js, /function initializeHelp\(\)/);
 assert.match(js, /statHelp\[label\]/);
 assert.match(js, /thHelp\('→ a', 'out-a'\)/);
 assert.match(css, /sigma-explorer-refinement-20261019-v2/);
-console.log('PASS: contextual sector ordering, coefficient labels, context fade, right-panel explanations');
+console.log('PASS: explicit sector sorting, coefficient help, context fade, right-panel explanations');
