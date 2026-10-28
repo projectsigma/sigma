@@ -46,10 +46,14 @@
   const jsonCache = new Map();
   let finderEpoch = 0, finderTimer = null;
   let tileEpoch = 0, routeEpoch = 0, hoverEpoch = 0;
+  let lastRenderedTileSignature = null; // browser-only display cache, not data cache
+  let unscoredCandidates = []; // classified but NO SIGMA score, never in scored map source
+  let unscoredRenderedKey = null; // only populated upon explicit user opt-in
   let ready = false;             // map layers exist
 
   // Explicit light default: no OS dark-mode inheritance and no stored setting.
   let themeMode = 'light';
+  let lastAppliedGraphTheme = null;
   function applyTheme(choice) {
     themeMode = choice === 'dark' ? 'dark' : 'light';
     const dark = themeMode === 'dark';
@@ -72,10 +76,21 @@
       map.setLayoutProperty('centers', 'icon-image', ids ?
         ['case', inNetwork, ['get', linked], ['get', face]] : ['get', face]);
     }
+    if (ready && map && map.getLayer && map.getLayer('centers') && network) {
+      map.setLayoutProperty('centers', 'icon-image', sigmaLinkedCenterIconExpression());
+      sigmaSyncSelectedTriangle();
+    }
     // MapLibre paints are independent of HTML/CSS; restyle geographic context.
     if (map && map.getLayer) {
       const paint = (layer, key, value) => {
-        if (map.getLayer(layer)) map.setPaintProperty(layer, key, value);
+        if (!map.getLayer(layer)) return;
+        // On every selection, many of the 20 route layers have the same paint.
+        // Avoid re-applying identical style expressions (MapLibre reparses them).
+        if (typeof map.getPaintProperty === 'function') {
+          const previous = map.getPaintProperty(layer, key);
+          if (previous !== undefined && JSON.stringify(previous) === JSON.stringify(value)) return;
+        }
+        map.setPaintProperty(layer, key, value);
       };
       paint('background', 'background-color', dark ? '#1f1e1e' : '#f8f7f3');
       paint('boundary-fill', 'fill-color', dark ? '#262425' : '#ffffff');
@@ -117,7 +132,8 @@
     }
     // Theme Cytoscape's canvas explicitly. No text backgrounds on any node:
     // these used to obscure the focal circle with a bright label rectangle.
-    if (cy && cy.style) {
+    if (cy && cy.style && lastAppliedGraphTheme !== themeMode) {
+      lastAppliedGraphTheme = themeMode;
       const quiet = dark ? '#a29698' : '#718879';
       const outward = dark ? '#ef9d8b' : '#b35a4f';
       const inward = dark ? '#8cc8e9' : '#39779a';
@@ -326,6 +342,9 @@
 
   async function loadVisiblePoints() {
     const epoch = ++tileEpoch;
+    // Reassert the user-controlled gate before async tile loading or redraws.
+    // A scored selection suppresses unscored points even if opt-in is checked.
+    syncUnscoredOverlay();
     const b = map.getBounds(), z = tileIndex.zoom;
     const [xa, ya] = toTile(b.getWest(), b.getNorth(), z);
     const [xb, yb] = toTile(b.getEast(), b.getSouth(), z);
@@ -341,22 +360,50 @@
       for (let x = xa; x <= xb; x++) for (let y = ya; y <= yb; y++) take(`${x}/${y}`);
     }
     if (!meta.has_points) {
+      lastRenderedTileSignature = null;
+      unscoredCandidates = [];
+      unscoredRenderedKey = null;
+      setData('unscored-points', EMPTY());
+      visibility('unclustered-establishments', false);
       setData('points', EMPTY());
       visibility('overview-counts', false);
       updateStatus(meta.profile === 'public' ? 'Public profile: establishment-level locations are not included. Select a cluster center.' : null);
       return;
     }
     if (total > meta.point_budget) {
+      lastRenderedTileSignature = null;
+      unscoredCandidates = [];
+      unscoredRenderedKey = null;
+      setData('unscored-points', EMPTY());
+      visibility('unclustered-establishments', false);
       setData('points', EMPTY());
       visibility('overview-counts', true);
       updateStatus(`${total.toLocaleString()} establishments in view (more than ${meta.point_budget.toLocaleString()}). The green shading shows where they are; zoom in to see individual establishments.`);
       return;
     }
     visibility('overview-counts', false);
+    // A pan within the same tile set cannot change the source features.
+    // Reusing that GeoJSON avoids a costly MapLibre source reparse/repaint.
+    const signature = `${z}:${keys.join('|')}`;
+    if (signature === lastRenderedTileSignature) { updateStatus(); return; }
     try {
       const groups = await Promise.all(keys.map(key => getJSON(`data/tiles/${z}/${key}.geojson`)));
       if (epoch !== tileEpoch) return;
-      setData('points', {type: 'FeatureCollection', features: groups.flatMap(g => g.features)});
+      const scoredFeatures = [];
+      const classifiedOnly = [];
+      for (const group of groups) for (const feature of (group.features || [])) {
+        if (feature.properties && feature.properties.unclustered === true) {
+          // Only classified-but-unscored point rows may enter the optional source.
+          feature.properties.unscored_icon = unscoredSectorIcons.get(String(feature.properties.type)) ||
+            'sigma-unscored-triangle-default';
+          classifiedOnly.push(feature);
+        } else scoredFeatures.push(feature);
+      }
+      unscoredCandidates = classifiedOnly;
+      // Expensive source parse is reduced: the scored source never receives unscored POIs.
+      setData('points', {type: 'FeatureCollection', features: scoredFeatures});
+      lastRenderedTileSignature = signature;
+      syncUnscoredOverlay();
       updateStatus();
     } catch (err) { if (epoch === tileEpoch) showError(err); }
   }
@@ -368,6 +415,10 @@
       return;
     }
     const n = nodeIndex.get(selection.id);
+    if (!n) {
+      $('map-status').textContent = `Selected: ${selection.point?.name || 'Establishment'}. Classified establishment; no network cluster or SIGMA score.`;
+      return;
+    }
     const what = selection.point ? `${selection.point.name} (cluster ${shortLabel(n)})` : nodeLabel(n);
     const count = network ? network.direct.length : 0;
     $('map-status').textContent = `Selected: ${what}. ${count} directly linked cluster${count === 1 ? '' : 's'}; lines follow SIGMA's road paths.`;
@@ -385,6 +436,114 @@
       ['all', notHidden(), ['in', ['get', 'id'], ['literal', ids]]]);
     // Keep the focused larger triangle, but obey sector visibility here too.
     if (map.getLayer('selected-center')) map.setFilter('selected-center', notHidden());
+  }
+
+  // SIGMA SELECTED-NETWORK SCOPE / DIRECTIONAL CENTER OUTLINES V2.
+  // This is a visual/interaction transform of existing Network X edges.
+  // No new edges, clusters, scores or paths are constructed.
+  function selectableMapFeature(feature) {
+    if (!feature || !feature.layer || !feature.properties) return false;
+    if (!network) return true;
+    const p = feature.properties;
+    if (feature.layer.id === 'unclustered-establishments') return false;
+    const id = feature.layer.id === 'centers' ? p.id :
+      feature.layer.id === 'establishments' ? p.node_id : null;
+    return id != null && network.ring.has(String(id));
+  }
+
+  const sigmaTriangleImageCache = new Map();
+  let sigmaTriangleStyleByNode = new Map();
+
+  function computeNetworkTriangleStyles() {
+    const result = new Map();
+    if (!network) return result;
+    const edges = network.edges || [];
+    const directed = new Set(edges.map(e => JSON.stringify([e.source, e.target])));
+    const peak = Math.max(1e-12, ...edges.map(e => Math.max(0, Number(e.coefficient) || 0)));
+    function keep(nodeId, candidate) {
+      const prev = result.get(nodeId);
+      if (!prev || candidate.strength > prev.strength ||
+          (candidate.strength === prev.strength &&
+           (candidate.depth < prev.depth ||
+            (candidate.depth === prev.depth && candidate.key < prev.key))))
+        result.set(nodeId, candidate);
+    }
+    for (const e of edges) {
+      const a = network.ring.get(e.source), b = network.ring.get(e.target);
+      if (a === undefined || b === undefined) continue;
+      const near = routeAnchor(e.source, e.target, network.ring);
+      const far = near === e.source ? e.target : e.source;
+      const reciprocal = directed.has(JSON.stringify([e.target, e.source]));
+      const kind = reciprocal ? 'both' : (e.source === near ? 'outgoing' : 'incoming');
+      const strength = Math.max(0, Number(e.coefficient) || 0);
+      const depth = Math.max(1, a, b);
+      // Exactly the unscaled route width from showRoutes() at this step.
+      const wn = Math.min(1, Math.sqrt(strength / peak));
+      const routeWidth = Math.max(0.26, 1 / Math.sqrt(depth)) * (0.7 + 1.5 * wn);
+      const candidate = {kind, strength, depth, routeWidth,
+        key: JSON.stringify([e.source, e.target])};
+      // Linked nodes inherit the strongest incoming *displayed network route*
+      // from the previous ring; same-depth cross-links are not used as ancestry.
+      if (network.ring.get(near) < network.ring.get(far)) keep(far, candidate);
+      // The selected focus has no parent link; use its strongest direct edge.
+      if (e.source === network.focus || e.target === network.focus)
+        keep(network.focus, candidate);
+    }
+    return result;
+  }
+
+  function sigmaTriangleIcon(node, selected, theme) {
+    const link = sigmaTriangleStyleByNode.get(node.id);
+    const palette = theme === 'dark' ?
+      {outgoing: '#ef9d8b', incoming: '#8cc8e9', both: '#c9a4ed'} :
+      {outgoing: COLOR.outgoing, incoming: COLOR.incoming, both: COLOR.both};
+    const border = link ? palette[link.kind] : sectorColor(node.type);
+    const scale = selected ? 1.08 : 0.8;
+    // Convert displayed line pixels into source-icon pixels at map zoom 15.
+    const rawWidth = link ? link.routeWidth / scale : 2.0;
+    const stroke = Math.max(0.85, Math.min(3.7, Math.round(rawWidth * 4) / 4));
+    const key = [String(node.type), selected, theme, border, stroke].join('|');
+    if (sigmaTriangleImageCache.has(key)) return sigmaTriangleImageCache.get(key);
+    const size = selected ? 36 : 32;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw Error('Cannot render triangle: canvas 2D unavailable.');
+    ctx.fillStyle = sectorColor(node.type);
+    ctx.strokeStyle = border;
+    ctx.lineWidth = stroke;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    if (selected) { ctx.moveTo(5, 6); ctx.lineTo(31, 6); ctx.lineTo(18, 32); }
+    else { ctx.moveTo(5, 6); ctx.lineTo(27, 6); ctx.lineTo(16, 27); }
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    const name = `sigma-link-outline-v2-${sigmaTriangleImageCache.size}`;
+    map.addImage(name, ctx.getImageData(0, 0, size, size));
+    sigmaTriangleImageCache.set(key, name);
+    return name;
+  }
+
+  function sigmaLinkedCenterIconExpression() {
+    const base = themeMode === 'dark' ? 'dark_center_icon' : 'center_icon';
+    if (!network) return ['get', base];
+    const pairs = [];
+    for (const id of network.ring.keys()) {
+      if (id === network.focus) continue;
+      const node = nodeIndex.get(id);
+      if (node) pairs.push(id, sigmaTriangleIcon(node, false, themeMode));
+    }
+    return pairs.length ? ['match', ['get', 'id'], ...pairs, ['get', base]] : ['get', base];
+  }
+
+  function sigmaSyncSelectedTriangle() {
+    if (!map || !map.getSource || !map.getSource('selected-center')) return;
+    const node = selection && nodeIndex.get(selection.id);
+    const valid = node && isNum(node.lon) && isNum(node.lat);
+    setData('selected-center', {type: 'FeatureCollection', features: valid ? [{
+      type: 'Feature',
+      properties: {type: node.type, icon: sigmaTriangleIcon(node, true, themeMode)},
+      geometry: {type: 'Point', coordinates: [node.lon, node.lat]}
+    }] : []});
   }
 
   // SIGMA Explorer depth-based map opacity v1
@@ -414,6 +573,28 @@
     return paint;
   }
 
+  // Fail closed on every redraw: opt-in AND classified-but-unscored AND
+  // currently enabled sector AND no selected scored X network are required.
+  // Fail-closed, data-level opt-in. The unscored GeoJSON source is EMPTY
+  // until the user explicitly checks the box. Styling cannot leak these places.
+  function syncUnscoredOverlay() {
+    if (!map || !map.getLayer || !map.getLayer('unclustered-establishments')) return;
+    const control = $('show-unscored');
+    const enabled = Boolean(control && control.checked && !control.disabled && !network);
+    const sectorKey = [...hidden].sort().join('|');
+    const sourceKey = enabled ? `${lastRenderedTileSignature || ''}|${sectorKey}` : null;
+    if (unscoredRenderedKey !== sourceKey) {
+      const locations = enabled ? unscoredCandidates.filter(f =>
+        f.properties && !hidden.has(String(f.properties.type))) : [];
+      setData('unscored-points', {type: 'FeatureCollection', features: locations});
+      unscoredRenderedKey = sourceKey;
+    }
+    // Two independent gates: no data if off, AND layer visibility none.
+    visibility('unclustered-establishments', enabled);
+    const key = $('unclustered-key');
+    if (key) key.hidden = !enabled;
+  }
+
   function applyEmphasis() {
     const ids = network ? [...network.ring.keys()] : null;
     const focus = network ? network.focus : '';
@@ -435,9 +616,14 @@
     map.setLayoutProperty('centers', 'icon-image', ids ?
       ['case', centerIn, ['get', connectedIcon], ['get', baseIcon]] :
       ['get', baseIcon]);
+    if (typeof sigmaLinkedCenterIconExpression === 'function' && network)
+      map.setLayoutProperty('centers', 'icon-image', sigmaLinkedCenterIconExpression());
     map.setPaintProperty('centers', 'icon-opacity', ids ?
       networkDepthOpacity('id', 0, step => fadeByStep(1, step), 0.16) : 1);
-    map.setFilter('establishments', notHidden());
+    map.setFilter('establishments', ['all', ['!=', ['get', 'unclustered'], true], notHidden()]);
+    // Unscored overlay is opt-in. A selected X cluster (or scored place)
+    // hides it completely; clearing selection restores the user's choice.
+    syncUnscoredOverlay();
     updateCenterVisibility();
     if (map.getLayer('roads-line')) map.setPaintProperty('roads-line', 'line-opacity', ids ? 0.18 : 0.38);
     if (map.getLayer('roads-line') && themeMode === 'dark')
@@ -614,9 +800,10 @@
   }
 
   function renderSelection() {
-    $('connections-section').hidden = !selection;
+    const hasCluster = !!(selection && nodeIndex.has(selection.id));
+    $('connections-section').hidden = !hasCluster;
     $('central-section').hidden = !!selection;
-    $('selection-actions').hidden = !selection;
+    $('selection-actions').hidden = !hasCluster;
     if (!selection) {
       $('selected-code').textContent = '';
       $('place-name').textContent = 'No selection';
@@ -625,6 +812,15 @@
       return;
     }
     const n = nodeIndex.get(selection.id), p = selection.point;
+    if (!n) {
+      $('selected-code').textContent = sectorCode(p.type);
+      $('place-name').textContent = p.name;
+      $('place-description').textContent = `${sectorLabel(p.type)} · Classified establishment without a qualifying network cluster. Hollow circle; SIGMA score not available.`;
+      $('stats').replaceChildren(
+        stat('SIGMA score', 'N/A'), stat('Cluster centrality', 'N/A'),
+        stat('Linked clusters', 'N/A'), stat('PSIC', p.psic || '—'));
+      return;
+    }
     $('selected-code').textContent = `${sectorCode(n.type)} · Cluster ${n.cluster}`;
     $('place-name').textContent = p ? p.name : nodeLabel(n);
     $('place-description').textContent = p ? sectorLabel(p.type) : 'Cluster center (network 1-median of the cluster)';
@@ -894,12 +1090,8 @@
       if (point.node_id && nodeIndex.has(point.node_id)) {
         selectNode(point.node_id, point);
       } else {
-        // Unassigned establishments still have a known, exact location.
-        clearSelection();
-        $('place-name').textContent = point.name;
-        $('place-description').textContent = `${sectorLabel(hit.sector)} · No assigned X cluster`;
-        setData('selected-point', {type: 'FeatureCollection', features: [
-          {type: 'Feature', properties: {}, geometry: {type: 'Point', coordinates}}]});
+        // Classified-only locations are displayed, not promoted into X nodes.
+        selectUnclustered(point);
       }
       map.easeTo({center: coordinates, zoom: Math.max(map.getZoom(), 15), duration: 500});
       status.textContent = `Located: ${hit.name}`;
@@ -914,6 +1106,7 @@
   // ------------------------------------------------------------------ selection
   function refresh() {
     network = selection && nodeIndex.has(selection.id) ? buildNetwork(selection.id) : null;
+    sigmaTriangleStyleByNode = computeNetworkTriangleStyles();
     renderSectors();  // Re-rank sectors when selection or Strongest changes.
     renderSelection();
     drawGraph();
@@ -922,6 +1115,15 @@
     applyEmphasis();
     showRoutes();
     updateStatus();
+  }
+
+  function selectUnclustered(point) {
+    selection = {id: null, point};
+    refresh();
+    setData('selected-center', EMPTY());
+    setData('selected-point', {type: 'FeatureCollection', features: [
+      {type: 'Feature', properties: {}, geometry: {type: 'Point', coordinates: point.coordinates}}]});
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
   }
 
   function selectNode(id, point = null, options = {}) {
@@ -934,8 +1136,7 @@
     }
     selection = {id, point};
     refresh();
-    setData('selected-center', {type: 'FeatureCollection', features: isNum(n.lon) ? [
-      {type: 'Feature', properties: {type: n.type, icon: selectedIconByType.get(String(n.type)) || 'sigma-center-selected-default'}, geometry: {type: 'Point', coordinates: [n.lon, n.lat]}}] : []});
+    sigmaSyncSelectedTriangle();
     setData('selected-point', point && point.coordinates ? {type: 'FeatureCollection', features: [
       {type: 'Feature', properties: {}, geometry: {type: 'Point', coordinates: point.coordinates}}]} : EMPTY());
     if (options.fly && isNum(n.lon) && isNum(n.lat)) map.easeTo({center: [n.lon, n.lat], zoom: Math.max(map.getZoom(), 13.5), duration: 400});
@@ -961,6 +1162,30 @@
     const left = panel.open && window.innerWidth > 900 ? panel.offsetWidth + 30 : 40;
     map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
       {padding: {top: 70, bottom: 70, left, right: 60}, maxZoom: 15, duration: 450});
+  }
+
+  // One control collapses the *whole* right panel; individual disclosures
+  // remain untouched. Keep this outside the hidden panel so it can reopen it.
+  function setRightPanelCollapsed(collapsed) {
+    const panel = $('sigma-details-panel');
+    const button = $('sigma-details-toggle');
+    if (!panel || !button) return;
+    if (collapsed && document.body.classList.contains('theater')) toggleTheater();
+    panel.hidden = collapsed;
+    document.body.classList.toggle('details-collapsed', collapsed);
+    button.textContent = collapsed ? 'Show panel' : 'Hide panel';
+    button.setAttribute('aria-expanded', String(!collapsed));
+    button.setAttribute('aria-label', collapsed ? 'Show right details panel' : 'Hide right details panel');
+    button.title = collapsed ? 'Reopen the right panel' : 'Hide the right panel to enlarge the map';
+    // MapLibre must be told when its CSS grid column changes width.
+    // Reopening also resizes the graph without altering its nodes/edges.
+    requestAnimationFrame(() => {
+      if (map && map.resize) map.resize();
+      if (!collapsed && cy) {
+        cy.resize();
+        if (network) cy.fit(undefined, 24);
+      }
+    });
   }
 
   function toggleTheater() {
@@ -1091,7 +1316,12 @@
     const linked = displayedSectorStrength();
     const needle = ($('sector-search')?.value || '').trim().toLocaleLowerCase();
     const nameOf = s => sectorPresentation(s).name;
-    const ordered = [...sectors.values()].filter(s => {
+    // Show sectors with real clusters by default. Opt-in adds only
+    // *nonempty* sectors lacking clusters, not empty Economy catalog entries.
+    const includeUnscored = Boolean($('show-unscored')?.checked);
+    const eligible = [...sectors.values()].filter(s =>
+      s.clusters > 0 || (includeUnscored && s.points > 0));
+    const ordered = eligible.filter(s => {
       const p = sectorPresentation(s);
       return !needle || (p.name + ' ' + p.code + ' ' + p.kind + ' ' + s.label).toLocaleLowerCase().includes(needle);
     }).sort((a,b) => {
@@ -1110,7 +1340,9 @@
       });
       const score = network && linked.has(s.code) ? linked.get(s.code) : globalSectorStrength.get(s.code);
       const description = network && linked.has(s.code) ? 'Strongest direct network coefficient' : 'Largest network coefficient';
-      const label = el('label', {className:'sector-item',
+      const label = el('label', {className: s.clusters === 0 && s.points > 0
+          ? 'sector-item sector-item--unscored'
+          : (s.points ? 'sector-item' : 'sector-item sector-no-places'),
         title:`${p.name}\nCode ${p.code} · ${p.kind}\n${s.points.toLocaleString()} establishments · ${s.clusters} clusters\n${description}: ${isNum(score) ? fmtCoef(score) : 'not available'}`},
         checkbox, swatch(s.code),
         el('span',{className:'name sector-title',textContent:p.name}),
@@ -1119,9 +1351,10 @@
           title:`${s.points.toLocaleString()} establishments`}));
       list.append(label);
     }
+    const visibleEnabled = eligible.filter(s => !hidden.has(s.code)).length;
     $('sector-count').textContent = needle ?
-      `${ordered.length} matching · ${sectors.size-hidden.size} of ${sectors.size} shown` :
-      `${sectors.size-hidden.size} of ${sectors.size} shown`;
+      `${ordered.length} matching · ${visibleEnabled} of ${eligible.length} shown` :
+      `${visibleEnabled} of ${eligible.length} shown`;
     document.querySelectorAll('[data-sector-order]').forEach(button => {
       const selected = button.dataset.sectorOrder === sectorSortState.key;
       const direction = selected ? (sectorSortState.descending ? '↓' : '↑') : '↕';
@@ -1141,6 +1374,10 @@
   // ------------------------------------------------------------------ map popups
   function describe(feature) {
     const p = feature.properties, id = feature.layer.id;
+    if (id === 'unclustered-establishments') {
+      return [p.name, `${sectorLabel(p.type)} · ${sectorCode(p.type)}`,
+        'Classified establishment · No qualifying cluster · SIGMA score N/A'];
+    }
     if (id === 'establishments') {
       return [p.name, `${sectorLabel(p.type)} · ${sectorCode(p.type)}`, `Cluster ${p.cluster} · SIGMA score ${fmtNum(p.score)}`];
     }
@@ -1197,14 +1434,15 @@
       const stem = step === 1 ? 'routes' : `routes-step-${step}`;
       routeLayers.push(stem, step === 1 ? 'routes-in' : `${stem}-in`);
     }
-    const layers = ['centers', 'establishments', ...routeLayers].filter(l =>
+    const layers = ['centers', 'establishments', 'unclustered-establishments', ...routeLayers].filter(l =>
       map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
     const hits = map.queryRenderedFeatures(event.point, {layers});
-    const places = hits.filter(h => h.layer.id === 'centers' || h.layer.id === 'establishments');
-    map.getCanvas().style.cursor = places.length ? 'pointer' : '';
+    const places = hits.filter(h => ['centers', 'establishments', 'unclustered-establishments'].includes(h.layer.id));
+    const scopedPlaces = places.filter(selectableMapFeature);
+    map.getCanvas().style.cursor = scopedPlaces.length ? 'pointer' : '';
     let content = null;
-    if (places.length) {
-      const lines = describe(places[0]);
+    if (scopedPlaces.length) {
+      const lines = describe(scopedPlaces[0]);
       if (lines) content = el('div', {}, el('div', {className: 'popup-title', textContent: lines[0]}),
         ...lines.slice(1).map(text => el('div', {className: 'popup-row', textContent: text})));
     } else {
@@ -1225,17 +1463,49 @@
 
   function onClick(event) {
     popup.remove();
-    const layers = ['centers', 'establishments'].filter(l => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
+    const layers = ['centers', 'establishments', 'unclustered-establishments'].filter(l => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
     const hits = map.queryRenderedFeatures(event.point, {layers});
-    if (!hits.length) return;
-    const f = hits[0];
+
+    const f = hits.find(selectableMapFeature);
+    if (!f) return;
     if (f.layer.id === 'centers') selectNode(f.properties.id);
+    else if (f.layer.id === 'unclustered-establishments')
+      selectUnclustered({...f.properties, coordinates: f.geometry.coordinates});
     else selectNode(f.properties.node_id, {...f.properties, coordinates: f.geometry.coordinates});
   }
 
   // ------------------------------------------------------------------ setup
   // A white inverted triangle with a sector-colored outline for each economic type.
   // Canvas images are registered once after MapLibre's style has loaded.
+  // Unscored locations: independent, hollow, UPRIGHT triangle icons.
+  // Cluster centers remain the original, larger INVERTED triangles.
+  const unscoredSectorIcons = new Map();
+  function registerUnscoredTriangles() {
+    unscoredSectorIcons.clear();
+    let index = 0;
+    const add = (name, outline) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 24;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw Error('Cannot render unscored place triangle: canvas 2D unavailable.');
+      ctx.clearRect(0, 0, 24, 24);
+      ctx.fillStyle = 'rgba(0,0,0,0)';
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = 2.2;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(12, 4); ctx.lineTo(21, 20); ctx.lineTo(3, 20);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      map.addImage(name, ctx.getImageData(0, 0, 24, 24));
+    };
+    for (const [code, sector] of sectors) {
+      const name = `sigma-unscored-triangle-${index++}`;
+      add(name, sector.color || '#b11116');
+      unscoredSectorIcons.set(String(code), name);
+    }
+    add('sigma-unscored-triangle-default', '#b11116');
+  }
+
   function centerIconExpression() {
     const size = 32;
     const baseFallback = 'sigma-center-default';
@@ -1420,7 +1690,19 @@
       'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(45,102,74,0)', 0.15, '#d7e8dc',
         0.4, '#9cc9ad', 0.7, '#4f9a72', 1, '#16382a']}});
     map.addSource('points', {type: 'geojson', data: EMPTY()});
-    map.addLayer({id: 'establishments', type: 'circle', source: 'points', paint: {
+    // A thin, open circle denotes a classified establishment absent from
+    // network clustering; no score or X node is implied. Draw beneath scores.
+    // Separate EMPTY source by default: impossible to double-render an unscored point.
+    map.addSource('unscored-points', {type: 'geojson', data: EMPTY()});
+    registerUnscoredTriangles();
+    map.addLayer({id: 'unclustered-establishments', type: 'symbol', source: 'unscored-points',
+      filter: ['==', ['get', 'unclustered'], true],
+      layout: {visibility: 'none', 'icon-image': ['get', 'unscored_icon'],
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.32, 14, 0.38, 17, 0.50],
+        'icon-allow-overlap': true, 'icon-ignore-placement': true},
+      paint: {'icon-opacity': 0.84}});
+    map.addLayer({id: 'establishments', type: 'circle', source: 'points',
+      filter: ['!=', ['get', 'unclustered'], true], paint: {
       'circle-color': sectorColorExpr,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, scoreRadius(1.4, 5.7), 14, scoreRadius(2.0, 10.5), 17, scoreRadius(3.2, 16.5)],
       'circle-opacity': 0.82, 'circle-stroke-width': 0.35, 'circle-stroke-color': '#ffffff'}});
@@ -1523,6 +1805,11 @@
     $('zoom-network').addEventListener('click', zoomToNetwork);
     $('sectors-all').addEventListener('click', () => { hidden.clear(); sectorsChanged(); });
     $('sectors-none').addEventListener('click', () => { for (const code of sectors.keys()) hidden.add(code); sectorsChanged(); });
+    $('show-unscored').addEventListener('change', () => {
+      // If a selected unscored point has just been hidden, remove its highlight.
+      if (!$('show-unscored').checked && selection && !nodeIndex.has(selection.id)) clearSelection();
+      else refresh();
+    });
     $('sector-search').addEventListener('input', renderSectors);
     document.querySelectorAll('[data-sector-order]').forEach(button => {
       button.addEventListener('click', () => {
@@ -1541,6 +1828,12 @@
   }
 
   async function initialize() {
+    // Never restore opt-in across page reloads, even via browser form state.
+    const unscoredToggle = $('show-unscored');
+    if (unscoredToggle) unscoredToggle.checked = false;
+    $('sigma-details-toggle').addEventListener('click', () => {
+      setRightPanelCollapsed(!$('sigma-details-panel').hidden);
+    });
     // sigma-institutional-theme-handoff-20261026-v1: persist explicit UI selection.
     $('theme-toggle').addEventListener('click', () => {
       applyTheme(themeMode === 'dark' ? 'light' : 'dark');
@@ -1562,6 +1855,15 @@
     initializeHelp();
     const [metadata, graph, tiles] = await Promise.all([getJSON('data/metadata.json'), getJSON('data/graph.json'), getJSON('data/tiles.json')]);
     meta = metadata; tileIndex = tiles; tileKeys = Object.keys(tiles.tiles || {});
+    const key = $('unclustered-key');
+    if (key) key.hidden = true;  // shown only by opt-in, without a selected X node
+    const control = $('show-unscored');
+    if (control) {
+      control.checked = false; // explicit default on every Explorer load
+      control.disabled = meta.profile !== 'local' || !meta.counts?.classified_unclustered_points;
+      if (control.disabled) control.closest('.sector-overlay-control').title =
+        'No classified-but-unscored locations are available in this Explorer.';
+    }
     if (meta.schema_version !== 3) throw new Error('This Explorer bundle was built by another version. Run "sigma view <area> --refresh".');
     for (const s of meta.sectors) sectors.set(s.code, s);
     for (const n of graph.nodes) { nodeIndex.set(n.id, n); pairIndex.set(n.id, new Map()); }
@@ -1658,3 +1960,14 @@
 // sigma-explorer-tutorial-polish-20261027-v2
 // sigma-explorer-sector-80-graph-fit-20261027-v3
 // sigma-ui-original-finder-sector-spacing-20261027-v1
+
+// sigma-explorer-quiet-unscored-toggle-20261028-v1
+
+// sigma-explorer-quiet-unscored-nonempty-compact-20261028-v2
+
+// sigma-explorer-red-unscored-and-right-panel-collapse-20261028-v1
+// sigma-explorer-toolbar-panel-help-tilecache-20261029-v1
+// sigma-unscored-hidden-by-default-and-rowwise-names-20261029-v1
+// sigma-explorer-hollow-overlay-header-repair-20261029-v1
+// sigma-explorer-scope-dedup-link-outline-20261029-v2
+// sigma-explorer-strict-triangle-sources-header-paint-v3.1-20261029

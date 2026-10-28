@@ -39,8 +39,9 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
 <header class="top">
   <div class="brand"><span class="mark sigma-original-logo-mark" aria-hidden="true"><img src="sigma-logo.png?v=20261026-redpin-v1" alt="" width="42" height="34"></span><span><strong>SIGMA</strong> <span class="explorer">Explorer</span></span></div>
   <a id="sigma-about-link" class="live-back sigma-about-link sigma-about-left" href="about.html" target="_blank" rel="noopener noreferrer" title="What is SIGMA? An introduction to spatial intelligence and acquisition">What is SIGMA?</a>
+
 <div id="area" class="area">Published results</div>
-  <div class="top-right"><span id="counts"></span><a id="sigma-guided-tour-link" class="docs-link" href="tutorial.html" title="Interactive method tutorial with this run’s economy and cluster results" target="_blank" rel="noopener noreferrer">Under the Hood</a><a class="docs-link" href="https://projectsigma.github.io/sigma/content/intro/index.html" target="_blank" rel="noopener noreferrer" title="SIGMA documentation: models, methodology, pipeline, and assumptions">Documentation ↗</a><a href="DATA_NOTICE.txt" target="_blank" rel="noopener">Data notice</a><button id="theme-toggle" class="sigma-theme-toggle" type="button" aria-pressed="false" aria-label="Switch to dark mode" title="Switch to dark mode"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.7a6.3 6.3 0 0 1 0 12.6z" fill="currentColor"/></svg><span>Dark mode</span></button></div>
+  <div class="top-right"><span id="counts"></span><a class="docs-link" href="https://projectsigma.github.io/sigma/content/intro/index.html" target="_blank" rel="noopener noreferrer" title="SIGMA documentation: models, methodology, pipeline, and assumptions">Documentation ↗</a><a href="DATA_NOTICE.txt" target="_blank" rel="noopener">Data notice</a><a id="sigma-guided-tour-link" class="live-back sigma-about-link sigma-about-left sigma-guided-nearby" href="tutorial.html" title="Interactive method tutorial with this run’s economy and cluster results" target="_blank" rel="noopener noreferrer">Under the Hood</a><button id="theme-toggle" class="sigma-theme-toggle" type="button" aria-pressed="false" aria-label="Switch to dark mode" title="Switch to dark mode"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.7a6.3 6.3 0 0 1 0 12.6z" fill="currentColor"/></svg><span>Dark mode</span></button></div>
 </header>
 <!-- sigma-explorer-toolbar-20261019-v1 -->
 <!-- sigma-explorer-refinement-20261019-v2 -->
@@ -48,6 +49,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
 <!-- sigma-explorer-theme-20261019-v4 -->
 <!-- sigma-explorer-polish-20261019-v5 -->
 <section class="toolbar" aria-label="Map and network controls">
+  <span class="toolbar-control sigma-panel-toggle-slot"><button id="sigma-details-toggle" type="button" aria-controls="sigma-details-panel" aria-expanded="true" aria-label="Hide right details panel" title="Hide the right panel to enlarge the map">Hide panel</button></span>
   <span class="toolbar-control"><label>Partitions
     <select id="partitions">
       <option value="network" selected>Selected network</option>
@@ -92,6 +94,13 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
       <div class="sector-actions">
         <div class="sector-quick-search" role="search" aria-label="Filter sectors"><input type="search" id="sector-search" placeholder="Find an industry or code…" autocomplete="off" aria-label="Search visible sector list by industry name or code"></div>
 <button type="button" id="sectors-all">Show all</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Show all sectors. Turn on all sector checkboxes. The map and network will again include every available sector." data-tip="Turn on all sector checkboxes. The map and network will again include every available sector.">?</span><button type="button" id="sectors-none">Hide all</button> <span class="control-help " tabindex="0" role="note" aria-label="Help: Hide all sectors. Turn off all sector checkboxes. Hidden sectors are excluded rather than merely faded." data-tip="Turn off all sector checkboxes. Hidden sectors are excluded rather than merely faded.">?</span></div>
+      <div class="sector-overlay-control">
+        <label for="show-unscored" title="Show sectors that have classified establishments but no X clusters. Hollow markers have no SIGMA score and disappear when a scored place or cluster is selected. Empty sectors remain hidden.">
+          <input type="checkbox" id="show-unscored" autocomplete="off">
+          <span>Show unscored sectors</span>
+          <span class="sector-overlay-detail">upright triangles, no SIGMA score</span>
+        </label>
+      </div>
       <!-- sigma-sector-panel-readability-v1: search and sort only affect panel presentation. -->
 
             <!-- sigma-explorer-clean-label-column-sorts-v1: explicit sortable industry, code and count columns. -->
@@ -103,7 +112,8 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
       <div id="sector-list" class="sector-list" aria-label="Sectors ordered by strongest visible link after a selection; otherwise by sector code"></div>
     </details>
     <div class="map-legend" aria-label="Map legend">
-      <span><i class="legend-dot"></i>Places</span>
+      <span><i class="legend-dot"></i>Scored places</span>
+      <span id="unclustered-key" hidden><svg width="13" height="13" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2 L18 17 H2 Z" fill="none" stroke="currentColor" stroke-width="2"/></svg>Classified, no score</span>
       <span><i class="legend-dot center"></i>Centers</span>
       <span><i class="legend-line outgoing"></i>Supplies</span>
       <span><i class="legend-line incoming"></i>Uses</span>
@@ -111,7 +121,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
       <span class="legend-help" tabindex="0" role="note" aria-label="Road colors: red = supplies inputs, blue = uses inputs, purple = reciprocal X links. Greater network depth makes routes thinner and fainter. Separate published paths remain separate." title="Road colors: red = supplies inputs, blue = uses inputs, purple = reciprocal X links. Greater network depth makes routes thinner and fainter. Separate published paths remain separate.">?</span>
     </div>
   </section>
-  <aside class="side">
+  <aside class="side" id="sigma-details-panel">
     <!-- sigma-establishment-finder-v1: local-profile search across all tiles -->
     <section class="finder-section" aria-label="Establishment finder">
     <details class="sidebar-disclosure">
@@ -208,3 +218,8 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
 <!-- sigma-explorer-clean-label-column-sorts-v1 -->
 <!-- sigma-explorer-sector-80-graph-fit-20261027-v3 -->
 <!-- sigma-ui-original-finder-sector-spacing-20261027-v1 -->
+
+<!-- sigma-explorer-red-unscored-and-right-panel-collapse-20261028-v1 -->
+<!-- sigma-explorer-toolbar-panel-help-tilecache-20261029-v1 -->
+<!-- sigma-explorer-hollow-overlay-header-repair-20261029-v1 -->
+<!-- sigma-explorer-strict-triangle-sources-header-paint-v3.1-20261029 -->

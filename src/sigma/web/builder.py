@@ -37,6 +37,7 @@ REQUIRED_FILES = (
 )
 OPTIONAL_FILES = (
     "sigma_run_metadata.json",
+    "pois.parquet",
     "sigma_boundary.parquet",
     "sigma_roads.parquet",
     "sigma_manifest.json",
@@ -181,6 +182,16 @@ def source_fingerprint(
     digest = hashlib.sha256()
     digest.update(f"{BUNDLE_FORMAT}:{BUNDLE_VERSION}:roads={include_roads}:profile={profile}".encode())
     digest.update(resources.files("sigma.web").joinpath("builder.py").read_bytes())
+    digest.update(resources.files("sigma.web").joinpath("unclustered.py").read_bytes())
+    if profile == "local":
+        from .unclustered import matching_catalog_files
+        expected = _manifest_expectations(source)
+        run_path = _input_path(source, "sigma_run_metadata.json", expected)
+        run = json.loads(run_path.read_text(encoding="utf-8")) if run_path else {}
+        catalog = matching_catalog_files(source, run)
+        if catalog is not None:
+            for path in catalog:
+                digest.update(f"catalog:{path.name}:{_sha256(path)};".encode())
     for name in STATIC_FILES:
         digest.update(_static_file(name).read_bytes())
     digest.update(_source_digest(source))
@@ -325,6 +336,22 @@ def _column(frame: pd.DataFrame, *names: str) -> pd.Series:
         if name in frame.columns:
             return frame[name].map(lambda v: _text(v))
     return pd.Series([""] * len(frame), index=frame.index, dtype=object)
+
+
+# --------------------------------------------------------------------------- establishment labels
+
+
+def _preferred_establishment_names(frame: pd.DataFrame) -> pd.Series:
+    """Prefer canonical_name per row, falling back to the published POI name.
+
+    The scored table and classified POI handoff use different name columns.
+    After concatenation both columns exist, but neither is complete for every
+    row. Picking a single column for the whole frame loses classified names.
+    """
+    canonical = _column(frame, "canonical_name")
+    classified = _column(frame, "name")
+    chosen = canonical.where(canonical.ne(""), classified)
+    return chosen.where(chosen.ne(""), "Unnamed establishment")
 
 
 # --------------------------------------------------------------------------- styling
@@ -560,8 +587,19 @@ def _build_unstaged_bundle(
         })
     _json_dump(dest / "data/clusters.geojson", {"type": "FeatureCollection", "features": partition_features})
 
-    # ---- establishments, tiled so a browser never needs the whole layer at once
+    # ---- establishments: retain scored points, add classified-only local points.
+    # An unclustered establishment must never acquire a fabricated X identity.
+    from .unclustered import extend_classified_points, load_sector_catalog
+    catalog = load_sector_catalog(source, run) if profile == "local" else {}
     points = _to_wgs84(gpd.read_parquet(source / "sigma_points.parquet"), "sigma_points.parquet")
+    scored_point_count = len(points)
+    extra_point_count = 0
+    classified_path = _input_path(source, "pois.parquet", expected) if profile == "local" else None
+    if classified_path is not None:
+        points, extra_point_count = extend_classified_points(
+            points, _to_wgs84(gpd.read_parquet(classified_path), "pois.parquet"),
+            set(catalog) if catalog else None,
+        )
     geom = points.geometry
     is_point = (~geom.isna()) & (~geom.is_empty) & (geom.geom_type == "Point")
     points = points.loc[is_point.to_numpy()].copy()
@@ -576,7 +614,7 @@ def _build_unstaged_bundle(
     for display, t in zip(_column(points, "type_display", "type_label"), types, strict=True):
         if display:
             label_hints.setdefault(t, display)
-    names = _column(points, "canonical_name", "name").replace("", "Unnamed establishment")
+    names = _preferred_establishment_names(points)
     raw_ids = _column(points, "canonical_id", "point_id")
     seen: set[str] = set()
     ids = []
@@ -618,6 +656,7 @@ def _build_unstaged_bundle(
             "properties": {
                 "id": ids[i], "name": names.iat[i], "type": types.iat[i],
                 "cluster": clusters[i], "node_id": node_ids[i], "score": score,
+                "unclustered": bool(points["unclustered"].iat[i]) if "unclustered" in points else False,
                 "psic": psic.iat[i], "sources": sources_text.iat[i],
             },
             "geometry": {"type": "Point", "coordinates": [
@@ -677,6 +716,11 @@ def _build_unstaged_bundle(
             ]})
             road_count = len(roads)
 
+    # Warn about missing optional POIs only AFTER any road-limit warning.
+    # The order matters to the existing road-inclusion diagnostics contract.
+    if profile == "local" and classified_path is None:
+        warnings.append("Classified POIs are unavailable in the current export; only scored establishments can be plotted.")
+
     # ---- boundary and cluster centers
     boundary_file = _input_path(source, "sigma_boundary.parquet", expected)
     boundary = (
@@ -696,7 +740,9 @@ def _build_unstaged_bundle(
     ]})
 
     # ---- metadata
-    codes = sorted({n["type"] for n in nodes} | set(types), key=_sector_order)
+    for code, label in catalog.items():
+        label_hints.setdefault(code, label)
+    codes = sorted({n["type"] for n in nodes} | set(types) | set(catalog), key=_sector_order)
     colors, labels = _sector_styles(codes, economy_id, label_hints)
     # SIGMA_HIERARCHICAL_SECTOR_PALETTE_V1_WEB: match QGIS colors for adaptive hierarchical sectors.
     from sigma.export.hierarchical_palette import discover_sector_palette as _sigma_area_colors
@@ -739,7 +785,9 @@ def _build_unstaged_bundle(
         "economy_id": economy_id,
         "bounds": bounds,
         "counts": {
-            "points": len(points), "unassigned_points": unassigned, "clusters": len(nodes),
+            "points": len(points), "scored_points": scored_point_count,
+            "classified_unclustered_points": extra_point_count,
+            "catalog_sectors": len(codes), "unassigned_points": unassigned, "clusters": len(nodes),
             "edges": len(edges), "linked_pairs": linked_pairs,
             "partitions": len(partition_features), "roads": road_count,
         },
@@ -882,3 +930,6 @@ def build_web_bundle(
             shutil.rmtree(staging, ignore_errors=True)
         if moved_old and backup.exists():
             shutil.rmtree(backup, ignore_errors=True)
+
+# sigma-explorer-all-sectors-and-hollow-places-20261028-v1
+# sigma-unscored-hidden-by-default-and-rowwise-names-20261029-v1

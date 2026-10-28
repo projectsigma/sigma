@@ -14,6 +14,7 @@ function section(start, end) {
   assert(a >= 0 && b > a, `Missing source section: ${start}`);
   return source.slice(a, b);
 }
+const unscoredSource = section('  const unscoredSectorIcons = new Map();', '  function centerIconExpression() {');
 const helperSource = section('  function centerIconExpression() {', '  // Selected cluster:');
 const selectedSource = section('  function selectedCenterIconExpression() {', '  function addLayers(data) {');
 const layerSource = section('  function addLayers(data) {', '  function bindControls() {');
@@ -35,7 +36,7 @@ const document = {
     assert.equal(tag, 'canvas');
     const ctx = {
       fillStyle: '', strokeStyle: '', lineWidth: 0,
-      beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, fill() {}, stroke() {},
+      beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, fill() {}, stroke() {}, clearRect() {},
       getImageData() {return {fill: this.fillStyle, stroke: this.strokeStyle, strokeWidth: this.lineWidth};},
     };
     return {width: 0, height: 0, getContext(type) {assert.equal(type, '2d'); return ctx;}};
@@ -61,7 +62,7 @@ const sectorMatchPairs = () => [...sectors].flatMap(([key, value]) => [key, valu
 const funcs = new Function('document', 'sectors', 'map', 'COLOR', 'centerIconByType',
   'linkedCenterIconByType', 'darkCenterIconByType', 'darkLinkedIconByType',
   'selectedIconByType', 'meta', 'isNum', 'sectorMatchPairs', 'EMPTY',
-  `${helperSource}\n${selectedSource}\n${layerSource}\nreturn {addLayers};`)(
+  `${unscoredSource}\n${helperSource}\n${selectedSource}\n${layerSource}\nreturn {addLayers};`)(
   document, sectors, map, colors, centerIconByType, linkedCenterIconByType,
   darkCenterIconByType, darkLinkedIconByType, selectedIconByType,
   meta, isNum, sectorMatchPairs, EMPTY);
@@ -125,7 +126,7 @@ function evaluate(expr, props) {
 const network = {ring: new Map([['63:2', 0], ['55:0', 1], ['70:1', 1]]), focus: '63:2'};
 const getEmphasis = new Function('map','network','COLOR','notHidden','updatePartitions',
   'themeMode','updateCenterVisibility','applyTheme',
-  `${emphasisSource}\nreturn applyEmphasis;`)(
+  `function syncUnscoredOverlay() {}\n${emphasisSource}\nreturn applyEmphasis;`)(
     map, network, colors, () => true, () => {}, 'light', () => {}, () => {});
 getEmphasis();
 const iconExpr = layoutUpdates.get('centers.icon-image');
