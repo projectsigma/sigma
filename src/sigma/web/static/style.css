@@ -694,3 +694,181 @@ html[data-theme="dark"] .sector-actions .sector-quick-search input:focus-visible
     column-gap: 2px !important;
   }
 }
+
+/* SIGMA local Explorer: classified points without network-cluster scores. */
+.sector-item.sector-no-places .sector-mini-count { opacity: .58; }
+.map-legend .legend-dot.hollow { background:transparent; border:1.5px solid #5a8a76; }
+html[data-theme='dark'] .map-legend .legend-dot.hollow { border-color:#9ec8ae; }
+.map-legend #unclustered-key[hidden] { display:none !important; }
+
+/* SIGMA Explorer: unscored sectors opt-in, quiet underlay. */
+.sector-overlay-control { padding: 7px 12px 9px; border-bottom: 1px solid var(--border); }
+.sector-overlay-control label { display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  font-size: 11px; line-height: 1.3; cursor: pointer; color: var(--text); }
+.sector-overlay-control input { margin: 0; flex: 0 0 auto; accent-color: #b52e42; }
+.sector-overlay-control .sector-overlay-detail { display: block; flex-basis: 100%;
+  padding-left: 20px; font-size: 10px; color: var(--muted); }
+.sector-overlay-control:has(input:disabled) { opacity: 0.50; }
+.sector-overlay-control:has(input:disabled) label { cursor: default; }
+html[data-theme="dark"] .sector-overlay-control { border-color: var(--border); }
+
+/* sigma-explorer-quiet-unscored-nonempty-compact-20261028-v2: one-row control and distinct nonempty/unscored sector labels. */
+.sector-overlay-control { padding: 6px 9px; }
+.sector-overlay-control label { display: flex; flex-wrap: nowrap; gap: 4px;
+  align-items: center; white-space: nowrap; min-width: 0; overflow: hidden;
+  font-size: 10px; line-height: 1.4; }
+.sector-overlay-control label > span:first-of-type { flex: 0 0 auto; white-space: nowrap; }
+.sector-overlay-control .sector-overlay-detail { display: inline; flex: 1 1 auto;
+  flex-basis: auto; min-width: 0; padding-left: 0; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
+.sector-overlay-control .sector-overlay-detail::before { content: "· "; }
+/* Muted slate distinguishes unscored sectors, without disabling the checkbox. */
+.sector-panel .sector-list .sector-item.sector-item--unscored > .sector-title {
+  color: #566f7e; font-weight: 450; }
+.sector-panel .sector-list .sector-item.sector-item--unscored > .sector-code,
+.sector-panel .sector-list .sector-item.sector-item--unscored > .sector-mini-count {
+  color: #6a8494; }
+html[data-theme="dark"] .sector-panel .sector-list .sector-item.sector-item--unscored > .sector-title {
+  color: #abc2d3; }
+html[data-theme="dark"] .sector-panel .sector-list .sector-item.sector-item--unscored > .sector-code,
+html[data-theme="dark"] .sector-panel .sector-list .sector-item.sector-item--unscored > .sector-mini-count {
+  color: #8faabb; }
+
+/* sigma-explorer-red-unscored-and-right-panel-collapse-20261028-v1: high-contrast BPI red for truly nonempty unscored sectors.
+   The sector-color swatch and map overlay are intentionally left unchanged. */
+.sector-panel .sector-list .sector-item.sector-item--unscored > .sector-title {
+  color: #b11116; font-weight: 650;
+}
+.sector-panel .sector-list .sector-item.sector-item--unscored > .sector-code,
+.sector-panel .sector-list .sector-item.sector-item--unscored > .sector-mini-count {
+  color: #a62e35;
+}
+html[data-theme="dark"] .sector-panel .sector-list .sector-item.sector-item--unscored > .sector-title {
+  color: #ff888e; font-weight: 650;
+}
+html[data-theme="dark"] .sector-panel .sector-list .sector-item.sector-item--unscored > .sector-code,
+html[data-theme="dark"] .sector-panel .sector-list .sector-item.sector-item--unscored > .sector-mini-count {
+  color: #e9a3a6;
+}
+/* One button controls the full sidebar; the map fills the vacated grid column. */
+body.details-collapsed main { grid-template-columns: minmax(0, 1fr) !important; }
+body.details-collapsed .map-panel { border-right: 0; }
+#sigma-details-toggle {
+  flex: 0 0 auto; padding: 4px 9px; font-size: 11px; white-space: nowrap;
+  border-color: #cda4a5; color: #8f0d12; background: #fffafa;
+}
+#sigma-details-toggle:hover { background: #fcebec; border-color: #b11116; }
+#sigma-details-toggle:focus-visible { outline: 2px solid #b11116; outline-offset: 2px; }
+html[data-theme="dark"] #sigma-details-toggle {
+  color: #ffb9bd; background: #31282a; border-color: #88565a;
+}
+html[data-theme="dark"] #sigma-details-toggle:hover {
+  background: #4d3035; border-color: #ff888e;
+}
+html[data-theme="dark"] #sigma-details-toggle:focus-visible {
+  outline-color: #ff888e;
+}
+
+/* sigma-explorer-toolbar-panel-help-tilecache-20261029-v1 -- fixed, prominent toggle at the far right of the Partitions toolbar.
+   The toolbar remains outside the collapsing grid; the button never moves with the sidebar. */
+.toolbar { position:relative; padding-right:157px; min-height:52px; }
+.toolbar .sigma-panel-toggle-slot {
+  position:absolute; top:8px; right:16px; z-index:14; display:block; flex:none;
+}
+html[data-theme] .toolbar #sigma-details-toggle {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:119px; min-height:34px; padding:6px 12px;
+  font-size:12px; font-weight:750; letter-spacing:.01em;
+  border:1px solid #8f0d12; border-radius:8px;
+  background:#b11116; color:#fff; box-shadow:0 2px 7px rgba(112,14,23,.19);
+  white-space:nowrap;
+}
+html[data-theme] .toolbar #sigma-details-toggle::before {
+  content:'▤'; font-size:14px; line-height:1; margin-right:7px;
+}
+html[data-theme] .toolbar #sigma-details-toggle:hover {
+  background:#8f0d12; border-color:#76090e; color:#fff;
+}
+html[data-theme] .toolbar #sigma-details-toggle:focus-visible {
+  outline:3px solid #e0b65a; outline-offset:2px;
+}
+html[data-theme="dark"] .toolbar #sigma-details-toggle {
+  background:#bc3540; border-color:#ed8e95; color:#fff;
+  box-shadow:0 2px 9px rgba(0,0,0,.38);
+}
+html[data-theme="dark"] .toolbar #sigma-details-toggle:hover {
+  background:#a32330; border-color:#ffb0b5; color:#fff;
+}
+@media (max-width:900px) {
+  .toolbar {padding-right:149px;}
+  .toolbar .sigma-panel-toggle-slot {right:8px;}
+  html[data-theme] .toolbar #sigma-details-toggle {min-width:115px;}
+}
+
+/* The left-side Under the Hood link mirrors the existing What is SIGMA? button. */
+html[data-theme] header.top > #sigma-guided-tour-link.sigma-guided-nearby {
+  display:inline-flex !important; align-items:center !important; justify-content:center;
+  flex:0 0 auto; min-height:32px; padding:5px 11px;
+  margin-left:-6px; margin-right:12px;
+  border:1px solid #d9d4d2; border-radius:8px;
+  background:#fffdfa; color:#9e2533;
+  font:600 12px/1.35 system-ui,-apple-system,"Segoe UI",sans-serif;
+  text-decoration:none !important; white-space:nowrap;
+  transition:background .17s ease,border-color .17s ease,color .17s ease;
+}
+html[data-theme="light"] header.top > #sigma-guided-tour-link.sigma-guided-nearby:hover {
+  background:#fbf0ef; border-color:#b74f5a; color:#9e2533;
+}
+html[data-theme="dark"] header.top > #sigma-guided-tour-link.sigma-guided-nearby {
+  background:#302d2e; border-color:#605456; color:#ef9ca7;
+}
+html[data-theme="dark"] header.top > #sigma-guided-tour-link.sigma-guided-nearby:hover {
+  background:#403236; border-color:#ca808c; color:#ffd5db;
+}
+html[data-theme] header.top > #sigma-guided-tour-link.sigma-guided-nearby:focus-visible {
+  outline:2px solid #d65a5f; outline-offset:2px;
+}
+
+/* sigma-explorer-hollow-overlay-header-repair-20261029-v1: preserve the toolbar position, match the theme button width exactly. */
+html[data-theme] .toolbar #sigma-details-toggle {
+  width:105px !important; min-width:105px !important; max-width:105px !important;
+  height:32px !important; min-height:32px !important;
+  padding:5px 7px !important;
+  font-size:12px; font-weight:700; white-space:nowrap;
+}
+html[data-theme] .toolbar #sigma-details-toggle::before {
+  content:none !important; display:none !important;
+}
+.toolbar { padding-right:132px; }
+@media (max-width:900px) { .toolbar {padding-right:124px;} }
+/* Keep the 'Under the Hood' link after the theme button, despite the latter's
+   explicit order:99 in the shared theme stylesheet. Match 'What is SIGMA?' styling. */
+html[data-theme] header.top .top-right > #sigma-guided-tour-link.sigma-guided-nearby {
+  display:inline-flex !important; align-items:center !important; justify-content:center;
+  order:100; flex:0 0 auto; min-height:32px;
+  margin:0 !important; padding:5px 11px;
+  border:1px solid #d9d4d2; border-radius:8px;
+  background:#fffdfa; color:#9e2533;
+  font:600 12px/1.35 system-ui,-apple-system,'Segoe UI',sans-serif;
+  text-decoration:none !important; white-space:nowrap;
+}
+html[data-theme="light"] header.top .top-right > #sigma-guided-tour-link.sigma-guided-nearby:hover {
+  background:#fbf0ef; border-color:#b74f5a; color:#9e2533;
+}
+html[data-theme="dark"] header.top .top-right > #sigma-guided-tour-link.sigma-guided-nearby {
+  background:#302d2e; border-color:#605456; color:#ef9ca7;
+}
+html[data-theme="dark"] header.top .top-right > #sigma-guided-tour-link.sigma-guided-nearby:hover {
+  background:#403236; border-color:#ca808c; color:#ffd5db;
+}
+html[data-theme] header.top .top-right > #sigma-guided-tour-link.sigma-guided-nearby:focus-visible {
+  outline:2px solid #d65a5f; outline-offset:2px;
+}
+
+/* sigma-explorer-strict-triangle-sources-header-paint-v3.1-20261029: Under the Hood LEFT, Light/Dark mode RIGHT, adjacent. */
+html[data-theme] header.top .top-right > #sigma-guided-tour-link.sigma-guided-nearby {
+  order:98 !important; margin-left:auto !important; margin-right:0 !important;
+}
+html[data-theme] header.top .top-right > #theme-toggle {
+  order:99 !important; margin-left:0 !important;
+}
