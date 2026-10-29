@@ -1,4 +1,4 @@
-"""Public or private ownership for education and health places, policy ownership-v2.
+"""Public or private ownership for education and health places, policy ownership-v3.
 
 PSA's IO tables split education (IO80 74 public / 75 private; IO240 229 / 230) and human
 health (IO80 76 / 77; IO240 231 / 232) by ownership. Most source categories ("school",
@@ -23,7 +23,7 @@ from typing import Any
 
 import pandas as pd
 
-OWNERSHIP_POLICY_VERSION = "ownership-v2"
+OWNERSHIP_POLICY_VERSION = "ownership-v3"
 
 # domain -> side -> (IO80 code, IO240 code)
 OWNERSHIP_CODES: dict[str, dict[str, tuple[str, str]]] = {
@@ -105,6 +105,11 @@ _HEALTH_PRIVATE = (
     r"\b(?:st|saint|holy|sacred|immaculate|blessed)\b\.?\s",
     r"\bour\s+lady\b",
 )
+# Only explicit education ownership categories qualify. Generic school and
+# university categories never establish public/private ownership.
+_EDUCATION_PUBLIC_CATEGORIES = frozenset({"overture:public_school"})
+_EDUCATION_PRIVATE_CATEGORIES = frozenset({"overture:private_school"})
+
 # Categories whose places are private practices in the Philippine setting.
 _HEALTH_PRIVATE_CATEGORIES = frozenset(
     {
@@ -134,6 +139,8 @@ OWNERSHIP_POLICY_FINGERPRINT = hashlib.sha256(
             "version": OWNERSHIP_POLICY_VERSION,
             "codes": OWNERSHIP_CODES,
             "patterns": {f"{d}:{s}": [p.pattern for p in v] for (d, s), v in _PATTERNS.items()},
+            "education_public_categories": sorted(_EDUCATION_PUBLIC_CATEGORIES),
+            "education_private_categories": sorted(_EDUCATION_PRIVATE_CATEGORIES),
             "private_categories": sorted(_HEALTH_PRIVATE_CATEGORIES),
             "rule": "abstain_when_both_or_neither",
         },
@@ -209,6 +216,14 @@ def ownership_evidence(row: pd.Series | dict[str, Any], domain: str) -> Ownershi
             if hit is not None:
                 found.setdefault(side, f"name:{pattern.pattern}")
                 break
+    if domain == "education":
+        for side, allowed in (
+            ("public", _EDUCATION_PUBLIC_CATEGORIES),
+            ("private", _EDUCATION_PRIVATE_CATEGORIES),
+        ):
+            matched = categories & allowed
+            if matched:
+                found.setdefault(side, "category:" + sorted(matched)[0])
     if domain == "health" and categories & _HEALTH_PRIVATE_CATEGORIES:
         found.setdefault(
             "private", "category:" + sorted(categories & _HEALTH_PRIVATE_CATEGORIES)[0]
