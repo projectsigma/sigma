@@ -41,7 +41,8 @@ def test_mixed_240_80_16_residuals_partition_and_conserve():
     e, h = source()
     p = places(("B", "F", "MAN"), ("D", "F", "MAN"), ("M", "F", "MAN"),
                ("", "F", "MAN"), ("", "T", "MAN"), ("", "", "MAN"))
-    result = build_hierarchical_economy(p, e, h)
+    # Legacy rule: coarse places go to the residual by convention.
+    result = build_hierarchical_economy(p, e, h, coarse_policy="residual")
     actual = result.places.economy_code.tolist()
     assert actual == ["240:B", "240:D", "240:M", "80:F:OTHER", "80:T", "16:MAN:O"]
     assert list(result.economy.sectors.codes) == [
@@ -85,6 +86,8 @@ def test_coarse_only_with_all_children_used_is_rejected():
     p = places(("B", "F", "MAN"), ("D", "F", "MAN"), ("M", "F", "MAN"),
                ("S", "F", "MAN"), ("", "F", "MAN"))
     with pytest.raises(EconomyValidationError, match="no unambiguous residual"):
+        build_hierarchical_economy(p, e, h, strict_coarse=True, coarse_policy="residual")
+    with pytest.raises(EconomyValidationError, match="no single sector contains"):
         build_hierarchical_economy(p, e, h, strict_coarse=True)
 
 
@@ -159,6 +162,8 @@ def test_multi_group_io16_coarse_without_residual_fails_closed():
     # SRV only has one leaf; MAN can be completely resolved to different fine codes
     p = places(*[(c, "", "") for c in LEAVES if c != "V"], ("", "", "MAN"))
     with pytest.raises(EconomyValidationError, match="no unambiguous residual"):
+        build_hierarchical_economy(p, e, h, strict_coarse=True, coarse_policy="residual")
+    with pytest.raises(EconomyValidationError, match="no single sector contains"):
         build_hierarchical_economy(p, e, h, strict_coarse=True)
 
 
@@ -254,14 +259,18 @@ def test_failed_activation_preserves_original_and_does_not_leave_backup(tmp_path
     assert not original.with_name("places.pre-hierarchical.parquet").exists()
 
 
-def test_coarse_without_residual_is_reported_not_imputed_by_default():
+@pytest.mark.parametrize("policy, status", [
+    ("contain", "UNASSIGNED_IO80_STRADDLES"),
+    ("residual", "UNASSIGNED_IO80_NO_RESIDUAL"),
+])
+def test_coarse_without_residual_is_reported_not_imputed_by_default(policy, status):
     e, h = source()
     p = places(("B", "F", "MAN"), ("D", "F", "MAN"),
                ("M", "F", "MAN"), ("S", "F", "MAN"),
                ("", "F", "MAN"))
-    r = build_hierarchical_economy(p, e, h)
+    r = build_hierarchical_economy(p, e, h, coarse_policy=policy)
     assert r.places.economy_code.iloc[-1] == ""
-    assert r.places.economy_status.iloc[-1] == "UNASSIGNED_IO80_NO_RESIDUAL"
+    assert r.places.economy_status.iloc[-1] == status
     assert r.diagnostics["unassigned_coarse_place_count"] == 1
     assert len(r.membership) == len(LEAVES)
 
@@ -278,7 +287,7 @@ def test_min_places_folds_thin_industries_and_conserves():
     e, h = source()
     p = places(*([("B", "F", "MAN")] * 3), ("D", "F", "MAN"), ("", "F", "MAN"), ("", "F", "MAN"),
                ("V", "V80", "SRV"))
-    r = build_hierarchical_economy(p, e, h, min_places=2)
+    r = build_hierarchical_economy(p, e, h, min_places=2, coarse_policy="residual")
     assert _partition(r) == {
         "240:B": ["B"], "80:F:OTHER": ["D", "M", "S"], "16:MAN:O": ["C", "L", "Q"], "16:SRV": ["V"],
     }
@@ -429,7 +438,8 @@ def test_cli_preview_then_activate_with_min_places(tmp_path):
     assert (ws / "places" / "places.pre-hierarchical.parquet").read_bytes() == original
     import geopandas as gpd
     active = gpd.read_parquet(ws / "places" / "places.parquet")
-    assert set(active.economy_code) <= set(econ.sectors.codes)
+    # Unassigned places keep an empty code; every assigned code is a built sector.
+    assert set(active.economy_code) - {""} <= set(econ.sectors.codes)
 
 # ---------------------------------------------------------------------------
 # v4 safety and accounting edge cases
@@ -447,7 +457,7 @@ def test_partial_optional_parent_labels_are_not_conflicts():
 def test_residual_assumption_and_clusters_below_support_are_reported():
     e, h = source()
     p = places(*([("B", "F", "MAN")] * 5), ("D", "F", "MAN"), ("", "F", "MAN"))
-    result = build_hierarchical_economy(p, e, h, min_places=5)
+    result = build_hierarchical_economy(p, e, h, min_places=5, coarse_policy="residual")
     assert result.diagnostics["coarse_residual_assumption_place_count"] == 1
     assert {x["economy_code"] for x in result.diagnostics["observed_sectors_below_min_places"]} == {
         "80:F:OTHER"
@@ -724,7 +734,7 @@ def test_canonical_sparse_ids_are_economic_model_and_place_ids():
     places = pd.DataFrame([
         ('125','42','03'), ('125','42','03'), ('','42','03'), ('','','03'),
     ], columns=['io240_code','io80_code','io16_code'])
-    r = build_hierarchical_economy(places, e, h, min_places=2)
+    r = build_hierarchical_economy(places, e, h, min_places=2, coarse_policy='residual')
     assert r.economy.sectors.codes == ('03:42:125','03:42:o','03:o')
     assert r.places.economy_code.tolist() == [
         '03:42:125','03:42:125','03:42:o','03:o'

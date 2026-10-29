@@ -330,6 +330,47 @@ def _tile(lon: float, lat: float, zoom: int = TILE_ZOOM) -> tuple[int, int]:
     return int(x[0]), int(y[0])
 
 
+_SECTOR_BASIS = {
+    "IO240": "exact IO240 sector",
+    "IO240_FOLDED": "IO240 tag; sector folded into its parent",
+    "IO80": "IO80 tag; sector holds the whole tag",
+    "IO80_SINGLE_MEMBER": "IO80 tag; sector holds the whole tag",
+    "IO80_FOLDED": "IO80 tag; sector holds the whole tag",
+    "IO16": "IO16 tag; sector holds the whole tag",
+    "IO16_SINGLE_MEMBER": "IO16 tag; sector holds the whole tag",
+    "IO80_CANDIDATES": "IO80 tag; sector holds all of the place's candidates",
+    "IO16_CANDIDATES": "IO16 tag; sector holds all of the place's candidates",
+    "IO80_RESIDUAL": "assumed: legacy residual convention",
+    "IO16_RESIDUAL": "assumed: legacy residual convention",
+    "PSIC_MAP": "PSIC concordance",
+    "PSIC_DIRECT_AGREE": "PSIC concordance, confirmed by OSM tag",
+    "PSIC_DIRECT_DISAGREE": "PSIC concordance; OSM tag disagrees",
+    "HYBRID_RESOLVED": "OSM tag chose among PSIC candidates",
+    "DIRECT_FALLBACK": "OSM tag only (no PSIC candidates)",
+    "OWNERSHIP_RESOLVED": "public/private chosen from the name",
+    "DERIVED_FROM_IO240": "derived from the finer IO240 tag",
+    "DERIVED_FROM_IO80": "derived from the finer IO80 tag",
+}
+
+
+def _sector_basis(status: str, provisional: str, evidence: str = "") -> str:
+    """Short reader-facing text for how a place's sector was decided."""
+    if not status:
+        return ""
+    text = _SECTOR_BASIS.get(status, status.replace("_", " ").lower())
+    if evidence == "candidate_conflict":
+        return "Unassigned: candidate set contradicts sector tag · review required"
+    if evidence == "ownership_inferred":
+        text += " · ownership inferred (unverified)"
+    if evidence == "provisional_mapping" or str(provisional).strip().casefold() == "true":
+        text += " · provisional mapping (unverified)"
+    if evidence in {"source_conflict", "low_concordance_confidence", "legacy_residual"}:
+        text += " · " + evidence.replace("_", " ") + " · review required"
+    if evidence == "exact_tag_unverified":
+        text += " · IO-tag exact, activity not independently verified"
+    return text
+
+
 def _column(frame: pd.DataFrame, *names: str) -> pd.Series:
     """First present column among ``names`` as text; empty text when none exists."""
     for name in names:
@@ -596,10 +637,20 @@ def _build_unstaged_bundle(
     extra_point_count = 0
     classified_path = _input_path(source, "pois.parquet", expected) if profile == "local" else None
     if classified_path is not None:
+        classified_points = _to_wgs84(gpd.read_parquet(classified_path), "pois.parquet")
         points, extra_point_count = extend_classified_points(
-            points, _to_wgs84(gpd.read_parquet(classified_path), "pois.parquet"),
-            set(catalog) if catalog else None,
+            points, classified_points, set(catalog) if catalog else None,
         )
+        # Scored-point exports are produced from the analysis table; their full
+        # tagging provenance lives in the separately published, ID-checked POI
+        # handoff. Never infer provenance from a name or a sector label.
+        by_id = classified_points.set_index("canonical_id")
+        for field in (
+            "economy_status", "io_mapping_provisional", "economy_evidence",
+            "economy_review_required", "economy_candidate_source",
+        ):
+            if field in by_id:
+                points[field] = points["canonical_id"].map(by_id[field])
     geom = points.geometry
     is_point = (~geom.isna()) & (~geom.is_empty) & (geom.geom_type == "Point")
     points = points.loc[is_point.to_numpy()].copy()
@@ -634,6 +685,14 @@ def _build_unstaged_bundle(
         else np.full(len(points), np.nan)
     )
     psic = _column(points, "psic_code", "psic")
+    basis = [
+        _sector_basis(status, provisional, evidence)
+        for status, provisional, evidence in zip(
+            _column(points, "economy_status"), _column(points, "io_mapping_provisional"),
+            _column(points, "economy_evidence"), strict=True,
+        )
+    ]
+    evidence_text = _column(points, "economy_evidence")
     sources_text = _column(points, "sources", "source")
     tiles: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
     # Local-only name index: sector -> [name, tile key, position in tile, cluster].
@@ -657,7 +716,8 @@ def _build_unstaged_bundle(
                 "id": ids[i], "name": names.iat[i], "type": types.iat[i],
                 "cluster": clusters[i], "node_id": node_ids[i], "score": score,
                 "unclustered": bool(points["unclustered"].iat[i]) if "unclustered" in points else False,
-                "psic": psic.iat[i], "sources": sources_text.iat[i],
+                "psic": psic.iat[i], "sources": sources_text.iat[i], "basis": basis[i],
+                "evidence": evidence_text.iat[i],
             },
             "geometry": {"type": "Point", "coordinates": [
                 round(float(lon[i]), COORDINATE_DIGITS), round(float(lat[i]), COORDINATE_DIGITS)

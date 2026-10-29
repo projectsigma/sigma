@@ -12,9 +12,9 @@ from .fusion import activity_nonactivity_conflict, fuse, intersect_subtrees, map
 from .normalize import clean_source_text
 from .reference import PsicTaxonomy, load_builtin_psic_taxonomy
 from .retrieval import PsicRetriever
-from .source_rules import AutoMapping, automatic_mapping
+from .source_rules import AutoMapping, automatic_mapping, prepare_source_evidence
 from .traversal import HierarchicalPsicTraverser
-from .types import Evidence, FusionStatus, MappingKind, PsicDecision
+from .types import Evidence, FusionStatus, MappingKind, PsicDecision, SourceField
 
 _SOURCE_NAMES = ("osm", "overture")
 _RESOLVED = {FusionStatus.SINGLE, FusionStatus.NESTED, FusionStatus.INTERSECT}
@@ -287,6 +287,14 @@ class PsicClassifier:
                 chosen, overridden = self._name_precedence(list(matches.entries))
                 if overridden:
                     flags.append("CROSSWALK_CATEGORY_RULE_OVERRULED_NAME")
+                name_only = all(rule.source_field == SourceField.NAME for rule in chosen)
+                category_evidence: Evidence | None = None
+                if name_only:
+                    chosen, category_evidence, overruled = self._category_floor_precedence(
+                        source, category_value, name, chosen
+                    )
+                    if overruled:
+                        flags.append("NAME_RULE_OVERRULED_BY_CATEGORY")
                 out.extend(
                     Evidence(
                         source=source,
@@ -299,24 +307,59 @@ class PsicClassifier:
                     )
                     for rule in chosen
                 )
+                if category_evidence is not None:
+                    out.append(category_evidence)
                 continue
 
-            auto = self._automatic(source, category_value)
-            out.append(
-                Evidence(
-                    source=source,
-                    category=category_value,
-                    name=name,
-                    dependency_group=source,
-                    mapping=auto.mapping,
-                    mapping_origin=auto.reason,
-                    candidate_codes=auto.candidate_codes,
-                    candidate_scores=auto.candidate_scores,
-                    query_text=auto.query_text,
-                    rule=auto.rule,
-                )
-            )
+            out.append(self._automatic_evidence(source, category_value, name))
         return out, flags
+
+    def _automatic_evidence(self, source: str, category: str, name: str | None) -> Evidence:
+        auto = self._automatic(source, category)
+        return Evidence(
+            source=source,
+            category=category,
+            name=name,
+            dependency_group=source,
+            mapping=auto.mapping,
+            mapping_origin=auto.reason,
+            candidate_codes=auto.candidate_codes,
+            candidate_scores=auto.candidate_scores,
+            query_text=auto.query_text,
+            rule=auto.rule,
+        )
+
+    def _category_floor_precedence(
+        self, source: str, category: str, name: str | None, name_rules: list
+    ) -> tuple[list, Evidence | None, bool]:
+        """Strong source categories take precedence over name rules.
+
+        Used when a category matched no crosswalk row but a name rule did. If the
+        category has a trusted floor (for example a compound OSM tag such as
+        ``tourism=hotel | cuisine=filipino``), its automatic evidence is added: when the
+        name rule lies inside the floor's subtree (or the reverse), both are kept and
+        fusion takes the deeper code; when they are disjoint, the category wins.
+        Without a trusted floor the name rule is used alone, as before.
+        """
+        prepared = prepare_source_evidence(self.taxonomy, source, category)
+        if (
+            prepared.terminal_kind is not None
+            or prepared.floor_code is None
+            or prepared.block_reason is not None
+        ):
+            return name_rules, None, False
+        evidence = self._automatic_evidence(source, category, name)
+        coded = {MappingKind.EXACT, MappingKind.SUBTREE, MappingKind.UNION}
+        if evidence.mapping is None or evidence.mapping.mapping_kind not in coded:
+            return name_rules, None, False
+        name_roots = [
+            root for rule in name_rules for root in mapping_roots(self.taxonomy, rule)
+        ]
+        if not name_roots:
+            return name_rules, evidence, False
+        if intersect_subtrees(self.taxonomy, [prepared.floor_code], name_roots):
+            return name_rules, evidence, False
+        return [], evidence, True
 
     def _classify_row_deterministic(
         self, row: pd.Series | dict[str, Any]

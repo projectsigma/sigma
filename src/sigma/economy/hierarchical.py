@@ -11,10 +11,26 @@ observed industry and reproduces the v2 partition exactly.  A larger value, for
 example SIGMA's ``--min-cluster-size``, folds thinly observed industries into the
 next coarser group, so their places are not lost as type-wise clustering noise.
 
-An ambiguous/coarse tag does not identify an IO240 leaf.  A coarse place is
-assigned exactly when one group contains every leaf of its tag; otherwise it is
-assigned to the residual by convention.  The convention is not new evidence about
-the true activity of an unclassified establishment.
+An ambiguous/coarse tag does not identify an IO240 leaf.  How a coarse place is
+assigned depends on ``coarse_policy``:
+
+``contain`` (default)
+    A coarse place carries its own IO240 candidate set (``io240_codes`` from tagging,
+    restricted to the leaves of its tag; the tag's leaves when no candidates exist).
+    It joins a group only when one group contains all of its candidates.  A coarse place
+    whose candidates fall into several groups of a split parent "straddles" the split.
+    A parent is kept whole (not split) when its straddling places exceed
+    ``max_straddle_share`` of the parent's places (straddling plus exactly assigned),
+    first at IO80, then at IO16.  Places whose candidates still straddle groups are left
+    unassigned with status ``UNASSIGNED_IO80_STRADDLES`` / ``UNASSIGNED_IO16_STRADDLES``.
+    No place is assigned to a group that excludes any of its candidates.  The share
+    trades sector detail (split parents) against coverage (unassigned places).
+
+``residual`` (legacy)
+    A coarse place is assigned exactly when one group contains every leaf of its tag;
+    otherwise it is assigned to the residual by convention.  The residual holds the
+    leaves that were *not* observed often enough to be kept, so this convention selects
+    the least supported sectors; it is kept only to reproduce earlier builds.
 """
 from __future__ import annotations
 
@@ -34,6 +50,9 @@ from .model import Economy, Sector, SectorCatalog
 
 _COLUMNS = ("io240_code", "io80_code", "io16_code")
 _REPORTED = 10
+COARSE_POLICIES = ("contain", "residual")
+DEFAULT_COARSE_POLICY = "contain"
+DEFAULT_MAX_STRADDLE_SHARE = 0.25
 
 
 def _strings(series: pd.Series) -> pd.Series:
@@ -172,6 +191,12 @@ def tagging_consistency(hierarchy: pd.DataFrame) -> dict[str, Any]:
             child, parent = row.io80_codes[0], row.io16_codes[0]
             if child in up16 and up16[child] != parent:
                 io80_mismatch.setdefault(child, set()).add(parent)
+    # Refinement and ownership can tag any IO240 code exactly; its IO80 is then the
+    # parent in SIGMA's IO240 parent table, so every parent link is checked.
+    for child, parent in load_builtin_io_reference().io240_parent_map.items():
+        tagged240.add(child)
+        if child in up80 and up80[child] != parent:
+            io240_mismatch.setdefault(child, set()).add(parent)
     for code, industry in load_catalog().items():
         tagged80.add(code)
         if code in up16 and up16[code] != industry.io16_code:
@@ -229,6 +254,89 @@ def require_sigma_io80_io16(hierarchy: pd.DataFrame) -> None:
     if problems:
         raise EconomyValidationError("crosswalk does not match SIGMA's PSA IO80/IO16 structure: "
                                      + "; ".join(problems))
+
+
+def _parse_codes(value: object) -> list[str]:
+    if value is None or (not isinstance(value, str) and pd.isna(value)):
+        return []
+    return [part.strip() for part in str(value).replace("|", ";").split(";") if part.strip()]
+
+
+def _candidate_leaves(
+    frame: pd.DataFrame,
+    tags: pd.DataFrame,
+    leaves80: dict[str, list[str]],
+    leaves16: dict[str, list[str]],
+) -> tuple[list[frozenset[str]], list[str]]:
+    """IO240 candidates of each place, restricted to the leaves of its finest tag.
+
+    Fine places get their own code. A coarse place uses ``io240_codes`` (the tagging
+    candidate set) intersected with its tag's leaves. Only *absent* candidates fall
+    back to all leaves of its tag. A supplied disjoint set is a contradiction and
+    stays unassigned for explicit review. Untagged places get none.
+    """
+    raw = frame["io240_codes"] if "io240_codes" in frame.columns else None
+    out: list[frozenset[str]] = []
+    source: list[str] = []
+    for position, (a, b, c) in enumerate(tags.itertuples(index=False)):
+        if a:
+            out.append(frozenset({a}))
+            source.append("io240_code")
+            continue
+        if not (b or c):
+            out.append(frozenset())
+            source.append("none")
+            continue
+        tag_leaves = set(leaves80[b] if b else leaves16[c])
+        listed = set(_parse_codes(raw.iat[position])) if raw is not None else set()
+        usable = listed & tag_leaves
+        if listed and not usable:
+            out.append(frozenset())
+            source.append("candidate_conflict")
+        elif usable:
+            out.append(frozenset(usable))
+            source.append("io240_codes")
+        else:
+            out.append(frozenset(tag_leaves))
+            source.append("tag_leaves")
+    return out, source
+
+
+REVIEW_REQUIRED_EVIDENCE = frozenset({
+    "candidate_conflict", "provisional_mapping", "ownership_inferred",
+    "low_concordance_confidence", "source_conflict", "legacy_residual",
+})
+
+
+def _assignment_evidence_flags(row: pd.Series, status: str, assigned: bool) -> tuple[str, ...]:
+    """Nonexclusive provenance: exact IO tags are not verified establishment truth."""
+    if status == "UNASSIGNED_CANDIDATE_CONFLICT":
+        return ("candidate_conflict",)
+    if not assigned:
+        return ("unassigned",)
+    flags: list[str] = []
+    if status in ("IO80_RESIDUAL", "IO16_RESIDUAL"):
+        flags.append("legacy_residual")
+    if str(row.get("ownership_side", "")).strip():
+        flags.append("ownership_inferred")
+    if str(row.get("io_mapping_provisional", "")).strip().casefold() == "true":
+        flags.append("provisional_mapping")
+    if str(row.get("io240_confidence", "")).strip() == "Low":
+        flags.append("low_concordance_confidence")
+    if any("CONFLICT" in str(row.get(key, "")).upper() or
+           "DISAGREE" in str(row.get(key, "")).upper()
+           for key in ("psic_status", "psic_flags", "io80_status", "io240_status",
+                       "direct_io_status")):
+        flags.append("source_conflict")
+    if not flags:
+        flags.append("exact_tag_unverified" if status.startswith("IO240")
+                     else "coarse_or_candidate_contained")
+    return tuple(flags)
+
+
+def _assignment_evidence(row: pd.Series, status: str, assigned: bool) -> str:
+    """Primary display label; use the full flags column for nonexclusive evidence."""
+    return _assignment_evidence_flags(row, status, assigned)[0]
 
 
 @dataclass(frozen=True)
@@ -289,6 +397,8 @@ def build_hierarchical_economy(
     *,
     strict_coarse: bool = False,
     min_places: int = 1,
+    coarse_policy: str = DEFAULT_COARSE_POLICY,
+    max_straddle_share: float = DEFAULT_MAX_STRADDLE_SHARE,
 ) -> HierarchicalResult:
     """Build adaptive sectors and retag places without editing the supplied inputs.
 
@@ -301,9 +411,15 @@ def build_hierarchical_economy(
 
     All IO240 sectors are partitioned exactly once, including sectors without any
     observed establishments, so national IO totals are not silently discarded.
-    An IO80/IO16-only place with zero compatible residual remains explicitly
+    An IO80/IO16-only place with no single containing group remains explicitly
     unassigned by default; strict_coarse=True makes this a validation error.
+    ``coarse_policy`` selects how coarse places are assigned (see the module docstring).
     """
+    if coarse_policy not in COARSE_POLICIES:
+        raise ValueError(f"coarse_policy must be one of {COARSE_POLICIES}")
+    if isinstance(max_straddle_share, bool) or not 0.0 <= float(max_straddle_share) <= 1.0:
+        raise ValueError("max_straddle_share must be a number in [0, 1]")
+    max_straddle_share = float(max_straddle_share)
     integral = isinstance(min_places, (int, np.integer)) and not isinstance(min_places, bool)
     if not integral or min_places < 1:
         raise ValueError("min_places must be an integer >= 1")
@@ -324,39 +440,102 @@ def build_hierarchical_economy(
     labels240 = {s.code: s.label for s in io240.sectors}
     labels80 = _parent_labels(h, "io80")
     labels16 = _parent_labels(h, "io16")
-
-    # Build a partition of the underlying (exhaustive) IO240 set.
-    groups: list[tuple[str, str, list[str]]] = []
-    for p16 in dict.fromkeys(h.io16_code):
-        children16 = h.loc[h.io16_code.eq(p16)]
-        taken16: set[str] = set()
-        for p80 in dict.fromkeys(children16.io80_code):
-            children80 = list(children16.loc[children16.io80_code.eq(p80), "io240_code"])
-            precise = [c for c in children80 if c in retained240]
-            for c in precise:
-                groups.append((f"240:{c}", _label("IO240", c, labels240[c]), [c]))
-                taken16.add(c)
-            leftover = [c for c in children80 if c not in retained240]
-            if precise and leftover:
-                label = _label("IO80", p80, labels80.get(p80, ""), other=True)
-                groups.append((f"80:{p80}:OTHER", label, leftover))
-                taken16.update(leftover)
-            elif not precise and support80[p80] >= min_places:
-                groups.append((f"80:{p80}", _label("IO80", p80, labels80.get(p80, "")), children80))
-                taken16.update(children80)
-        remainder = [c for c in children16.io240_code if c not in taken16]
-        if remainder:
-            key = f"16:{p16}:O" if taken16 else f"16:{p16}"
-            label = _label("IO16", p16, labels16.get(p16, ""), other=bool(taken16))
-            groups.append((key, label, remainder))
-
+    leaves80 = {p: list(g) for p, g in h.groupby("io80_code", sort=False).io240_code}
+    leaves16 = {p: list(g) for p, g in h.groupby("io16_code", sort=False).io240_code}
     original = list(io240.sectors.codes)
-    reverse: dict[str, str] = {}
-    for key, _, leaves in groups:
-        for leaf in leaves:
-            if leaf in reverse:
-                raise EconomyValidationError(f"IO240 leaf {leaf} has duplicate membership")
-            reverse[leaf] = key
+
+    def _partition(whole80: set[str], whole16: set[str]) -> list[tuple[str, str, list[str]]]:
+        """Partition of the exhaustive IO240 set; ``whole*`` parents are never split."""
+        groups: list[tuple[str, str, list[str]]] = []
+        for p16 in dict.fromkeys(h.io16_code):
+            children16 = h.loc[h.io16_code.eq(p16)]
+            if p16 in whole16:
+                label = _label("IO16", p16, labels16.get(p16, ""))
+                groups.append((f"16:{p16}", label, list(children16.io240_code)))
+                continue
+            taken16: set[str] = set()
+            for p80 in dict.fromkeys(children16.io80_code):
+                children80 = list(children16.loc[children16.io80_code.eq(p80), "io240_code"])
+                if p80 in whole80:
+                    label = _label("IO80", p80, labels80.get(p80, ""))
+                    groups.append((f"80:{p80}", label, children80))
+                    taken16.update(children80)
+                    continue
+                precise = [c for c in children80 if c in retained240]
+                for c in precise:
+                    groups.append((f"240:{c}", _label("IO240", c, labels240[c]), [c]))
+                    taken16.add(c)
+                leftover = [c for c in children80 if c not in retained240]
+                if precise and leftover:
+                    label = _label("IO80", p80, labels80.get(p80, ""), other=True)
+                    groups.append((f"80:{p80}:OTHER", label, leftover))
+                    taken16.update(leftover)
+                elif not precise and support80[p80] >= min_places:
+                    label = _label("IO80", p80, labels80.get(p80, ""))
+                    groups.append((f"80:{p80}", label, children80))
+                    taken16.update(children80)
+            remainder = [c for c in children16.io240_code if c not in taken16]
+            if remainder:
+                key = f"16:{p16}:O" if taken16 else f"16:{p16}"
+                label = _label("IO16", p16, labels16.get(p16, ""), other=bool(taken16))
+                groups.append((key, label, remainder))
+        return groups
+
+    def _reverse(groups: list[tuple[str, str, list[str]]]) -> dict[str, str]:
+        reverse: dict[str, str] = {}
+        for key, _, leaves in groups:
+            for leaf in leaves:
+                if leaf in reverse:
+                    raise EconomyValidationError(f"IO240 leaf {leaf} has duplicate membership")
+                reverse[leaf] = key
+        return reverse
+
+    candidates, candidate_source = _candidate_leaves(classified_places, tags, leaves80, leaves16)
+    whole80: set[str] = set()
+    whole16: set[str] = set()
+    kept_whole: list[dict[str, Any]] = []
+    groups = _partition(whole80, whole16)
+    reverse = _reverse(groups)
+    if coarse_policy == "contain":
+        # Keep a parent whole when the places its split would leave unassigned exceed
+        # max_straddle_share of its places. IO80 parents first, then IO16 parents.
+        for level, parents, whole in (("io80", leaves80, whole80), ("io16", leaves16, whole16)):
+            up = up80 if level == "io80" else up16
+            while True:
+                group_parent: dict[str, str | None] = {}
+                for key, _, leaves in groups:
+                    found = {up[leaf] for leaf in leaves}
+                    group_parent[key] = next(iter(found)) if len(found) == 1 else None
+                straddling: Counter[str] = Counter()
+                exact: Counter[str] = Counter()
+                for cand in candidates:
+                    if not cand:
+                        continue
+                    owners = {reverse[leaf] for leaf in cand}
+                    if len(owners) == 1:
+                        parent = group_parent[next(iter(owners))]
+                        if parent is not None:
+                            exact[parent] += 1
+                    else:
+                        found = {up[leaf] for leaf in cand}
+                        if len(found) == 1:
+                            straddling[next(iter(found))] += 1
+                changed = False
+                for parent, members in parents.items():
+                    if parent in whole or len({reverse[leaf] for leaf in members}) < 2:
+                        continue  # already whole, or not split
+                    s_count, e_count = straddling[parent], exact[parent]
+                    if s_count > max_straddle_share * (s_count + e_count):
+                        whole.add(parent)
+                        kept_whole.append({"level": level, "code": parent,
+                                           "straddling_places": int(s_count),
+                                           "exactly_assigned_places": int(e_count)})
+                        changed = True
+                if not changed:
+                    break
+                groups = _partition(whole80, whole16)
+                reverse = _reverse(groups)
+
     if set(reverse) != set(original) or len(groups) > len(original):
         raise EconomyValidationError("hierarchical sectors do not partition the IO240 universe")
     for key, _, leaves in groups:
@@ -366,18 +545,25 @@ def build_hierarchical_economy(
             )
 
     available = {g[0] for g in groups}
-    leaves80 = {p: list(g) for p, g in h.groupby("io80_code", sort=False).io240_code}
-    leaves16 = {p: list(g) for p, g in h.groupby("io16_code", sort=False).io240_code}
 
-    def _containing(leaves: list[str]) -> str:
-        """The single group holding every leaf of a coarse tag, else ''."""
+    def _containing(leaves: list[str] | frozenset[str]) -> str:
+        """The single group holding every given leaf, else ''."""
         owners = {reverse[leaf] for leaf in leaves}
         return next(iter(owners)) if len(owners) == 1 else ""
 
     final_codes: list[str] = []
     provenance: list[str] = []
-    for a, b, c in tags.itertuples(index=False):
-        if a:
+    rows = zip(tags.itertuples(index=False), candidates, strict=True)
+    for position, ((a, b, c), cand) in enumerate(rows):
+        if candidate_source[position] == "candidate_conflict":
+            # Never allow the broad parent or a legacy residual to absorb a place
+            # whose supplied candidate evidence explicitly disagrees with its tag.
+            if strict_coarse:
+                raise EconomyValidationError(
+                    "place carries IO240 candidates incompatible with its IO80/IO16 tag"
+                )
+            key, how = "", "UNASSIGNED_CANDIDATE_CONFLICT"
+        elif a:
             key = reverse[a]
             how = "IO240" if key == f"240:{a}" else "IO240_FOLDED"
         elif b:
@@ -385,6 +571,9 @@ def build_hierarchical_economy(
             if key:
                 how = ("IO80" if key == f"80:{b}" else
                        "IO80_SINGLE_MEMBER" if key.startswith("240:") else "IO80_FOLDED")
+            elif coarse_policy == "contain":
+                key = _containing(cand)
+                how = "IO80_CANDIDATES" if key else "UNASSIGNED_IO80_STRADDLES"
             else:
                 key = f"80:{b}:OTHER" if f"80:{b}:OTHER" in available else ""
                 how = "IO80_RESIDUAL" if key else "IO80_UNASSIGNABLE"
@@ -392,6 +581,9 @@ def build_hierarchical_economy(
             key = _containing(leaves16[c])
             if key:
                 how = "IO16" if key == f"16:{c}" else "IO16_SINGLE_MEMBER"
+            elif coarse_policy == "contain":
+                key = _containing(cand)
+                how = "IO16_CANDIDATES" if key else "UNASSIGNED_IO16_STRADDLES"
             else:
                 key = f"16:{c}:O" if f"16:{c}:O" in available else ""
                 how = "IO16_RESIDUAL" if key else "IO16_UNASSIGNABLE"
@@ -399,13 +591,18 @@ def build_hierarchical_economy(
             key, how = "", "UNRESOLVED"
         if (a or b or c) and (not key or key not in available):
             if strict_coarse or a:
+                reason = (
+                    "no single sector contains its IO240 candidates"
+                    if coarse_policy == "contain"
+                    else "no unambiguous residual or single sector"
+                )
                 raise EconomyValidationError(
                     f"place at {how} resolution cannot be assigned: "
-                    f"no unambiguous residual or single sector for IO240={a!r}, "
-                    f"IO80={b!r}, IO16={c!r}"
+                    f"{reason} for IO240={a!r}, IO80={b!r}, IO16={c!r}"
                 )
             key = ""
-            how = "UNASSIGNED_IO80_NO_RESIDUAL" if b else "UNASSIGNED_IO16_NO_RESIDUAL"
+            if not how.startswith("UNASSIGNED_"):
+                how = "UNASSIGNED_IO80_NO_RESIDUAL" if b else "UNASSIGNED_IO16_NO_RESIDUAL"
         final_codes.append(key)
         provenance.append(how)
 
@@ -485,6 +682,28 @@ def build_hierarchical_economy(
     label_map = {s.code: s.label for s in economy.sectors}
     tagged["economy_label"] = tagged.economy_code.map(label_map).fillna("").astype("string")
     tagged["economy_status"] = pd.Series(provenance, index=tagged.index, dtype="string")
+    tagged["economy_candidate_source"] = pd.Series(candidate_source, index=tagged.index, dtype="string")
+    tagged["economy_candidate_io240"] = pd.Series(
+        ["; ".join(sorted(c)) for c in candidates], index=tagged.index, dtype="string"
+    )
+    tagged["economy_candidate_local_sectors"] = pd.Series(
+        ["; ".join(sorted({remap[reverse[leaf]] for leaf in cand})) for cand in candidates],
+        index=tagged.index, dtype="string"
+    )
+    evidence_flags = [
+        _assignment_evidence_flags(classified_places.iloc[i], how, bool(code))
+        for i, (how, code) in enumerate(zip(provenance, final_codes, strict=True))
+    ]
+    evidence = [flags[0] for flags in evidence_flags]
+    review_flags = [any(flag in REVIEW_REQUIRED_EVIDENCE for flag in flags)
+                    for flags in evidence_flags]
+    tagged["economy_evidence"] = pd.Series(evidence, index=tagged.index, dtype="string")
+    tagged["economy_evidence_flags"] = pd.Series(
+        ["; ".join(flags) for flags in evidence_flags], index=tagged.index, dtype="string"
+    )
+    tagged["economy_review_required"] = pd.Series(
+        review_flags, index=tagged.index, dtype=bool
+    )
     tagged["economy_source"] = "hierarchical_io240_io80_io16"
     members = pd.DataFrame([
         {"economy_code": key, "economy_label": label, "io240_code": leaf,
@@ -502,7 +721,18 @@ def build_hierarchical_economy(
     # the FINAL spatial types all meet a clustering threshold: coarse assignments,
     # residuals, and geographic connectivity can still produce empty/noisy groups.
     assumed_coarse = sum(s in ("IO80_RESIDUAL", "IO16_RESIDUAL") for s in provenance)
+    straddling = sum(s.endswith("_STRADDLES") for s in provenance)
     return HierarchicalResult(economy, tagged, members, {
+        "coarse_policy": coarse_policy,
+        "max_straddle_share": max_straddle_share if coarse_policy == "contain" else None,
+        "kept_whole_parents": kept_whole,
+        "straddling_unassigned_place_count": int(straddling),
+        "coarse_candidate_source_counts": dict(sorted(Counter(candidate_source).items())),
+        "economy_evidence_counts": dict(sorted(Counter(evidence).items())),
+        "economy_evidence_flag_counts": dict(sorted(Counter(
+            flag for flags in evidence_flags for flag in flags).items())),
+        "economy_review_required_count": int(sum(review_flags)),
+        "candidate_conflict_place_count": int(candidate_source.count("candidate_conflict")),
         "sector_code_scheme": code_scheme,
         "original_io240_sector_count": len(original), "final_sector_count": len(groups),
         "min_places": int(min_places),
