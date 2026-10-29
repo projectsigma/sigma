@@ -218,6 +218,52 @@ def test_ownership_resolves_only_inside_the_pair():
     assert disabled.loc[0, "io80_code"] == ""
 
 
+@pytest.mark.parametrize("category, side, expected_io80, expected_io240", [
+    ("private_school | place_of_learning", "private", "75", "230"),
+    ("public_school | place_of_learning", "public", "74", "229"),
+])
+def test_education_explicit_source_category_resolves_only_with_candidate_pair(
+    category, side, expected_io80, expected_io240,
+):
+    row = {
+        "overture_name": "Generic Educational Institution",
+        "overture_category": category,
+        "psic_status": "SINGLE", "psic_flags": "",
+        "io16_codes": "14", "io16_map_code": "14",
+        "io80_codes": "74; 75", "io80_map_code": "",
+        "io240_codes": "229; 230", "io240_map_code": "",
+        "io240_names": "Public education | Private education",
+    }
+    evidence = ownership_evidence(row, "education")
+    assert evidence.side == side
+    assert evidence.reason.startswith("category:overture:")
+    tagged = apply_hybrid_io(pd.DataFrame([row]))
+    assert tagged.loc[0, "io80_code"] == expected_io80
+    assert tagged.loc[0, "io240_code"] == expected_io240
+    assert tagged.loc[0, "io80_status"] == "OWNERSHIP_RESOLVED"
+    assert tagged.loc[0, "io240_status"] == "OWNERSHIP_RESOLVED"
+
+    # Category evidence must not bypass the exact candidate-set guard.
+    disallowed = dict(row, io80_codes=expected_io80, io240_codes=expected_io240)
+    disallowed_tagged = apply_hybrid_io(pd.DataFrame([disallowed]))
+    assert disallowed_tagged.loc[0, "ownership_domain"] == ""
+    assert disallowed_tagged.loc[0, "ownership_side"] == ""
+
+
+@pytest.mark.parametrize("row, expected_reason", [
+    ({"overture_name": "Generic School", "overture_category": "school"}, "no_evidence"),
+    ({"overture_name": "Generic School", "overture_category": "private_school_supplies"}, "no_evidence"),
+    ({"overture_name": "Generic School", "overture_category": "private_school | public_school"}, "contradictory"),
+    ({"overture_name": "Bagong Silang National High School", "overture_category": "private_school"}, "contradictory"),
+    ({"overture_name": "ABC Private Elementary School", "overture_category": "public_school"}, "contradictory"),
+    ({"overture_name": "Private Academy", "overture_category": "public_school"}, "contradictory"),
+])
+def test_education_category_evidence_abstains_on_ambiguity(row, expected_reason):
+    result = ownership_evidence(row, "education")
+    assert result.side == ""
+    assert result.reason == expected_reason
+
+
 # ---- level consistency -------------------------------------------------------
 
 def test_level_guard_keeps_psic_tag_and_derives_its_parents():
