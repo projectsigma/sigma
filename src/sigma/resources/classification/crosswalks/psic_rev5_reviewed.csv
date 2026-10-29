@@ -8,14 +8,14 @@ overture,auto_detailing,SUBTREE,9534,exact,0.99,migrated trusted Overture determ
 overture,auto_parts_store,SUBTREE,4782,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,automotive_repair,SUBTREE,953,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,b2b_advertising_and_marketing_service,SUBTREE,731,exact,0.99,migrated trusted Overture deterministic floor,category
-overture,bank,SUBTREE,64,exact,0.99,migrated trusted Overture deterministic floor,category
-overture,bank_or_credit_union,SUBTREE,64,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,bank,SUBTREE,641,exact,0.99,"banks are monetary intermediation (641); retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
+overture,bank_or_credit_union,SUBTREE,641,exact,0.99,"banks and credit cooperatives are both in Rev. 5 group 641; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 overture,bar,SUBTREE,563,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,barbecue_restaurant,SUBTREE,561,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,barber,SUBTREE,962,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,beauty_salon,SUBTREE,962,exact,0.99,migrated trusted Overture deterministic floor,category
-overture,beauty_supply_store,SUBTREE,47,exact,0.99,migrated trusted Overture deterministic floor,category
-overture,bike_store,SUBTREE,47,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,beauty_supply_store,SUBTREE,4772,exact,0.99,"retail sale of cosmetic and toilet articles; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
+overture,bike_store,SUBTREE,4762,exact,0.99,"bicycles are Rev. 5 class 4762; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 overture,bookstore,SUBTREE,4761,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,bubble_tea_shop,SUBTREE,563,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,building_or_construction_service,SUBTREE,F,exact,0.99,migrated trusted Overture deterministic floor,category
@@ -44,9 +44,9 @@ overture,family_practice,SUBTREE,862,exact,0.99,migrated trusted Overture determ
 overture,fast_food_restaurant,SUBTREE,561,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,filipino_restaurant,SUBTREE,561,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,financial_service,SUBTREE,L,exact,0.99,migrated trusted Overture deterministic floor,category
-overture,flowers_and_gifts_store,SUBTREE,47,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,flowers_and_gifts_store,UNION,47192|47735,exact,0.99,"gift and novelty goods or flowers retail; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 overture,food_and_drink,SUBTREE,56,exact,0.99,migrated trusted Overture deterministic floor,category
-overture,food_beverage_distributor,SUBTREE,G,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,food_beverage_distributor,SUBTREE,4631,exact,0.99,a distributor is wholesale of food and beverages (was section G),category
 overture,food_truck_stand,SUBTREE,561,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,freight_and_cargo_service,SUBTREE,H,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,funeral_service,SUBTREE,963,exact,0.99,migrated trusted Overture deterministic floor,category
@@ -60,7 +60,7 @@ overture,hair_salon,SUBTREE,962,exact,0.99,migrated trusted Overture determinist
 overture,hardware_store,SUBTREE,4752,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,health_care,SUBTREE,86,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,high_school,SUBTREE,85,exact,0.99,migrated trusted Overture deterministic floor,category
-overture,holiday_rental_home,SUBTREE,55,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,holiday_rental_home,SUBTREE,552,exact,0.99,"retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 overture,home_improvement_store,SUBTREE,475,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,hospital,SUBTREE,861,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,hotel,SUBTREE,551,exact,0.99,migrated trusted Overture deterministic floor,category
@@ -73,9 +73,9 @@ overture,jewelry_store,EXACT,47734,exact,0.99,migrated trusted Overture determin
 overture,laboratory_testing,SUBTREE,712,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,laundromat,SUBTREE,961,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,legal_service,SUBTREE,691,exact,0.99,migrated trusted Overture deterministic floor,category
-overture,lodging,SUBTREE,55,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,lodging,UNION,551|552|553|559,exact,0.99,"an accommodation establishment, not booking intermediation (554); retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 overture,manufacturer,SUBTREE,C,exact,0.99,migrated trusted Overture deterministic floor,category
-overture,meat_wholesaler,SUBTREE,46,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,meat_wholesaler,EXACT,46313,exact,0.99,"wholesale of meat; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 overture,metal_fabricator,SUBTREE,25,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,mobile_phone_store,SUBTREE,474,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,motorcycle_dealer,SUBTREE,4783,exact,0.99,migrated trusted Overture deterministic floor,category
@@ -93,7 +93,7 @@ overture,professional_service,SUBTREE,N,exact,0.99,migrated trusted Overture det
 overture,real_estate_agent,SUBTREE,68,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,real_estate_service,SUBTREE,68,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,religious_organization,SUBTREE,9491,exact,0.99,migrated trusted Overture deterministic floor,category
-overture,resort,SUBTREE,55,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,resort,SUBTREE,551,exact,0.99,"resort hotels are Rev. 5 group 551; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 overture,restaurant,SUBTREE,561,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,roman_catholic_place_of_worship,SUBTREE,9491,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,school,SUBTREE,85,exact,0.99,migrated trusted Overture deterministic floor,category
@@ -109,9 +109,9 @@ overture,tour_operator,SUBTREE,7912,exact,0.99,migrated trusted Overture determi
 overture,towing_service,SUBTREE,5221,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,travel_service,SUBTREE,79,exact,0.99,migrated trusted Overture deterministic floor,category
 overture,veterinarian,SUBTREE,75,exact,0.99,migrated trusted Overture deterministic floor,category
-overture,warehouse_club_store,SUBTREE,47,exact,0.99,migrated trusted Overture deterministic floor,category
+overture,warehouse_club_store,SUBTREE,471,exact,0.99,"non-specialized retail; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 overture,womens_clothing_store,SUBTREE,4771,exact,0.99,migrated trusted Overture deterministic floor,category
-osm,amenity=bank,SUBTREE,64,exact,0.99,migrated trusted OSM amenity rule,category
+osm,amenity=bank,SUBTREE,641,exact,0.99,"banks are monetary intermediation (641); retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 osm,amenity=bar,SUBTREE,563,exact,0.99,migrated trusted OSM amenity rule,category
 osm,amenity=cafe,SUBTREE,563,exact,0.99,migrated trusted OSM amenity rule,category
 osm,amenity=car_wash,SUBTREE,9534,exact,0.99,migrated trusted OSM amenity rule,category
@@ -138,10 +138,10 @@ osm,amenity=townhall,SUBTREE,84,exact,0.99,migrated trusted OSM amenity rule,cat
 osm,amenity=university,SUBTREE,854,exact,0.99,migrated trusted OSM amenity rule,category
 osm,amenity=veterinary,SUBTREE,75,exact,0.99,migrated trusted OSM amenity rule,category
 osm,shop=appliance,SUBTREE,475,exact,0.99,migrated trusted OSM shop rule,category
-osm,shop=bakery,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
-osm,shop=beauty,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
-osm,shop=bicycle,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
-osm,shop=books,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=bakery,EXACT,47214,exact,0.99,"retail sale of bakery products; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
+osm,shop=beauty,SUBTREE,962,exact,0.99,"OSM wiki: shop=beauty is a non-hairdresser beauty service (spa, nail salon); cosmetics retail is shop=cosmetics",category
+osm,shop=bicycle,SUBTREE,4762,exact,0.99,"bicycles are Rev. 5 class 4762; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
+osm,shop=books,SUBTREE,4761,exact,0.99,"retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 osm,shop=butcher,EXACT,47213,exact,0.99,migrated trusted OSM shop rule,category
 osm,shop=car,SUBTREE,4781,exact,0.99,migrated trusted OSM shop rule,category
 osm,shop=car_parts,SUBTREE,4782,exact,0.99,migrated trusted OSM shop rule,category
@@ -154,8 +154,8 @@ osm,shop=dry_cleaning,SUBTREE,961,exact,0.99,migrated trusted OSM shop rule,cate
 osm,shop=electronics,SUBTREE,474,exact,0.99,migrated trusted OSM shop rule,category
 osm,shop=funeral_directors,SUBTREE,963,exact,0.99,migrated trusted OSM shop rule,category
 osm,shop=furniture,SUBTREE,475,exact,0.99,migrated trusted OSM shop rule,category
-osm,shop=gas,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
-osm,shop=general,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=gas,SUBTREE,4775,exact,0.99,"OSM shop=gas is bottled cooking gas; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
+osm,shop=general,SUBTREE,471,exact,0.99,"general store: non-specialized retail; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 osm,shop=hairdresser,SUBTREE,962,exact,0.99,migrated trusted OSM shop rule,category
 osm,shop=hardware,SUBTREE,4752,exact,0.99,migrated trusted OSM shop rule,category
 osm,shop=jewelry,EXACT,47734,exact,0.99,migrated trusted OSM shop rule,category
@@ -164,7 +164,7 @@ osm,shop=medical_supply,SUBTREE,4772,exact,0.99,migrated trusted OSM shop rule,c
 osm,shop=mobile_phone,SUBTREE,474,exact,0.99,migrated trusted OSM shop rule,category
 osm,shop=motorcycle,SUBTREE,4783,exact,0.99,migrated trusted OSM shop rule,category
 osm,shop=optician,EXACT,47736,exact,0.99,migrated trusted OSM shop rule,category
-osm,shop=pastry,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=pastry,EXACT,47214,exact,0.99,"retail sale of bakery products; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 osm,shop=pawnbroker,SUBTREE,6496,exact,0.99,migrated trusted OSM shop rule,category
 osm,shop=pet,SUBTREE,4776,exact,0.99,migrated trusted OSM shop rule,category
 osm,shop=pharmacy,SUBTREE,4772,exact,0.99,migrated trusted OSM shop rule,category
@@ -176,8 +176,8 @@ osm,shop=supermarket,SUBTREE,4711,exact,0.99,migrated trusted OSM shop rule,cate
 osm,shop=tailor,SUBTREE,144,exact,0.99,migrated trusted OSM shop rule,category
 osm,shop=travel_agency,SUBTREE,7911,exact,0.99,migrated trusted OSM shop rule,category
 osm,shop=tyres,SUBTREE,4782,exact,0.99,migrated trusted OSM shop rule,category
-osm,shop=variety_store,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
-osm,shop=water,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
+osm,shop=variety_store,SUBTREE,471,exact,0.99,"non-specialized retail; retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
+osm,shop=water,EXACT,47222,exact,0.99,"retail sale of non-alcoholic beverages (keeps the earlier retail reading; water refilling stations would be 11055); retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 osm,shop=yes,SUBTREE,47,exact,0.99,migrated trusted OSM shop rule,category
 osm,office=association,SUBTREE,94,exact,0.99,migrated trusted OSM office rule,category
 osm,office=courier,SUBTREE,532,exact,0.99,migrated trusted OSM office rule,category
@@ -188,10 +188,10 @@ osm,healthcare=laboratory,SUBTREE,869,exact,0.99,migrated trusted OSM healthcare
 osm,healthcare=pharmacy,SUBTREE,4772,exact,0.99,migrated trusted OSM healthcare rule,category
 osm,office=government,SUBTREE,84,exact,0.99,migrated trusted OSM deterministic floor,category
 osm,tourism=hotel,SUBTREE,551,exact,0.99,migrated trusted OSM deterministic floor,category
-osm,tourism=guest_house,SUBTREE,55,exact,0.99,migrated trusted OSM deterministic floor,category
-osm,tourism=hostel,SUBTREE,55,exact,0.99,migrated trusted OSM deterministic floor,category
-osm,tourism=chalet,SUBTREE,55,exact,0.99,migrated trusted OSM deterministic floor,category
-osm,tourism=apartment,SUBTREE,55,exact,0.99,migrated trusted OSM deterministic floor,category
+osm,tourism=guest_house,SUBTREE,552,exact,0.99,"retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
+osm,tourism=hostel,SUBTREE,552,exact,0.99,"retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
+osm,tourism=chalet,SUBTREE,552,exact,0.99,"retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
+osm,tourism=apartment,SUBTREE,552,exact,0.99,"retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 overture,beach,NOT_ACTIVITY,,exact,1.0,reviewed non-economic place category,category
 overture,bridge,NOT_ACTIVITY,,exact,1.0,reviewed non-economic place category,category
 overture,historic_site,NOT_ACTIVITY,,exact,1.0,reviewed non-economic place category,category
@@ -273,7 +273,7 @@ overture,pediatric_clinic,SUBTREE,862,exact,0.98,expanded reviewed high-confiden
 overture,dialysis_clinic,EXACT,86223,exact,0.98,expanded reviewed high-confidence Overture category rule,category
 overture,vision_or_eye_care_clinic,EXACT,86224,exact,0.98,expanded reviewed high-confidence Overture category rule,category
 overture,obstetrics_and_gynecology,SUBTREE,862,exact,0.98,expanded reviewed high-confidence Overture category rule,category
-overture,hostel,SUBTREE,55,exact,0.98,expanded reviewed high-confidence Overture category rule,category
+overture,hostel,SUBTREE,552,exact,0.98,"retargeted below the Rev. 5 division: the category names one subtree, and the division also holds an activity that maps to another I-O sector",category
 overture,inn,SUBTREE,551,exact,0.98,expanded reviewed high-confidence Overture category rule,category
 overture,beach_resort,EXACT,55103,exact,0.98,expanded reviewed high-confidence Overture category rule,category
 overture,diner,SUBTREE,561,exact,0.98,expanded reviewed high-confidence Overture category rule,category
@@ -303,9 +303,9 @@ osm,\b(?:gym|fitness\s+(?:center|centre|club))\b,SUBTREE,9311,regex,0.97,high-pr
 osm,\bbook(?:store|shop)\b,SUBTREE,4761,regex,0.97,high-precision reviewed name rule: bookstore,name
 osm,\b(?:printing|print\s*shop)\b,SUBTREE,181,regex,0.97,high-precision reviewed name rule: printing service,name
 osm,\bcar\s+wash\b,SUBTREE,9534,regex,0.97,high-precision reviewed name rule: car wash,name
-osm,\b(?:construction|builders?)\b,SUBTREE,F,regex,0.97,high-precision reviewed name rule: construction business,name
+osm,\b(?:construction|builders?)\b(?!'?s?\s+(?:supply|supplies|hardware|depot|materials?|merchandise|trading|enterprises?\s+supply|center|centre|mart)),SUBTREE,F,regex,0.97,"high-precision reviewed name rule: construction business; excludes supply, hardware and materials stores",name
 osm,\b(?:realty|real\s+estate)\b,SUBTREE,68,regex,0.97,high-precision reviewed name rule: real estate business,name
-osm,\bhotel\b|\bresort\b,SUBTREE,55,regex,0.97,high-precision reviewed name rule: hotel/resort accommodation,name
+osm,\bhotel\b|\bresort\b,SUBTREE,551,regex,0.97,"high-precision reviewed name rule: hotel/resort accommodation (group 551, not division 55, which includes booking intermediation)",name
 overture,\b(?:internet|cyber)\s+caf[eé]\b,EXACT,61202,regex,0.97,high-precision reviewed name rule: internet cafe,name
 overture,(?<!internet )(?<!cyber )\bcaf[eé]\b|\bcoffee\s+(?:shop|house)\b|\btea\s+(?:house|room)\b|\bmilk\s+tea\b,SUBTREE,563,regex,0.97,high-precision reviewed name rule: cafe/coffee/tea establishment,name
 overture,\b(?:dental|dentist|orthodont(?:ic|ics|ist))\b,SUBTREE,862,regex,0.97,high-precision reviewed name rule: dental establishment,name
@@ -324,6 +324,6 @@ overture,\b(?:gym|fitness\s+(?:center|centre|club))\b,SUBTREE,9311,regex,0.97,hi
 overture,\bbook(?:store|shop)\b,SUBTREE,4761,regex,0.97,high-precision reviewed name rule: bookstore,name
 overture,\b(?:printing|print\s*shop)\b,SUBTREE,181,regex,0.97,high-precision reviewed name rule: printing service,name
 overture,\bcar\s+wash\b,SUBTREE,9534,regex,0.97,high-precision reviewed name rule: car wash,name
-overture,\b(?:construction|builders?)\b,SUBTREE,F,regex,0.97,high-precision reviewed name rule: construction business,name
+overture,\b(?:construction|builders?)\b(?!'?s?\s+(?:supply|supplies|hardware|depot|materials?|merchandise|trading|enterprises?\s+supply|center|centre|mart)),SUBTREE,F,regex,0.97,"high-precision reviewed name rule: construction business; excludes supply, hardware and materials stores",name
 overture,\b(?:realty|real\s+estate)\b,SUBTREE,68,regex,0.97,high-precision reviewed name rule: real estate business,name
-overture,\bhotel\b|\bresort\b,SUBTREE,55,regex,0.97,high-precision reviewed name rule: hotel/resort accommodation,name
+overture,\bhotel\b|\bresort\b,SUBTREE,551,regex,0.97,"high-precision reviewed name rule: hotel/resort accommodation (group 551, not division 55, which includes booking intermediation)",name

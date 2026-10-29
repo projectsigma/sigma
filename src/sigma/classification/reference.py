@@ -26,6 +26,9 @@ _BRIDGE_RELATIONS = frozenset(
     {"same", "recoded", "renamed", "changed_scope", "new", "no_counterpart"}
 )
 _BRIDGE_BASES = frozenset({"code_title_match", "draft", "reviewed"})
+_REFINEMENT_LEVELS = frozenset({"class", "subclass"})
+_REFINEMENT_BASES = frozenset({"draft", "reviewed"})
+_PARENT_BASES = frozenset({"concordance", "sector_name", "code_order"})
 _CODE_RE = {
     "section": re.compile(r"[A-Z]"),
     "division": re.compile(r"[0-9]{2}"),
@@ -320,11 +323,40 @@ class IOConcordanceRow:
 
 
 @dataclass(frozen=True, slots=True)
+class IORefinementRow:
+    """Narrows the IO240 candidates of a Rev. 5 class or subclass inside its group's set."""
+
+    rev5_level: str
+    rev5_code: str
+    rev5_title: str
+    io240_codes: tuple[str, ...]
+    basis: str
+    note: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class IOParentRow:
+    """The IO80 parent of one IO240 code."""
+
+    io240_code: str
+    io80_code: str
+    basis: str
+    io240_name: str = ""
+    note: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class IOReferenceCatalog:
     bridge: tuple[IOBridgeRow, ...]
     concordance: tuple[IOConcordanceRow, ...]
     bridge_sha256: str
     concordance_sha256: str
+    # Optional finer references. Empty for custom or legacy catalogs, which then
+    # behave exactly as before (group-level mapping only).
+    refinement: tuple[IORefinementRow, ...] = ()
+    io240_parents: tuple[IOParentRow, ...] = ()
+    refinement_sha256: str = ""
+    parents_sha256: str = ""
 
     @property
     def bridge_level_counts(self) -> Mapping[str, int]:
@@ -333,6 +365,10 @@ class IOReferenceCatalog:
     @property
     def concordance_level_counts(self) -> Mapping[str, int]:
         return dict(Counter(row.psic_level for row in self.concordance))
+
+    @property
+    def io240_parent_map(self) -> dict[str, str]:
+        return {row.io240_code: row.io80_code for row in self.io240_parents}
 
     def validate_against(self, taxonomy: PsicTaxonomy) -> list[str]:
         issues: list[str] = []
@@ -348,6 +384,28 @@ class IOReferenceCatalog:
                 )
             if _title_key(node.title) != _title_key(row.rev5_title):
                 issues.append(f"bridge title mismatch for PSIC rev5 code {row.rev5_code}")
+        return issues
+
+    def refinement_issues(self, taxonomy: PsicTaxonomy) -> list[str]:
+        """Check refinement rows against the full Rev. 5 taxonomy.
+
+        Kept separate from ``validate_against``: reduced test taxonomies omit most
+        classes, and IOMapping simply ignores refinement rows whose code or title
+        does not match the taxonomy in use.
+        """
+        issues: list[str] = []
+        for row in self.refinement:
+            node = taxonomy.nodes.get(row.rev5_code)
+            if node is None:
+                issues.append(f"refinement code {row.rev5_code} is absent from PSIC rev5")
+                continue
+            if node.level != row.rev5_level:
+                issues.append(
+                    f"refinement code {row.rev5_code} says {row.rev5_level} "
+                    f"but taxonomy says {node.level}"
+                )
+            if _title_key(node.title) != _title_key(row.rev5_title):
+                issues.append(f"refinement title mismatch for PSIC rev5 code {row.rev5_code}")
         return issues
 
 
@@ -638,12 +696,109 @@ def load_builtin_io_reference() -> IOReferenceCatalog:
             )
         )
 
+    refinement, refinement_sha256 = _load_refinement()
+    parents, parents_sha256 = _load_io240_parents()
+    concordance_io240 = {code for row in concordance for code in row.io240_codes}
+    parent_codes = {row.io240_code for row in parents}
+    if not concordance_io240 <= parent_codes:
+        raise ReferenceDataError(
+            "IO240 parent table lacks concordance codes "
+            f"{sorted(concordance_io240 - parent_codes)[:10]}"
+        )
+    parent_of = {row.io240_code: row.io80_code for row in parents}
+    for row in concordance:
+        for code in row.io240_codes:
+            parent = parent_of[code]
+            if row.io80_codes and parent not in row.io80_codes:
+                raise ReferenceDataError(
+                    f"IO240 {code} has parent IO80 {parent}, which concordance row "
+                    f"{row.psic_level} {row.psic_code} does not list"
+                )
+    for row in refinement:
+        unknown = sorted(set(row.io240_codes) - parent_codes)
+        if unknown:
+            raise ReferenceDataError(
+                f"refinement row {row.rev5_code} uses IO240 codes without parents {unknown}"
+            )
+
     return IOReferenceCatalog(
         bridge=tuple(bridge),
         concordance=tuple(concordance),
         bridge_sha256=bridge_asset.sha256,
         concordance_sha256=concordance_asset.sha256,
+        refinement=refinement,
+        io240_parents=parents,
+        refinement_sha256=refinement_sha256,
+        parents_sha256=parents_sha256,
     )
+
+
+def _load_refinement() -> tuple[tuple[IORefinementRow, ...], str]:
+    asset = _TextAsset(
+        "psic_rev5_io240_refinement.csv",
+        _resource_bytes("io", "psic_rev5_io240_refinement.csv"),
+    )
+    required = {"rev5_level", "rev5_code", "rev5_title", "io240_codes", "basis", "note"}
+    rows: list[IORefinementRow] = []
+    seen: set[str] = set()
+    for line_no, record in enumerate(
+        _csv_rows(asset, required, "PSIC rev5 IO240 refinement"), start=2
+    ):
+        where = f"IO240 refinement line {line_no}"
+        level = record["rev5_level"].casefold()
+        code = record["rev5_code"]
+        if level not in _REFINEMENT_LEVELS:
+            raise ReferenceDataError(f"{where}: unsupported level {level!r}")
+        if not re.fullmatch(r"[0-9]{4}" if level == "class" else r"[0-9]{5}", code):
+            raise ReferenceDataError(f"{where}: malformed {level} code {code!r}")
+        if code in seen:
+            raise ReferenceDataError(f"{where}: duplicate code {code!r}")
+        seen.add(code)
+        codes = _split_semicolon(record["io240_codes"])
+        if not codes or any(not _IO_CODE_RE["io240"].fullmatch(c) for c in codes):
+            raise ReferenceDataError(f"{where}: malformed IO240 codes {record['io240_codes']!r}")
+        if record["basis"] not in _REFINEMENT_BASES:
+            raise ReferenceDataError(f"{where}: unknown basis {record['basis']!r}")
+        if not record["rev5_title"]:
+            raise ReferenceDataError(f"{where}: blank rev5 title")
+        rows.append(
+            IORefinementRow(
+                rev5_level=level,
+                rev5_code=code,
+                rev5_title=record["rev5_title"],
+                io240_codes=tuple(sorted(set(codes))),
+                basis=record["basis"],
+                note=record["note"],
+            )
+        )
+    return tuple(rows), asset.sha256
+
+
+def _load_io240_parents() -> tuple[tuple[IOParentRow, ...], str]:
+    asset = _TextAsset("io240_parents.csv", _resource_bytes("io", "io240_parents.csv"))
+    required = {"io240_code", "io240_name", "io80_code", "basis", "note"}
+    rows: list[IOParentRow] = []
+    seen: set[str] = set()
+    for line_no, record in enumerate(_csv_rows(asset, required, "IO240 parent table"), start=2):
+        where = f"IO240 parent line {line_no}"
+        code, parent = record["io240_code"], record["io80_code"]
+        if not _IO_CODE_RE["io240"].fullmatch(code) or not _IO_CODE_RE["io80"].fullmatch(parent):
+            raise ReferenceDataError(f"{where}: malformed codes {code!r} -> {parent!r}")
+        if code in seen:
+            raise ReferenceDataError(f"{where}: duplicate IO240 code {code!r}")
+        seen.add(code)
+        if record["basis"] not in _PARENT_BASES:
+            raise ReferenceDataError(f"{where}: unknown basis {record['basis']!r}")
+        rows.append(
+            IOParentRow(
+                io240_code=code,
+                io80_code=parent,
+                basis=record["basis"],
+                io240_name=record["io240_name"],
+                note=record["note"],
+            )
+        )
+    return tuple(rows), asset.sha256
 
 
 def _crosswalk_reports() -> tuple[CrosswalkFileReport, ...]:
@@ -696,7 +851,7 @@ def validate_builtin_classification_reference() -> ClassificationReferenceReport
         )
 
     io_reference = load_builtin_io_reference()
-    io_issues = io_reference.validate_against(taxonomy)
+    io_issues = io_reference.validate_against(taxonomy) + io_reference.refinement_issues(taxonomy)
     if io_issues:
         preview = "; ".join(io_issues[:5])
         raise ReferenceDataError(

@@ -344,7 +344,9 @@ class PlacePipeline:
             base_url, model = OpenAICompatibleBackend.configuration_from_environment()
             llm_identity = {"base_url": base_url, "model": model}
         return ArtifactRecipe.build(
-            "places.psic", implementation_version="siphon-psic-classifier-v2-rule-and-llm-identity", dependencies=deps,
+            "places.psic",
+            implementation_version="siphon-psic-classifier-v3-category-floor-precedence",
+            dependencies=deps,
             parameters={
                 "top_n": self.config.top_n,
                 "min_score": self.config.min_score,
@@ -363,7 +365,7 @@ class PlacePipeline:
     def _recipe_classified(self, planner, deps):
         refs = self._reference_obj()
         return ArtifactRecipe.build(
-            "places.classified", implementation_version="c8-economic-tagging-v1", dependencies=deps,
+            "places.classified", implementation_version="c8-economic-tagging-v2", dependencies=deps,
             identities={
                 "economy_sector_fingerprint": self.economy.sector_fingerprint,
                 "tagging_references_fingerprint": refs.fingerprint,

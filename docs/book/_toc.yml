@@ -17,6 +17,7 @@ parts:
   - caption: Economic and spatial-economic network
     chapters:
       - file: content/methods/economy
+      - file: content/methods/hierarchical
       - file: content/methods/x_graph
       - file: content/methods/centrality
       - file: content/methods/scoring

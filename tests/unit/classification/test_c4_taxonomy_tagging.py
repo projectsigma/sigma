@@ -117,7 +117,7 @@ def test_packaged_classification_manifest_hashes_all_assets():
     root=resources.files("sigma.resources.classification")
     payload=json.loads(root.joinpath("manifest.json").read_text(encoding="utf-8"))
     assert payload["schema_version"] == 1
-    assert len(payload["assets"]) == 7
+    assert len(payload["assets"]) == 9
     from sigma.classification.reference import _canonical_manifest_bytes
     for rel,spec in payload["assets"].items():
         raw=root.joinpath(*rel.split("/")).read_bytes()

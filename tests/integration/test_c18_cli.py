@@ -45,7 +45,7 @@ def test_classification_check_verifies_packaged_bytes_without_requiring_pyarrow(
     result = runner.invoke(app, ["classification-check", "--json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert payload["verified_assets"] == payload["asset_count"] == 7
+    assert payload["verified_assets"] == payload["asset_count"] == 9
     assert payload["failures"] == []
 
 

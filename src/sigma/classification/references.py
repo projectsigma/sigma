@@ -14,6 +14,7 @@ from sigma.errors import TaxonomyValidationError
 from .crosswalk import CrosswalkIndex
 from .io_mapping import IOMapping
 from .io_mapping_compat import Industry, Rule, load_catalog, load_rules
+from .ownership import OWNERSHIP_POLICY_FINGERPRINT
 from .reference import PsicTaxonomy
 
 
@@ -97,6 +98,9 @@ class TaggingReferences:
         payload={"taxonomy":taxonomy.fingerprint,"economy":economy.sector_fingerprint,"resolution":resolution,
                  "taxonomy_asset":taxonomy.asset_sha256,
                  "bridge":mapping.reference.bridge_sha256,"concordance":mapping.reference.concordance_sha256,
+                 "io240_refinement":mapping.reference.refinement_sha256,
+                 "io240_parents":mapping.reference.parents_sha256,
+                 "ownership_policy":OWNERSHIP_POLICY_FINGERPRINT,
                  "crosswalk":_crosswalk_payload(crosswalk),
                  "direct_catalog":_catalog_payload(catalog),
                  "direct_rules":_direct_rule_payload(rules)}

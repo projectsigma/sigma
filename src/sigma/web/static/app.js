@@ -208,7 +208,7 @@
   };
   // Refinement overlay: all help icons use one viewport-positioned tooltip.
   // Unlike a CSS-only tooltip, this is not clipped by the scrolling side panel.
-  const statHelp = {'SIGMA score': 'Published SIGMA score for the selected establishment, when present; point size in the map reflects this score. Not a technical coefficient.', 'Cluster centrality': 'Published centrality of the selected sector-cluster node, distinct from individual input-output link strengths.', 'Establishments in cluster': 'Number of establishments assigned to this sector-cluster in the published result.', 'Linked clusters': 'Distinct adjacent cluster nodes in the full X graph, before the current sector, direction and strongest-link filters.', 'X edges in / out': 'Published number of directed edges entering / leaving this X node, before the current screen filters.', 'PSIC': 'Philippine Standard Industrial Classification code of the selected establishment when available. A dash means unavailable.'};
+  const statHelp = {'SIGMA score': 'Published SIGMA score for the selected establishment, when present; point size in the map reflects this score. Not a technical coefficient.', 'Cluster centrality': 'Published centrality of the selected sector-cluster node, distinct from individual input-output link strengths.', 'Establishments in cluster': 'Number of establishments assigned to this sector-cluster in the published result.', 'Linked clusters': 'Distinct adjacent cluster nodes in the full X graph, before the current sector, direction and strongest-link filters.', 'X edges in / out': 'Published number of directed edges entering / leaving this X node, before the current screen filters.', 'PSIC': 'Philippine Standard Industrial Classification code of the selected establishment when available. A dash means unavailable.', 'Sector basis': 'How the establishment\'s sector was assigned. An exact tag is not independent verification of actual activity. Draft concordances and inferred ownership are provisional; flagged assignments need review.'};
   const columnHelp = {'direct-cluster': 'Click a linked cluster to select it. The arrows indicate whether inputs flow from or toward the selected cluster.', 'out-a': "Outgoing technical coefficient a: the selected cluster supplies an input to this cluster, per unit of the receiving cluster's output.", 'in-a': "Incoming technical coefficient a: this cluster supplies an input to the selected cluster, per unit of the selected cluster's output.", 'road-distance': 'Published shortest-path road distance between cluster centers. Distance does not determine Strongest rankings.', 'central-cluster': 'Sector-cluster identifier; click to inspect its connected network.', 'centrality': 'Published centrality value. The list is ranked by this value, not by technical coefficient.', 'establishments': 'Count of establishments represented by the cluster in the published result.'};
   function helpIcon(label, description) {
     const tip = el('span', {className: 'control-help',
@@ -818,7 +818,8 @@
       $('place-description').textContent = `${sectorLabel(p.type)} · Classified establishment without a qualifying network cluster. Hollow circle; SIGMA score not available.`;
       $('stats').replaceChildren(
         stat('SIGMA score', 'N/A'), stat('Cluster centrality', 'N/A'),
-        stat('Linked clusters', 'N/A'), stat('PSIC', p.psic || '—'));
+        stat('Linked clusters', 'N/A'), stat('PSIC', p.psic || '—'),
+        stat('Sector basis', p.basis || '—'));
       return;
     }
     $('selected-code').textContent = `${sectorCode(n.type)} · Cluster ${n.cluster}`;
@@ -832,6 +833,7 @@
       stat('Linked clusters', fmtNum(linked, 0)),
       stat('X edges in / out', `${fmtNum(n.in_degree, 0)} / ${fmtNum(n.out_degree, 0)}`),
       stat('PSIC', p && p.psic ? String(p.psic) : '—'),
+      stat('Sector basis', p && p.basis ? String(p.basis) : '—'),
     );
   }
 

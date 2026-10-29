@@ -6,16 +6,28 @@ resolve an ambiguous PSIC-derived I-O set when the direct code lies inside that
 set, or provide a fallback when no PSIC-derived I-O candidate set exists.
 
 A direct code never overrides a conflicting PSIC-derived candidate set.
+
+Two further steps run per row:
+- ownership (policy ownership-v1): when the PSIC-derived candidates are exactly the
+  public/private pair for education or health, name evidence may choose one side;
+- level consistency: if a resolved IO240 code is not a child of the resolved IO80 code,
+  or an IO80 code is not a child of the IO16 code, the code from the stronger source is
+  kept (PSIC outranks direct rules). A stronger finer code replaces the coarser one by its
+  parent (DERIVED_FROM_IO240 / DERIVED_FROM_IO80); otherwise the finer code is cleared
+  (LEVEL_CONFLICT). Tags are therefore consistent with SIGMA's references by construction.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 import pandas as pd
 
-from .io_mapping_compat import Industry, Rule, deterministic_code, load_catalog, load_rules
+from .io_mapping_compat import Industry, Rule, deterministic_matches, load_catalog, load_rules
+from .ownership import ownership_domain, ownership_evidence
 
 RESOLUTIONS = ("io16", "io80", "io240")
 HYBRID_OUTPUT_COLUMNS = (
@@ -37,6 +49,9 @@ HYBRID_OUTPUT_COLUMNS = (
     "io240_label",
     "io240_status",
     "io240_source",
+    "ownership_domain",
+    "ownership_side",
+    "ownership_reason",
 )
 _DIRECT_BLOCKED_PSIC_STATUSES = frozenset(
     {"NOT_PSIC_ACTIVITY", "UNCODEABLE", "REVIEW_ENTITY_MATCH"}
@@ -101,10 +116,10 @@ def direct_io_evidence(
     rules = rules or load_rules()
 
     hits: list[tuple[str, str, str]] = []
-    for source, name, category in _source_payloads(row):
-        decision = deterministic_code(name, category, rules)
-        if decision is not None:
-            code, reason = decision
+    for source, _name, category in _source_payloads(row):
+        # Tags only: names never trigger direct IO rules. Several codes from one
+        # source become a CONFLICT below, exactly like disagreeing sources.
+        for code, reason in deterministic_matches(category, rules):
             if code in catalog:
                 hits.append((source, code, reason))
 
@@ -201,16 +216,83 @@ def _candidate_label(
     return dict(zip(codes, names, strict=False)).get(code, "")
 
 
+@lru_cache(maxsize=1)
+def _builtin_io240_parents() -> dict[str, str]:
+    from .reference import load_builtin_io_reference
+
+    return load_builtin_io_reference().io240_parent_map
+
+
+def _apply_ownership(
+    row: pd.Series | dict[str, Any],
+    allowed: bool,
+    io80: tuple[str, str, str],
+    io240: tuple[str, str, str],
+) -> tuple[tuple[str, str, str], tuple[str, str, str], tuple[str, str, str]]:
+    candidates80 = _codes(row.get("io80_codes", ""))
+    candidates240 = _codes(row.get("io240_codes", ""))
+    domain = ownership_domain(candidates80, candidates240) if allowed else ""
+    if not domain:
+        return io80, io240, ("", "", "")
+    evidence = ownership_evidence(row, domain)
+    if not evidence.side:
+        return io80, io240, (domain, "", evidence.reason)
+    if not io80[0] and evidence.io80_code in candidates80:
+        io80 = (evidence.io80_code, "OWNERSHIP_RESOLVED", "psic+ownership")
+    if not io240[0] and evidence.io240_code in candidates240:
+        io240 = (evidence.io240_code, "OWNERSHIP_RESOLVED", "psic+ownership")
+    return io80, io240, (domain, evidence.side, evidence.reason)
+
+
+_SOURCE_RANK = {"psic": 2, "psic+direct": 2, "psic+ownership": 2, "direct": 1}
+
+
+def _level_guard(
+    io16: tuple[str, str, str],
+    io80: tuple[str, str, str],
+    io240: tuple[str, str, str],
+    catalog: Mapping[str, Industry],
+    parents: Mapping[str, str],
+) -> tuple[tuple[str, str, str], tuple[str, str, str], tuple[str, str, str]]:
+    """Make the three levels nest. The stronger source wins; PSIC outranks direct rules.
+
+    A finer PSIC-derived code replaces a weaker coarser code by its parent (status
+    DERIVED_FROM_IO240 / DERIVED_FROM_IO80). Otherwise the finer code is cleared
+    (LEVEL_CONFLICT). With SIGMA's own references neither case occurs for PSIC-only tags.
+    """
+    conflict = ("", "LEVEL_CONFLICT", "conflict")
+
+    def rank(level: tuple[str, str, str]) -> int:
+        return _SOURCE_RANK.get(level[2], 0)
+
+    if io240[0] and io80[0] and io240[0] in parents and parents[io240[0]] != io80[0]:
+        if rank(io240) > rank(io80):
+            io80 = (parents[io240[0]], "DERIVED_FROM_IO240", io240[2])
+        else:
+            io240 = conflict
+    if io80[0] and io16[0] and io80[0] in catalog and catalog[io80[0]].io16_code != io16[0]:
+        if rank(io80) > rank(io16):
+            io16 = (catalog[io80[0]].io16_code, "DERIVED_FROM_IO80", io80[2])
+        else:
+            io80 = conflict
+            if io240[0]:
+                io240 = conflict
+    return io16, io80, io240
+
+
 def apply_hybrid_io(
     frame: pd.DataFrame,
     *,
     catalog: dict[str, Industry] | None = None,
     rules: list[Rule] | None = None,
+    ownership: bool = True,
+    io240_parents: Mapping[str, str] | None = None,
 ) -> pd.DataFrame:
     """Add authoritative final I-O codes without changing the PSIC decision."""
     result = frame.copy()
     catalog = catalog or load_catalog()
-    rules = rules or load_rules()
+    rules = rules if rules is not None else load_rules()
+    parents = io240_parents if io240_parents is not None else _builtin_io240_parents()
     io16_labels, io80_labels = _label_maps(catalog)
 
     records: list[dict[str, str]] = []
@@ -239,6 +321,29 @@ def apply_hybrid_io(
             direct_status="UNRESOLVED",
             direct_allowed=False,
         )
+        owner = ("", "", "")
+        if ownership:
+            io80_level, io240_level, owner = _apply_ownership(
+                row,
+                allowed,
+                (io80_code, io80_status, io80_source),
+                (io240_code, io240_status, io240_source),
+            )
+            io80_code, io80_status, io80_source = io80_level
+            io240_code, io240_status, io240_source = io240_level
+        (
+            (io16_code, io16_status, io16_source),
+            (io80_code, io80_status, io80_source),
+            (io240_code, io240_status, io240_source),
+        ) = (
+            _level_guard(
+                (io16_code, io16_status, io16_source),
+                (io80_code, io80_status, io80_source),
+                (io240_code, io240_status, io240_source),
+                catalog,
+                parents,
+            )
+        )
 
         records.append(
             {
@@ -260,6 +365,9 @@ def apply_hybrid_io(
                 "io240_label": _candidate_label(row, "io240", io240_code),
                 "io240_status": io240_status,
                 "io240_source": io240_source,
+                "ownership_domain": owner[0],
+                "ownership_side": owner[1],
+                "ownership_reason": owner[2],
             }
         )
 

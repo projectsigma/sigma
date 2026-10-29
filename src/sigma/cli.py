@@ -677,6 +677,18 @@ def hierarchical_build(
              "support it; thinner ones fold into the next coarser group. 1 keeps every observed sector. "
              "Setting it to the run's --min-cluster-size avoids sectors too small to form a cluster.",
     ),
+    coarse_policy: str = typer.Option(
+        "contain", "--coarse-policy",
+        help="How places tagged only at IO80/IO16 are assigned. 'contain' (default): only to a "
+             "sector that contains all of the place's IO240 candidates; a parent is kept whole "
+             "when its straddling places outnumber its exactly assigned places. 'residual': "
+             "legacy rule that assigns them to the '-Other' residual by convention.",
+    ),
+    max_straddle_share: float = typer.Option(
+        0.25, "--max-straddle-share", min=0.0, max=1.0,
+        help="With --coarse-policy contain: split a parent sector only if the places that the "
+             "split would leave unassigned are at most this share of its places.",
+    ),
     activate: bool = typer.Option(False, "--activate", help="Back up and replace loaded places GeoParquet"),
     check_psa: bool = typer.Option(False, "--check-psa", help="Report IO80/IO16 discrepancies with bundled PSA tables"),
     cluster_report_threshold: int = typer.Option(
@@ -794,7 +806,8 @@ def hierarchical_build(
             raise ValueError("input places already carry hierarchical labels; restore original before rebuilding")
         try:
             result = build_hierarchical_economy(
-                places, io240, parents, strict_coarse=strict_coarse, min_places=min_places
+                places, io240, parents, strict_coarse=strict_coarse, min_places=min_places,
+                coarse_policy=coarse_policy, max_straddle_share=max_straddle_share,
             )
         except EconomyValidationError as exc:
             if consistency["consistent"]:
@@ -981,11 +994,16 @@ def hierarchical_configure(
     crosswalk: Path = typer.Option(..., "--crosswalk", exists=True, dir_okay=False),
     min_places: int = typer.Option(5, "--min-places", min=1),
     check_psa: bool = typer.Option(True, "--check-psa/--no-check-psa"),
+    coarse_policy: str = typer.Option("contain", "--coarse-policy",
+                                      help="'contain' (default) or legacy 'residual'"),
+    max_straddle_share: float = typer.Option(0.25, "--max-straddle-share", min=0.0, max=1.0),
 ) -> None:
     """Once per SIGMA installation: select real IO240 inputs for per-area builds."""
     from .economy.hierarchical_auto import save_profile
     try:
-        dest = save_profile(io240_dir, crosswalk, min_places=min_places, check_psa=check_psa)
+        dest = save_profile(io240_dir, crosswalk, min_places=min_places, check_psa=check_psa,
+                            coarse_policy=coarse_policy,
+                            max_straddle_share=max_straddle_share)
         typer.echo(f"Configured area-specific hierarchical IO240 references: {dest}")
         typer.echo("Next: sigma load <area>; then sigma run <area> (no --economy required).")
     except (SigmaError, OSError, ValueError, KeyError) as exc:
@@ -998,6 +1016,8 @@ def _hierarchical_build_from_profile(workspace: Path, profile: dict, *, json_out
         workspace=workspace, io240_dir=Path(profile["io240_dir"]),
         crosswalk=Path(profile["crosswalk"]), output_dir=None,
         replace=True, strict_coarse=False, min_places=profile["min_places"],
+        coarse_policy=profile.get("coarse_policy", "contain"),
+        max_straddle_share=profile.get("max_straddle_share", 0.25),
         activate=False, check_psa=profile["check_psa"],
         cluster_report_threshold=5, json_output=json_output,
     )

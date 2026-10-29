@@ -16,10 +16,20 @@ import pandas as pd
 
 from sigma.errors import EconomyValidationError
 from sigma.paths import sigma_home
-from .hierarchical import _file_sha256, require_sigma_io80_io16
+from .hierarchical import (
+    COARSE_POLICIES,
+    DEFAULT_COARSE_POLICY,
+    DEFAULT_MAX_STRADDLE_SHARE,
+    _file_sha256,
+    require_sigma_io80_io16,
+)
 from .model import Economy
 
 _PROFILE_VERSION = 1
+
+
+def _valid_share(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 1
 
 
 def profile_path() -> Path:
@@ -36,15 +46,26 @@ def read_profile() -> dict[str, Any] | None:
             or not isinstance(data.get("io240_dir"), str)
             or not isinstance(data.get("crosswalk"), str)
             or type(data.get("min_places")) is not int
-            or data["min_places"] < 1):
+            or data["min_places"] < 1
+            or data.get("coarse_policy", "residual") not in COARSE_POLICIES
+            or not _valid_share(data.get("max_straddle_share", DEFAULT_MAX_STRADDLE_SHARE))):
         raise EconomyValidationError(f"invalid hierarchical configuration {path}")
+    # Historical profiles were built with the residual rule. Loading must not
+    # silently adopt the new containment/parent-merging model on the next run.
+    data.setdefault("coarse_policy", "residual")
+    data.setdefault("max_straddle_share", DEFAULT_MAX_STRADDLE_SHARE)
     return data
 
 
 def save_profile(io240_dir: str | Path, crosswalk: str | Path, *, min_places: int = 5,
-                 check_psa: bool = True) -> Path:
+                 check_psa: bool = True, coarse_policy: str = DEFAULT_COARSE_POLICY,
+                 max_straddle_share: float = DEFAULT_MAX_STRADDLE_SHARE) -> Path:
     if type(min_places) is not int or min_places < 1:
         raise ValueError("min_places must be a positive integer")
+    if coarse_policy not in COARSE_POLICIES:
+        raise ValueError(f"coarse_policy must be one of {COARSE_POLICIES}")
+    if isinstance(max_straddle_share, bool) or not 0 <= float(max_straddle_share) <= 1:
+        raise ValueError("max_straddle_share must be a number in [0, 1]")
     src = Path(io240_dir).expanduser().resolve()
     cw = Path(crosswalk).expanduser().resolve()
     if not src.is_dir() or not cw.is_file():
@@ -62,6 +83,8 @@ def save_profile(io240_dir: str | Path, crosswalk: str | Path, *, min_places: in
         "schema_version": _PROFILE_VERSION, "mode": "area_hierarchical",
         "io240_dir": str(src), "crosswalk": str(cw),
         "min_places": min_places, "check_psa": bool(check_psa),
+        "coarse_policy": coarse_policy,
+        "max_straddle_share": float(max_straddle_share),
     }
     dst = profile_path()
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -157,6 +180,12 @@ def profile_is_current(workspace: str | Path, profile: dict[str, Any]) -> bool:
             and audit.get("sector_code_scheme") == "sparse-v1"
             and seen.get("source_economy_fingerprint") == ref.economy_fingerprint
             and audit.get("min_places") == profile["min_places"]
+            # Builds from before coarse_policy existed used the legacy residual rule.
+            and audit.get("coarse_policy", "residual")
+                == profile.get("coarse_policy", "residual")
+            and (profile.get("coarse_policy", "residual") != "contain"
+                 or audit.get("max_straddle_share")
+                 == float(profile.get("max_straddle_share", DEFAULT_MAX_STRADDLE_SHARE)))
             and audit.get("places_input", {}).get("sha256")
                 == _file_sha256(root / "places" / "places.parquet")
             and audit.get("crosswalk_input", {}).get("sha256")
