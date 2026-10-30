@@ -102,12 +102,28 @@ def build_palette(workspace: str | Path, economy_id: str | None = None) -> dict[
     if not set(member.io80_code).issubset(base80):
         raise ValueError('hierarchical membership contains non-IO80 parent')
 
-    # Use the full official crosswalk, never the local subset, for IO240 shades.
-    reference = workspace.parent.parent / 'references' / 'psa_2018_io240'
-    # A custom SIGMA_HOME may also be used: infer it from workspaces/<slug>.
-    xwalk = reference / 'crosswalk.csv'
+    # Match the exact crosswalk used to build this local economy, not an
+    # unrelated/default snapshot under SIGMA_HOME/references. Fail closed when
+    # the original source has changed; do not silently remap sector membership.
+    audit_file = eco_dir / 'audit.json'
+    if not audit_file.is_file():
+        raise FileNotFoundError(f'hierarchical audit missing: {audit_file}')
+    audit = json.loads(audit_file.read_text(encoding='utf-8'))
+    lineage = audit.get('crosswalk_input', {})
+    path = lineage.get('path') if isinstance(lineage, dict) else None
+    checksum = lineage.get('sha256') if isinstance(lineage, dict) else None
+    if not isinstance(path, str) or not path.strip() or not isinstance(checksum, str) or not checksum:
+        raise ValueError('hierarchical crosswalk provenance missing; rebuild the area hierarchy')
+    xwalk = Path(path).expanduser().resolve()
     if not xwalk.is_file():
-        raise FileNotFoundError(f'official IO240 crosswalk missing: {xwalk}')
+        raise FileNotFoundError(f'hierarchical build crosswalk missing: {xwalk}')
+    if _sha(xwalk) != checksum:
+        raise ValueError('hierarchical build crosswalk changed; refresh the area hierarchy')
+    derivation = spec.get('derivation', {})
+    if not isinstance(derivation, dict) or derivation.get('crosswalk_file_sha256') != checksum:
+        raise ValueError('hierarchical economy and audit crosswalk provenance disagree')
+    # Existing gross-output fallback remains unchanged by this targeted fix.
+    reference = workspace.parent.parent / 'references' / 'psa_2018_io240'
     cross = pd.read_csv(xwalk, dtype=str, keep_default_na=False)
     if not {'io240_code', 'io80_code'}.issubset(cross):
         raise ValueError('official crosswalk missing required columns')
