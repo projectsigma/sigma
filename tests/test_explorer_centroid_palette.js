@@ -19,6 +19,11 @@ const helperSource = section('  function centerIconExpression() {', '  // Select
 const selectedSource = section('  function selectedCenterIconExpression() {', '  function addLayers(data) {');
 const layerSource = section('  function addLayers(data) {', '  function bindControls() {');
 const emphasisSource = section('  // SIGMA Explorer depth-based map opacity v1', '  function updatePartitions() {');
+// Evaluate the real dynamic linked-triangle implementation; do not stub it.
+const triangleSource = section('  const sigmaTriangleImageCache = new Map();',
+  '  // SIGMA Explorer depth-based map opacity v1');
+const routeAnchorSource = section('  const routeAnchor = (a, b, ring) => {',
+  '  async function showRoutes() {');
 const sectors = new Map([
   ['55', {code: '55', label: 'Retail trade', color: '#f7336f'}],
   ['70', {code: '70', label: 'Real estate', color: '#692c39'}],
@@ -30,7 +35,7 @@ const linkedCenterIconByType = new Map();
 const darkCenterIconByType = new Map();
 const darkLinkedIconByType = new Map();
 const selectedIconByType = new Map();
-const colors = {incoming: '#1f6fb2', focus: '#16382a'};
+const colors = {incoming: '#1f6fb2', outgoing: '#c0392b', both: '#7b3fa0', focus: '#16382a'};
 const document = {
   createElement(tag) {
     assert.equal(tag, 'canvas');
@@ -123,11 +128,23 @@ function evaluate(expr, props) {
   }
   throw Error(`Unsupported expression: ${op}`);
 }
-const network = {ring: new Map([['63:2', 0], ['55:0', 1], ['70:1', 1]]), focus: '63:2'};
+const network = {
+  ring: new Map([['63:2', 0], ['55:0', 1], ['70:1', 1]]),
+  focus: '63:2',
+  edges: [
+    {source: '63:2', target: '55:0', coefficient: 0.6},
+    {source: '70:1', target: '63:2', coefficient: 0.5},
+  ],
+};
+const nodeIndex = new Map(centers.map(f => [f.properties.id,
+  {id: f.properties.id, type: String(f.properties.type)}]));
+const sectorColor = code => sectors.get(String(code)).color;
 const getEmphasis = new Function('map','network','COLOR','notHidden','updatePartitions',
-  'themeMode','updateCenterVisibility','applyTheme',
-  `function syncUnscoredOverlay() {}\n${emphasisSource}\nreturn applyEmphasis;`)(
-    map, network, colors, () => true, () => {}, 'light', () => {}, () => {});
+  'themeMode','updateCenterVisibility','applyTheme', 'document','nodeIndex',
+  'sectorColor','isNum',
+  `function syncUnscoredOverlay() {}\n${routeAnchorSource}\n${triangleSource}\nsigmaTriangleStyleByNode = computeNetworkTriangleStyles();\n${emphasisSource}\nreturn applyEmphasis;`)(
+    map, network, colors, () => true, () => {}, 'light', () => {}, () => {},
+    document, nodeIndex, sectorColor, isNum);
 getEmphasis();
 const iconExpr = layoutUpdates.get('centers.icon-image');
 const opacityExpr = paintUpdates.get('centers.icon-opacity');
@@ -137,8 +154,14 @@ const retail = centers.find(f => f.properties.id === '55:0');
 const realEstate = centers.find(f => f.properties.id === '70:1');
 const unrelated = centers.find(f => f.properties.id === '80:3');
 for (const linked of [retail, realEstate]) {
-  assert.equal(evaluate(iconExpr, linked.properties), linked.properties.linked_center_icon);
-  assert.equal(images.get(evaluate(iconExpr, linked.properties)).fill, sectors.get(String(linked.properties.type)).color);
+  const dynamicIcon = evaluate(iconExpr, linked.properties);
+  assert.match(dynamicIcon, /^sigma-link-outline-v2-\d+$/,
+    'Linked triangles use the actual dynamically registered icon');
+  const icon = images.get(dynamicIcon);
+  assert(icon, 'Linked dynamic icon is registered before the style refers to it');
+  assert.equal(icon.fill, sectors.get(String(linked.properties.type)).color);
+  assert.equal(icon.stroke, linked === retail ? colors.outgoing : colors.incoming,
+    'Dynamic outline follows the direction of the modeled strongest route');
   assert.equal(evaluate(opacityExpr, linked.properties), 1);
 }
 assert.equal(evaluate(opacityExpr, focus.properties), 0, 'Focused normal triangle hidden behind selected icon');
