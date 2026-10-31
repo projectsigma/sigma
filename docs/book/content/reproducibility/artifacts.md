@@ -42,3 +42,15 @@ For safe previews, retention rules, and command examples, see
 Artifact reproducibility answers: **“Can I recreate the same computation from the same identified inputs and code contract?”** It does not by itself answer: **“Was this the right modeling assumption?”**
 
 The method chapters therefore pair every artifact with the assumptions that generated it: source matching thresholds, road topology, HDBSCAN horizon, center objective, Voronoi resolution, IO preprocessing, X weighting, centrality, and score tempering.
+
+
+## Recovery within expensive stages
+
+In addition to immutable stage artifacts, clustering and Voronoi can persist a
+completed economic type, Network X can persist a completed source type and each
+25,000-edge route-geometry batch, and export can persist completed GeoPackage
+and QGIS project files. These are **temporary recovery savepoints**, not
+immutable scientific outputs. SIGMA checks the stage recipe and each savepoint
+file's SHA-256 before reuse; incomplete writes are recomputed. Successful
+artifact commit clears recovery data. See
+[Savepoint scope and limitations](../../../SIGMA_SAVEPOINTS.md).

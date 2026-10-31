@@ -104,6 +104,8 @@ class ExecutionPlanner:
                 if validation.valid:
                     if self._is_reusable(exact):
                         self.workspace.artifacts._mark_active_validated(stage, exact)
+                        from sigma.savepoints import clear_stage_savepoints
+                        clear_stage_savepoints(self.workspace.root, stage, recipe.fingerprint)
                         self._say(f"reuse {stage}")
                         resolved[stage] = exact
                         return exact
@@ -130,6 +132,10 @@ class ExecutionPlanner:
             raise
         if metadata.get("cache_reusable") is False:
             self._provisional_artifacts().add(ref.artifact_id)
+        # SIGMA_RESUMABLE_SAVEPOINTS_V1: durable partial units are expendable only
+        # after their complete, immutable parent artifact has been committed.
+        from sigma.savepoints import clear_stage_savepoints
+        clear_stage_savepoints(self.workspace.root, stage, recipe.fingerprint)
         self._say(f"done {stage} ({time.monotonic() - started:.1f}s)")
         resolved[stage] = ref
         return ref

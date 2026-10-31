@@ -508,6 +508,7 @@ class Sigma:
             centrality_direction=a.centrality_direction,
             katz_alpha_factor=a.katz_alpha_factor,
             katz_beta=a.katz_beta,
+            x_distance_decay_lambda=a.x_distance_decay_lambda,
             distance_tempering=a.distance_tempering,
         )
 

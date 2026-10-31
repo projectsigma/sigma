@@ -92,7 +92,14 @@ def _spectral_radius_or_safe_scale(graph: nx.DiGraph) -> tuple[float, float, str
         ),
         default=0.0,
     )
-    safe_bound = max(float(row_bound), 1.0)
+    # No lower bound of 1: the row sum itself, so that alpha * W (and hence every
+    # Katz score) does not change when all weights are multiplied by one number.
+    # X weights are coefficient / road distance and usually far below 1; a floor of
+    # 1 would give alpha = alpha_factor and nearly equal scores.
+    row_bound = float(row_bound)
+    if not math.isfinite(row_bound) or row_bound <= 0:
+        raise ValueError("Katz row-sum scale must be finite and strictly positive")
+    safe_bound = row_bound
 
     if nx.is_directed_acyclic_graph(graph):
         return 0.0, safe_bound, "weighted_row_sum_dag"
@@ -105,6 +112,11 @@ def _spectral_radius_or_safe_scale(graph: nx.DiGraph) -> tuple[float, float, str
         dtype=float,
         format="csr",
     )
+    # Compute the radius in dimensionless units. Scaling every weight by the
+    # same positive constant leaves this matrix (and the near-zero test)
+    # unchanged. On raw X weights, an absolute 1e-15 eigenvalue cutoff
+    # falsely classified small-weight cyclic graphs as zero-radius.
+    matrix.data /= safe_bound
     try:
         if len(nodes) <= 3:
             eigenvalues = np.linalg.eigvals(matrix.toarray())
@@ -117,10 +129,15 @@ def _spectral_radius_or_safe_scale(graph: nx.DiGraph) -> tuple[float, float, str
                 tol=1e-10,
                 maxiter=max(5_000, 20 * len(nodes)),
             )
-        rho = float(np.max(np.abs(eigenvalues))) if len(eigenvalues) else 0.0
-        if not math.isfinite(rho) or rho < 0:
+        normalized_rho = float(np.max(np.abs(eigenvalues))) if len(eigenvalues) else 0.0
+        if not math.isfinite(normalized_rho) or normalized_rho < 0:
             raise RuntimeError("spectral-radius calculation returned a non-finite value")
-        if rho <= 1e-15:
+        if normalized_rho <= 1e-15:
+            return 0.0, safe_bound, "weighted_row_sum_zero_radius"
+        rho = normalized_rho * safe_bound
+        # Tiny positive radius may underflow. The row sum remains a
+        # mathematically safe fallback (the finite-alpha guard still applies).
+        if rho == 0.0:
             return 0.0, safe_bound, "weighted_row_sum_zero_radius"
         return rho, rho, "spectral_radius"
     except (ArpackNoConvergence, RuntimeError, ValueError, TypeError):
@@ -169,6 +186,11 @@ def _katz_parameters(
         raise ValueError("katz beta must be finite and strictly positive")
     rho, alpha_scale, scale_kind = _spectral_radius_or_safe_scale(support)
     alpha = factor / alpha_scale
+    if not math.isfinite(alpha):
+        raise ValueError(
+            "Katz alpha is not finite: X weights are too small to scale "
+            "(reduce x_distance_decay_lambda)"
+        )
     rho_value = None if not math.isfinite(rho) else float(rho)
     return alpha, beta_value, rho_value, scale_kind
 

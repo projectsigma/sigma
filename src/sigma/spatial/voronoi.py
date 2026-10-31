@@ -24,11 +24,14 @@ fallback after the network attempts fail.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import io
+import json
 from typing import Callable
 
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+from pyproj import CRS
 import shapely
 from scipy.sparse.csgraph import dijkstra
 
@@ -577,6 +580,7 @@ def all_surface_partitions(
     euclidean_fallback: bool | None = None,
     continue_on_error: bool = True,
     events: list[dict[str, object]] | None = None,
+    savepoints=None,
 ) -> gpd.GeoDataFrame:
     """Render partitions for every retained economic type with graceful fallback.
 
@@ -605,6 +609,46 @@ def all_surface_partitions(
     total_types = len(groups)
     for position, (type_value, group) in enumerate(groups, start=1):
         type_text = str(type_value)
+        # SIGMA_RESUMABLE_SAVEPOINTS_V1: retain complete partitions by type.
+        unit = f"type:{type_text}"
+        event_start = len(events) if events is not None else 0
+        if savepoints is not None:
+            stored = savepoints.read(unit)
+            if stored is not None and set(stored) == {"part.parquet", "audit.json"}:
+                try:
+                    payload = json.loads(stored["audit.json"])
+                    restored = gpd.read_parquet(io.BytesIO(stored["part.parquet"]))
+                    if (payload["type"] == type_text and
+                            (restored.crs is not None and network.crs is not None and
+                             CRS.from_user_input(restored.crs).equals(
+                                 CRS.from_user_input(network.crs))) and
+                            len(restored) == int(payload["rows"])):
+                        if not restored.empty:
+                            parts.append(restored)
+                        if events is not None:
+                            events.extend(payload["events"])
+                        if progress is not None:
+                            progress(f"voronoi: resumed completed type {type_text!r} ({position:,}/{total_types:,})")
+                        continue
+                except (ValueError, TypeError, KeyError, OSError):
+                    pass  # invalid checkpoint -> recompute
+
+        def save_type(partition: gpd.GeoDataFrame) -> None:
+            if savepoints is None:
+                return
+            output = io.BytesIO()
+            partition.to_parquet(output, index=False)
+            savepoints.save(unit, {
+                "part.parquet": output.getvalue(),
+                "audit.json": json.dumps({
+                    "type": type_text,
+                    "rows": len(partition),
+                    "events": (events[event_start:] if events is not None else []),
+                }, default=str, sort_keys=True).encode("utf-8"),
+            })
+            if progress is not None:
+                progress(f"voronoi: saved type {type_text!r}")
+
         if progress is not None:
             progress(f"voronoi: starting type {position:,}/{total_types:,} {type_text!r}")
 
@@ -765,8 +809,10 @@ def all_surface_partitions(
                 )
 
         if part is None:
+            save_type(_empty_partitions(network.crs))
             continue
         parts.append(part)
+        save_type(part)
         if progress is not None:
             method = str(part["surface_method"].iloc[0]) if len(part) else "unknown"
             used = float(part["surface_resolution"].iloc[0]) if len(part) else np.nan

@@ -32,7 +32,7 @@ def _legacy_fixture():
     return augmented, centers, partitions
 
 
-def test_legacy_mwas_dag_input_reproduces_c0_x_edge_fixture():
+def test_economic_dag_input_uses_inverse_distance_x_edge_fixture():
     road, centers, partitions = _legacy_fixture()
     economic = nx.DiGraph()
     economic.add_edge("A", "B", weight=3.0)
@@ -49,7 +49,7 @@ def test_legacy_mwas_dag_input_reproduces_c0_x_edge_fixture():
     ]
     assert list(edges.columns) == golden["x_edge_columns"]
     assert diagnostics.empty
-    assert graph[make_node_id("A", 0)][make_node_id("B", 0)]["weight"] == 48.0
+    assert graph[make_node_id("A", 0)][make_node_id("B", 0)]["weight"] == pytest.approx(3.0 / 16.0)
 
 
 def test_reciprocal_economic_edges_generate_reciprocal_x_edges_and_cycle():
@@ -64,9 +64,60 @@ def test_reciprocal_economic_edges_generate_reciprocal_x_edges_and_cycle():
     assert set(graph.edges) == {(a, b), (b, a)}
     assert graph[a][b]["road_distance"] == 16.0
     assert graph[b][a]["road_distance"] == 16.0
-    assert graph[a][b]["weight"] == 48.0
-    assert graph[b][a]["weight"] == 32.0
+    assert graph[a][b]["weight"] == pytest.approx(3.0 / 16.0)
+    assert graph[b][a]["weight"] == pytest.approx(2.0 / 16.0)
     assert not nx.is_directed_acyclic_graph(graph)
+    assert diagnostics.empty
+
+
+def test_x_distance_decay_is_capped_and_configurable():
+    road, centers, partitions = _legacy_fixture()
+    economic = nx.DiGraph()
+    economic.add_edge("A", "B", weight=3.0)
+    a, b = make_node_id("A", 0), make_node_id("B", 0)
+
+    for exponent, expected in [(0.0, 3.0), (1.0, 3.0 / 16.0), (2.0, 3.0 / 256.0)]:
+        graph, _ = instantiate_network(
+            centers, partitions, economic, road, x_distance_decay_lambda=exponent
+        )
+        assert graph[a][b]["weight"] == pytest.approx(expected)
+        assert graph[a][b]["road_distance"] == 16.0
+    for invalid in [-0.1, float("nan"), float("inf")]:
+        with pytest.raises(ValueError, match="x_distance_decay_lambda"):
+            instantiate_network(
+                centers, partitions, economic, road, x_distance_decay_lambda=invalid
+            )
+
+
+def test_zero_distance_different_cluster_nodes_have_capped_positive_weight():
+    road, centers, partitions = _legacy_fixture()
+    centers.loc[1, "center_network_node"] = centers.loc[0, "center_network_node"]
+    centers.at[1, "geometry"] = centers.at[0, "geometry"]
+    economic = nx.DiGraph()
+    economic.add_edge("A", "B", weight=3.0)
+
+    graph, diagnostics = instantiate_network(centers, partitions, economic, road)
+    edge = graph[make_node_id("A", 0)][make_node_id("B", 0)]
+    assert edge["road_distance"] == 0.0
+    assert edge["weight"] == pytest.approx(3.0)
+    assert diagnostics.empty
+
+
+def test_submetre_road_distance_is_capped_to_one_metre():
+    _, centers, partitions = _legacy_fixture()
+    economic = nx.DiGraph()
+    economic.add_edge("A", "B", weight=3.0)
+
+    class SubmetreRoad:
+        def shortest_paths_to_targets(self, source, targets):
+            return np.full(len(targets), 0.5), [
+                (int(source), int(target)) for target in targets
+            ]
+
+    graph, diagnostics = instantiate_network(centers, partitions, economic, SubmetreRoad())
+    edge = graph[make_node_id("A", 0)][make_node_id("B", 0)]
+    assert edge["road_distance"] == 0.5
+    assert edge["weight"] == pytest.approx(3.0)
     assert diagnostics.empty
 
 

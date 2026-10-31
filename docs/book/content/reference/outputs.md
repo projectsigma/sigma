@@ -38,7 +38,7 @@ An X edge carries:
 - `technical_coefficient`;
 - `road_distance`;
 - shortest `road_path`; and
-- `weight = technical_coefficient * road_distance`.
+- `weight = technical_coefficient / max(road_distance_in_metres, 1) ** x_distance_decay_lambda` (default exponent 1).
 
 Disconnected spatial candidates are logged separately.
 

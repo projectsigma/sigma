@@ -33,19 +33,21 @@ where $m_u$ and $m_v$ are their center network nodes. Disconnected center pairs 
 
 ## Edge weight
 
-The current historical multiplicative X definition is
+SIGMA now applies a capped inverse-power road-distance attenuation:
 
 $$
-w_{uv}=a_{t_1t_2}\,d_{uv}.
+w_{uv}=a_{t_1t_2}\left[\max\left(1,\frac{d_{uv}}{1\,\mathrm{m}}\right)\right]^{-\lambda_X},\qquad \lambda_X\geq 0.
 $$
 
-The edge stores both factors separately (`technical_coefficient`, `road_distance`) together with the shortest road path and the product `weight`.
+By default, $\lambda_X=1$. The lower distance scale of **one metre** makes the factor dimensionless and at most 1, including for coincident or sub-metre centers. The measured road distance is retained unchanged in `road_distance`; only the weight calculation uses the floor. With positive coefficients and representable weights, $0<w_{uv}\leq a_{t_1t_2}$. A zero exponent disables distance attenuation. Larger exponents penalize distant clusters more strongly.
+
+The edge stores `technical_coefficient`, `road_distance`, the exact shortest `road_path`, and the attenuated `weight`. Positive-area overlap determines whether an edge is eligible, not how much it weighs. The calculation assumes road distances in metres (SIGMA managed roads use a metre-based UTM CRS).
 
 ```{admonition} Interpretation of the weight
 :class: warning
-Because distance is multiplied rather than inverted or passed through a decay kernel, `weight` is **not a proximity score**. Holding the technical coefficient fixed, a longer road separation produces a larger X weight. The model should therefore be described literally as economic coupling multiplied by network separation. Replacing distance by a friction/decay function would define a different model.
+For fixed $a_{t_1t_2}$, greater road separation weakens the modeled connection. `weight` is **not** a verified commercial trade probability. This is a spatial attenuation rule rather than an empirical estimate of transport elasticity. The distance exponent $\lambda_X$ is independent of Katz attenuation $\alpha$ and the establishment score-tempering parameter.
 ```
 
 ## Self-use
 
-Positive sector self-use remains in the economic graph. An X self-edge whose source and target are the same spatial cluster has zero road distance, hence zero multiplicative weight, and is omitted. Self-use can still instantiate edges between different clusters of the same economic type when their partitions overlap and their center distance is positive.
+Positive sector self-use remains in the economic graph. To preserve the X graph topology policy, an X self-edge whose source and target are the same spatial cluster is still omitted, **even though its capped inverse-distance factor would equal 1**. Self-use can instantiate edges between different clusters of the same economic type when their partitions overlap and their centers are road-connected.

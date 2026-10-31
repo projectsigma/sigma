@@ -45,11 +45,15 @@ so $\alpha<1/\rho(W)$ as required for the usual Katz resolvent.
 If X is a DAG, then $\rho(W)=0$ and the Katz walk expansion is finite. SIGMA uses the maximum weighted outgoing row sum only as a numerical scale:
 
 $$
-s=\max\left(1,\max_i\sum_j W_{ij}\right),\qquad
+s=\max_i\sum_j W_{ij},\qquad
 \alpha=\frac{0.85}{s}.
 $$
 
 The same conservative row-sum bound is used if the sparse spectral-radius solver fails. A graph with no edges uses scale 1.
+
+The row sum has no lower bound. For cyclic X, SIGMA first scales the adjacency matrix to $\widetilde W=W/s$, with $s=\max_i\sum_jW_{ij}$. It then estimates $\rho(\widetilde W)$ and uses $\alpha=0.85/[s\rho(\widetilde W)]$, equivalently $0.85/\rho(W)$. The near-zero spectral-radius cutoff is applied to the normalized matrix, not to absolute X weights. If the solver fails, $\alpha=0.85/s$ is a conservative bound.
+
+Consequently, uniformly multiplying every positive X weight by any representable scale leaves $\alpha W$ (and the resulting Katz scores) unchanged, provided the required attenuation remains finite. This matters because coefficient-over-distance weights are often much smaller than 1; a fixed floor of 1 would make scores nearly equal.
 
 ## Sender-receiver combination
 

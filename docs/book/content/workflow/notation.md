@@ -17,6 +17,7 @@ The same symbols recur throughout the book.
 | $G_E$ | directed economic graph induced by positive $a_{ij}$ |
 | $X$ | directed spatial-economic cluster graph |
 | $W=(w_{uv})$ | weighted adjacency matrix of $X$ |
+| $\lambda_X$ | inverse-road-distance exponent on X edges (default 1) |
 | $K^{in},K^{out}$ | raw incoming and outgoing Katz vectors |
 | $C_i$ | normalized balanced Katz centrality of X node $i$ |
 | $S_p$ | final SIGMA score of establishment $p$ |

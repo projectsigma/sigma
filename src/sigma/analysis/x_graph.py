@@ -4,18 +4,21 @@ This is the C14 generalization of Engine's proven ``spatial_graph`` kernel.  The
 spatial mechanics are intentionally retained: sector relationships instantiate
 only where type-specific Voronoi partitions overlap with positive area, road
 separation is exact shortest-path distance between network centers, and X edge
-weight is the historical multiplicative definition
-``technical_coefficient * road_distance``.
+weight is the inverse-power road-distance definition
+``technical_coefficient / max(road_distance_in_metres, 1) ** x_distance_decay_lambda``.
 
 Unlike the legacy Engine kernel, neither the sector graph nor X is required to
 be acyclic.  Reciprocal economic relationships therefore remain reciprocal X
 relationships.  Positive economic self-use remains in the Economy; a zero-road-
-distance X self-edge is omitted because it carries zero multiplicative weight
-and no path geometry useful to downstream analysis.
+distance X self-edge is intentionally omitted as a topological policy,
+independent of the now-positive capped distance-decay factor.
 """
 from __future__ import annotations
 
+import math
+
 from typing import Callable
+import json
 
 import geopandas as gpd
 import networkx as nx
@@ -117,6 +120,9 @@ def instantiate_network(
     economic_graph: nx.DiGraph,
     road: AugmentedNetwork,
     progress: Callable[[str], None] | None = None,
+    *,
+    x_distance_decay_lambda: float = 1.0,
+    savepoints=None,
 ) -> tuple[nx.DiGraph, pd.DataFrame]:
     """Instantiate cluster-level directed network ``X`` from overlapping partitions.
 
@@ -125,6 +131,9 @@ def instantiate_network(
     polygon overlaps create candidate X edges.  Exact road distances are evaluated
     one source center at a time and only for the requested target centers.
     """
+    decay_lambda = float(x_distance_decay_lambda)
+    if not math.isfinite(decay_lambda) or decay_lambda < 0.0:
+        raise ValueError("x_distance_decay_lambda must be finite and non-negative")
     _validate_spatial_inputs(centers, partitions, economic_graph)
 
     graph = nx.DiGraph()
@@ -161,6 +170,36 @@ def instantiate_network(
     for type_number, type1 in enumerate(active_source_types, start=1):
         source_partitions = partitions_by_type[type1]
         outgoing = outgoing_by_type[type1]
+        # SIGMA_RESUMABLE_SAVEPOINTS_V2: source-type routing work unit.
+        unit = f"source:{type1}"
+        if savepoints is not None:
+            stored = savepoints.read(unit)
+            if stored is not None and set(stored) == {"edges.json"}:
+                try:
+                    saved = json.loads(stored["edges.json"])
+                    if saved["source_type"] != type1:
+                        raise ValueError("source mismatch")
+                    recovered = []
+                    for row in saved["edges"]:
+                        source, target, attributes = row
+                        if (source not in graph or target not in graph or
+                                str(graph.nodes[source]["type"]) != type1):
+                            raise ValueError("cached X edge node mismatch")
+                        if "road_path" not in attributes:
+                            raise ValueError("cached X edge lacks road path")
+                        attributes["road_path"] = tuple(int(v) for v in attributes["road_path"])
+                        recovered.append((source, target, attributes))
+                    for source, target, attributes in recovered:
+                        graph.add_edge(source, target, **attributes)
+                    diagnostics.extend(saved["diagnostics"])
+                    omitted_zero_self_edges += int(saved["omitted_zero_self_edges"])
+                    if progress is not None:
+                        progress(f"network X: resumed source type {type1!r} ({type_number:,}/{total_source_types:,})")
+                    continue
+                except (ValueError, KeyError, TypeError, OverflowError):
+                    pass
+        diagnostic_start = len(diagnostics)
+        omitted_start = omitted_zero_self_edges
         if progress is not None:
             progress(
                 f"network X: source type {type_number:,}/{total_source_types:,} {type1!r}; "
@@ -248,7 +287,14 @@ def instantiate_network(
                     omitted_zero_self_edges += 1
                     continue
 
-                combined_weight = economic_weight * road_distance
+                # Treat road distances as metres: a 1 m floor makes the decay
+                # dimensionless, finite at d=0, and at most one. The floor
+                # affects weight only; retain the exact measured road distance.
+                combined_weight = economic_weight * (max(road_distance, 1.0) ** -decay_lambda)
+                if combined_weight == 0.0:
+                    raise ValueError(
+                        "X edge weight underflowed to zero; reduce x_distance_decay_lambda"
+                    )
                 graph.add_edge(
                     source_id,
                     target_id,
@@ -260,6 +306,28 @@ def instantiate_network(
                     road_path=road_path,
                     weight=combined_weight,
                 )
+
+        if savepoints is not None:
+            source_ids = [node for node in graph.nodes
+                          if str(graph.nodes[node]["type"]) == type1]
+            def checkpoint_value(value):
+                if isinstance(value, np.generic):
+                    return value.item()
+                if isinstance(value, np.ndarray):
+                    return value.tolist()
+                raise TypeError(f"non-JSON X edge attribute: {type(value).__name__}")
+            edge_data = [
+                [str(source), str(target), dict(data)]
+                for source, target, data in graph.out_edges(source_ids, data=True)
+            ]
+            savepoints.save(unit, {"edges.json": json.dumps({
+                "source_type": type1,
+                "edges": edge_data,
+                "diagnostics": diagnostics[diagnostic_start:],
+                "omitted_zero_self_edges": omitted_zero_self_edges - omitted_start,
+            }, default=checkpoint_value, sort_keys=True, separators=(",", ":")).encode("utf-8")})
+            if progress is not None:
+                progress(f"network X: saved source type {type1!r} ({type_number:,}/{total_source_types:,})")
 
     graph.graph["zero_distance_self_edges_omitted"] = omitted_zero_self_edges
     if progress is not None:

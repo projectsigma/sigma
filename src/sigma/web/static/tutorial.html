@@ -695,20 +695,20 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p>The first is economic (supplier type → user type). The second is spatial: the two cluster polygons overlap with strictly positive area. Overlap decides <em>whether</em> an edge exists; the overlap area is not part of the weight.</p>
           <p>Here <var>F</var><sub>2</sub> and <var>R</var><sub>1</sub> do not overlap, so there is no edge between them.</p>
         </article>
-        <article class="step" data-cap="Graph X from the example. Edge width follows the weight w = a × d. Copper: Food → Retail. Blue: Retail → Food.">
+        <article class="step" data-cap="Graph X from the example. Edge width follows w = a / max(d in metres, 1)^λ_X, with λ_X = 1. Copper: Food → Retail. Blue: Retail → Food.">
           <p class="stage"><span class="shield">10</span>Stage 10 · weights</p>
-          <h3>The weight multiplies coefficient and distance</h3>
-          <div class="eq"><var>w</var><sub><var>uv</var></sub> = <var>a</var><sub><var>t</var>(<var>u</var>),<var>t</var>(<var>v</var>)</sub> · <var>d</var><sub>R</sub>(<var>m</var><sub><var>u</var></sub>, <var>m</var><sub><var>v</var></sub>)</div>
+          <h3>Economic coupling weakens with road distance</h3>
+          <div class="eq"><var>w</var><sub><var>uv</var></sub> = <var>a</var><sub><var>t</var>(<var>u</var>),<var>t</var>(<var>v</var>)</sub> / max(1, <var>d</var><sub>R</sub>(<var>m</var><sub><var>u</var></sub>, <var>m</var><sub><var>v</var></sub>) / 1 m)<sup><var>λ</var><sub>X</sub></sup></div>
           <p><var>m</var><sub><var>u</var></sub> and <var>m</var><sub><var>v</var></sub> are the two cluster centers. An edge is kept only if the centers are connected by road and the weight is strictly positive.</p>
-          <p class="callout">For a fixed coefficient, <strong>more separation gives more weight</strong>. The weight is not a proximity score or a distance-decay kernel. In this example the heaviest edge (280) joins the two centers that are farthest apart.</p>
-          <p class="mini">A same-cluster self-edge has distance 0, so it is omitted. Centers on disconnected roads produce a diagnostic, not an edge. Because overlap is symmetric, two-way coefficients give two-way edges.</p>
+          <p class="callout">For a fixed coefficient, <strong>more separation gives less weight</strong>. With <var>λ</var><sub>X</sub> = 1, a 500 m route keeps 1/500 of the coefficient; a 1,400 m route keeps 1/1,400. The one-metre floor caps the distance factor at 1. The worked example now highlights the strongest attenuated link, not the longest one.</p>
+          <p class="mini">Same-cluster self-edges remain omitted by an explicit topology rule, even though capped decay at 0 m equals 1. Disconnected centers produce a diagnostic, not an edge. Two-way coefficients still produce two-way edges when territories overlap. The X exponent is separate from point-score tempering.</p>
         </article>
         <article class="step" data-cap="A two-step walk F2 → R2 → F1. Katz adds every walk, discounted by α per step.">
           <p class="stage"><span class="shield">11</span>Stage 11</p>
           <h3>Why count paths of many steps?</h3>
           <p>An edge is a direct relation. A cluster can also reach others in 2, 3, or more steps. Katz centrality adds up <em>walks</em> (nodes may repeat) and multiplies each extra step by the attenuation <var>α</var>:</p>
           <div class="eq">(<var>I</var> − <var>α</var><var>W</var>)<sup>−1</sup> = <var>I</var> + <var>α</var><var>W</var> + <var>α</var><sup>2</sup><var>W</var><sup>2</sup> + …</div>
-          <p>(<var>W</var><sup><var>k</var></sup>)<sub><var>ij</var></sub> adds, over all <var>k</var>-step walks from <var>i</var> to <var>j</var>, the product of their edge weights. The walk in the figure adds <var>α</var><sup>2</sup> × 100 × 140 to the outgoing score of <var>F</var><sub>2</sub> and to the incoming score of <var>F</var><sub>1</sub>.</p>
+          <p>(<var>W</var><sup><var>k</var></sup>)<sub><var>ij</var></sub> adds, over all <var>k</var>-step walks from <var>i</var> to <var>j</var>, the product of their edge weights. The walk in the figure adds <var>α</var><sup>2</sup> × (0.20/500) × (0.10/1,400) to the outgoing score of <var>F</var><sub>2</sub> and to the incoming score of <var>F</var><sub>1</sub>.</p>
         </article>
         <article class="step" data-cap="Balanced Katz computed live on the example graph. Node size follows C. Change the α factor with the slider.">
           <p class="stage"><span class="shield">11</span>Stage 11 · directed Katz</p>
@@ -852,7 +852,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
         <tr><td>Economy</td><td>IO technical coefficients; RAS</td><td>configurable table; optional greedy MWAS and support repair</td></tr>
         <tr><td>Centrality</td><td>Katz; sender–receiver coupling</td><td>geometric mean, then one final L2 normalization</td></tr>
         <tr><td>Point scoring</td><td>distance-based score tempering</td><td>cluster p90 scale and capped linear tempering</td></tr>
-        <tr><td>Graph <var>X</var></td><td colspan="2">model-defining choice: edges through polygon overlap, weight <var>w</var><sub><var>uv</var></sub> = <var>a</var> × <var>d</var><sub>R</sub>(<var>m</var><sub><var>u</var></sub>, <var>m</var><sub><var>v</var></sub>)</td></tr>
+        <tr><td>Graph <var>X</var></td><td colspan="2">model-defining choice: edges through polygon overlap; weight <var>w</var><sub><var>uv</var></sub> = <var>a</var> / max(1, <var>d</var><sub>R</sub> / 1 m)<sup><var>λ</var><sub>X</sub></sup> (default <var>λ</var><sub>X</sub> = 1)</td></tr>
       </table></div>
     </div>
 
@@ -892,7 +892,8 @@ sigma view pasig</pre>
         <tr><td>Road buffer, direction</td><td class="n">5 km, undirected</td></tr>
         <tr><td>IO system, preprocessing</td><td class="n">IO80, none</td></tr>
         <tr><td>Katz α factor, β</td><td class="n">0.85, 1</td></tr>
-        <tr><td>Distance tempering λ</td><td class="n">0.15</td></tr>
+        <tr><td>X distance-decay exponent λ<sub>X</sub></td><td class="n">1.0</td></tr>
+<tr><td>Distance tempering λ</td><td class="n">0.15</td></tr>
       </table></div>
     </div>
     <div>
@@ -1840,17 +1841,19 @@ FIGS.xgraph = (svg, sec) => {
   const g1 = sc[1];
   const P = { F1: [100, 110], R1: [300, 110], F2: [100, 330], R2: [300, 330] };
   const RAD = 28;
-  const EDG = [['F1', 'R1', 120, .20, 600], ['R1', 'F1', 60, .10, 600], ['F1', 'R2', 280, .20, 1400], ['R2', 'F1', 140, .10, 1400], ['F2', 'R2', 100, .20, 500], ['R2', 'F2', 50, .10, 500]];
+  const EDG = [['F1', 'R1', .20, 600], ['R1', 'F1', .10, 600], ['F1', 'R2', .20, 1400], ['R2', 'F1', .10, 1400], ['F2', 'R2', .20, 500], ['R2', 'F2', .10, 500]]
+    .map(([a, b, coefficient, d]) => [a, b, coefficient / Math.max(1, d), coefficient, d]);
+  const maxXWeight = Math.max(...EDG.map(e => e[2]));
   const edgeEls = EDG.map(([a, b, w]) => {
     const p = P[a], q = P[b], mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2, dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy);
     const nx = -dy / l, ny = dx / l, c = [mx + nx * 26, my + ny * 26];
     const u1 = Math.hypot(c[0] - p[0], c[1] - p[1]), u2 = Math.hypot(c[0] - q[0], c[1] - q[1]);
     const s = [p[0] + (c[0] - p[0]) / u1 * RAD, p[1] + (c[1] - p[1]) / u1 * RAD], e = [q[0] + (c[0] - q[0]) / u2 * (RAD + 3), q[1] + (c[1] - q[1]) / u2 * (RAD + 3)];
     const f = a[0] === 'F';
-    const path = S('path', { d: `M${s}Q${c} ${e}`, class: (f ? 'edgeF' : 'edgeR') + ' draw', pathLength: 1, 'stroke-width': (1.4 + w / 42).toFixed(1), 'marker-end': AH(f ? 'teal' : 'blue') }, g1);
+    const path = S('path', { d: `M${s}Q${c} ${e}`, class: (f ? 'edgeF' : 'edgeR') + ' draw', pathLength: 1, 'stroke-width': (1.4 + 3 * w / maxXWeight).toFixed(1), 'marker-end': AH(f ? 'teal' : 'blue') }, g1);
     const geom = S('path', { d: `M${s}Q${c} ${e}`, style: 'opacity:0;fill:none' }, g1);
     const lx = 0.25 * s[0] + 0.5 * c[0] + 0.25 * e[0] + nx * 13, ly = 0.25 * s[1] + 0.5 * c[1] + 0.25 * e[1] + ny * 13;
-    const t = T(g1, lx, ly + 4, w, 'sm mono halo ' + (f ? 'f-teal' : 'f-blue'), { 'text-anchor': 'middle' });
+    const t = T(g1, lx, ly + 4, w.toFixed(6), 'sm mono halo ' + (f ? 'f-teal' : 'f-blue'), { 'text-anchor': 'middle' });
     return { path, geom, t, a, b, w };
   });
   const nodeEls = {};
@@ -1869,13 +1872,13 @@ FIGS.xgraph = (svg, sec) => {
     T(tab, cx[0], y, `~${a[0]}~_{${a[1]}} → ~${b[0]}~_{${b[1]}}`, 'sm');
     T(tab, cx[1], y, ac.toFixed(2), 'sm mono', { 'text-anchor': 'end' });
     T(tab, cx[2], y, fmt(d), 'sm mono', { 'text-anchor': 'end' });
-    T(tab, cx[3], y, w, 'sm mono' + (w === 280 ? ' f-gold' : ''), { 'text-anchor': 'end', 'font-weight': w === 280 ? 700 : 400 });
+    T(tab, cx[3], y, w.toFixed(6), 'sm mono' + (w === maxXWeight ? ' f-gold' : ''), { 'text-anchor': 'end', 'font-weight': w === maxXWeight ? 700 : 400 });
   });
-  T(tab, 366, 300, '~w~ = ~a~ × ~d~; distances invented', 'sm f-muted');
-  T(tab, 366, 324, 'heaviest edge = farthest centers', 'sm f-gold');
+  T(tab, 366, 300, '~w~ = ~a~ / max(1,~d~) ; distances in m', 'sm f-muted');
+  T(tab, 366, 324, 'strongest: ~F~_{2} → ~R~_{2} (500 m)', 'sm f-gold');
   const walk = S('g', { class: 'off' }, g1);
   T(walk, 366, 80, '1 step adds  ~α~ · ~w~', 'hd'); T(walk, 366, 110, '2 steps add  ~α~^{2} · ~w~ · ~w~', 'hd'); T(walk, 366, 140, '3 steps add  ~α~^{3} · ~w~ · ~w~ · ~w~', 'hd');
-  T(walk, 366, 196, 'this walk: ~F~_{2} → ~R~_{2} → ~F~_{1}', 'sm f-gold'); T(walk, 366, 220, 'adds ~α~^{2} × 100 × 140', 'sm f-gold');
+  T(walk, 366, 196, 'this walk: ~F~_{2} → ~R~_{2} → ~F~_{1}', 'sm f-gold'); T(walk, 366, 220, 'adds ~α~^{2} × .000400 × .0000714', 'sm f-gold');
   T(walk, 366, 244, 'to ~K~^{out}(~F~_{2}) and ~K~^{in}(~F~_{1})', 'sm f-gold');
   const tokW = S('circle', { r: 8, class: 'dot f-gold off' }, g1);
   const kat = S('g', { class: 'off' }, g1);
@@ -1889,7 +1892,7 @@ FIGS.xgraph = (svg, sec) => {
     return { kin: mk(6, 'barb tealf'), kout: mk(24, 'barb blue'), C: mk(42, 'barb gold') };
   });
   const kNote = T(kat, 370, 412, '', 'sm f-muted'), kNote2 = T(kat, 370, 430, '', 'sm f-muted');
-  const W = [[0, 0, 120, 280], [0, 0, 0, 100], [60, 0, 0, 0], [140, 50, 0, 0]]; // order F1, F2, R1, R2
+  const W = order.map(src => order.map(dst => EDG.find(([a, b]) => a === src && b === dst)?.[2] ?? 0)); // same weights as the edge diagram
   function spectral(M) {
     const n = M.length, s = Math.max(...M.map(r => r.reduce((a, b) => a + b, 0)));
     let x = Array(n).fill(1), lam = 0;
@@ -1927,9 +1930,9 @@ FIGS.xgraph = (svg, sec) => {
       put(b.kin, r.kin[i], 130 * r.kin[i] / km, 2); put(b.kout, r.kout[i], 130 * r.kout[i] / km, 2); put(b.C, r.C[i], 130 * r.C[i], 3);
       nodeEls[k].c.setAttribute('r', (18 + 26 * r.C[i]).toFixed(1));
     });
-    setT(kNote, `~ρ~(~W~) = ${rho.toFixed(1)}`); setT(kNote2, `~α~ = ${fac.toFixed(2)} / ${rho.toFixed(1)} = ${r.a.toFixed(5)}`);
+    setT(kNote, `~ρ~(~W~) = ${rho.toExponential(3)}`); setT(kNote2, `~α~ = ${fac.toFixed(2)} / ${rho.toExponential(3)} = ${r.a.toExponential(3)}`);
     oA.textContent = fac.toFixed(2); elA.value = fac;
-    outA.innerHTML = `ρ(<var>W</var>) = ${rho.toFixed(1)}, so α = ${fac.toFixed(2)} / ${rho.toFixed(1)} = ${r.a.toFixed(5)}.<br>` +
+    outA.innerHTML = `ρ(<var>W</var>) = ${rho.toExponential(3)}, so α = ${fac.toFixed(2)} / ${rho.toExponential(3)} = ${r.a.toExponential(3)}.<br>` +
       order.map((k, i) => `${k}: <var>K</var><sup>in</sup> ${r.kin[i].toFixed(2)}, <var>K</var><sup>out</sup> ${r.kout[i].toFixed(2)}, <var>C</var> ${r.C[i].toFixed(3)}`).join('<br>');
   }
   elA.addEventListener('input', () => { fac = +elA.value; renderKatz(); });

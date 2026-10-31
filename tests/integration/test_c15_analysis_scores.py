@@ -37,6 +37,31 @@ def test_managed_centrality_defaults_to_balanced_directed_katz_on_cyclic_x(tmp_p
     assert (scores["sigma_score"] >= scores["cluster_centrality"] * 0.85 - 1e-15).all()
 
 
+def test_x_distance_exponent_recomputes_x_centrality_and_scores_only(tmp_path):
+    ws, spatial, economic, original = _pipelines(tmp_path)
+    original.scores()
+    saved = {
+        stage: ws.artifact(stage).artifact_id
+        for stage in (
+            "spatial.clusters", "spatial.centers", "spatial.partitions",
+            "spatial.point_distances", "economy.graph",
+            "analysis.x", "analysis.centrality", "analysis.scores",
+        )
+    }
+    modified = AnalysisPipeline(
+        ws, spatial_pipeline=spatial, economy_pipeline=economic,
+        config=AnalysisRunConfig(x_distance_decay_lambda=2.0),
+    )
+    modified.scores()
+    unchanged = (
+        "spatial.clusters", "spatial.centers", "spatial.partitions",
+        "spatial.point_distances", "economy.graph",
+    )
+    changed = ("analysis.x", "analysis.centrality", "analysis.scores")
+    assert all(ws.artifact(stage).artifact_id == saved[stage] for stage in unchanged)
+    assert all(ws.artifact(stage).artifact_id != saved[stage] for stage in changed)
+
+
 def test_katz_direction_compatibility_option_does_not_change_balanced_artifact(tmp_path):
     ws, spatial, economic, first = _pipelines(tmp_path)
     first.scores()
@@ -127,6 +152,13 @@ def test_analysis_run_config_validation():
             pass
         else:
             raise AssertionError("invalid analysis centrality configuration must fail")
+    for value in (-1.0, float("nan"), float("inf")):
+        try:
+            AnalysisRunConfig(x_distance_decay_lambda=value)
+        except ValueError as exc:
+            assert "x_distance_decay_lambda" in str(exc)
+        else:
+            raise AssertionError("invalid X distance exponent must fail")
     for value in (-0.01, 1.01, float("nan")):
         try:
             AnalysisRunConfig(distance_tempering=value)

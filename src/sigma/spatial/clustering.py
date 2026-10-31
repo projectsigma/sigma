@@ -18,6 +18,7 @@ not parts of the published HDBSCAN* model.
 from __future__ import annotations
 
 import time
+import json
 from dataclasses import dataclass
 from typing import Callable
 
@@ -512,6 +513,7 @@ def cluster_by_type(
     *,
     continue_on_error: bool = True,
     events: list[dict[str, object]] | None = None,
+    savepoints=None,
 ) -> gpd.GeoDataFrame:
     """Cluster every economic type using sparse bounded road-network distance.
 
@@ -557,6 +559,52 @@ def cluster_by_type(
         ordered = result.iloc[index].copy()
         subset = context.snaps.subset(index)
         type_text = str(type_value)
+        # SIGMA_RESUMABLE_SAVEPOINTS_V1: one durable result per economic type.
+        event_start = len(events) if events is not None else 0
+        summary_start, trace_start = len(summary_rows), len(trace_rows)
+        cluster_col = result.columns.get_loc("cluster")
+        membership_col = result.columns.get_loc("membership")
+        unit = f"type:{type_text}"
+        if savepoints is not None:
+            stored = savepoints.read(unit)
+            if stored is not None and set(stored) == {"assignment.json"}:
+                try:
+                    saved = json.loads(stored["assignment.json"])
+                    expected_ids = result.iloc[index]["canonical_id"].astype(str).tolist()
+                    if (saved["ids"] == expected_ids and
+                            len(saved["cluster"]) == len(index) and
+                            len(saved["membership"]) == len(index)):
+                        result.iloc[index, cluster_col] = np.asarray(saved["cluster"], dtype=np.int64)
+                        result.iloc[index, membership_col] = np.asarray(saved["membership"], dtype=float)
+                        summary_rows.extend(saved["summaries"])
+                        trace_rows.extend(saved["trace"])
+                        if events is not None:
+                            events.extend(saved["events"])
+                        if progress is not None:
+                            progress(f"clustering: resumed completed type {type_text!r} ({number:,}/{len(groups):,})")
+                        continue
+                except (ValueError, KeyError, TypeError, IndexError):
+                    pass  # malformed result: re-run this type rather than trust it
+
+        def save_type() -> None:
+            if savepoints is None:
+                return
+            ids = result.iloc[index]["canonical_id"].astype(str).tolist()
+            payload = {
+                "ids": ids,
+                "cluster": result.iloc[index]["cluster"].astype(int).tolist(),
+                "membership": result.iloc[index]["membership"].astype(float).tolist(),
+                "summaries": summary_rows[summary_start:],
+                "trace": trace_rows[trace_start:],
+                "events": (events[event_start:] if events is not None else []),
+            }
+            savepoints.save(unit, {"assignment.json": json.dumps(
+                payload, sort_keys=True, default=lambda v: v.item() if isinstance(v, np.generic) else str(v),
+                separators=(",", ":"),
+            ).encode("utf-8")})
+            if progress is not None:
+                progress(f"clustering: saved type {type_text!r}")
+
         if progress is not None:
             progress(
                 f"clustering: type {number:,}/{len(groups):,} {type_text!r}, "
@@ -629,6 +677,7 @@ def cluster_by_type(
                         "core_truncation_tolerance": float(config.core_truncation_tolerance),
                     }
                 )
+                save_type()
                 continue
             if events is not None:
                 events.append(
@@ -684,6 +733,7 @@ def cluster_by_type(
                     f"clustering: type {type_text!r} complete via Euclidean fallback: "
                     f"{len(clusters):,} clusters, {retained:,}/{len(index):,} retained"
                 )
+        save_type()
 
     result["cluster"] = result["cluster"].astype(np.int64)
     result.attrs["clustering_summary"] = summary_rows

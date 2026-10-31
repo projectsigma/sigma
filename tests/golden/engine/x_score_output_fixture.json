@@ -160,7 +160,7 @@
   ],
   "x_edges": [
     {
-      "edge_weight": 48.0,
+      "edge_weight": 0.1875,
       "road_distance": 16.0,
       "source_cluster": 0,
       "source_type": "A",

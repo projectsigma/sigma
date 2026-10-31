@@ -901,8 +901,11 @@ combined edge weight
 The canonical combined edge weight is:
 
 ```text
-technical coefficient × road distance
+technical coefficient / max(road distance in metres, 1) ** x_distance_decay_lambda
 ```
+
+The default `x_distance_decay_lambda = 1.0` gives inverse-road-distance attenuation, with a one-metre floor so the spatial factor stays in `(0, 1]`. The X weight is at most the economic coefficient; longer routes weaken rather than strengthen the modeled link. The exponent is distinct from Katz `alpha_factor = 0.85` and establishment `distance_tempering = 0.15`. Same-cluster self-edges remain omitted by the X topology policy. Changing the exponent invalidates `analysis.x` and its downstream centrality/score artifacts, not the upstream clusters, centers, roads, or economic graph.
+
 
 This produces a **multi-relational or multiplex-like ecosystem graph**: economic dependence, spatial co-location, and transport connectivity are represented together. The implementation uses a directed graph (`DiGraph`) rather than a literal `MultiDiGraph`, but the analytical interpretation is multigraph-like because each connection is supported by multiple relationship dimensions.
 

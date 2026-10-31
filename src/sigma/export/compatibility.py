@@ -27,6 +27,7 @@ from sigma.execution import ExecutionPlanner
 from sigma.places.frame_io import read_geoframe
 from sigma.places.pipeline import _attribution_text, _database_license_text, _terms
 from sigma.stages import StageSpec
+from sigma.savepoints import StageSavepoints  # SIGMA_RESUMABLE_SAVEPOINTS_V1
 from sigma.workspace import SigmaWorkspace
 
 from .qgis import WGS84, annotate_types, as_wgs84, build_sector_styles, write_qgis_project
@@ -228,6 +229,7 @@ class ExportPipeline:
         )
 
     def _execute(self, planner, recipe, deps, write: ArtifactWrite):
+        savepoints = StageSavepoints(self.workspace.root, recipe.stage, recipe.fingerprint)
         created_at = _deterministic_created_at(self.workspace, deps)
         outputs: dict[str, str] = {}
 
@@ -312,14 +314,18 @@ class ExportPipeline:
         x.disconnected.to_csv(write.output("sigma_disconnected_overlap_pairs.csv"), index=False, lineterminator="\n")
         with detail_phase(self.progress, f"export: writing {len(published_points):,} scored points to GeoParquet"):
             published_points.to_parquet(write.output("sigma_points.parquet"), index=False)
-        with detail_phase(
-            self.progress,
-            f"export: writing GeoPackage ({len(partitions):,} partitions, "
-            f"{len(node_geo):,} centers, {len(x_paths):,} route geometries)",
-        ):
-            write_spatial_geopackage(
-                write.output("sigma_spatial_outputs.gpkg"), partitions, node_geo, x_paths
-            )
+        geopackage_output = write.output("sigma_spatial_outputs.gpkg")
+        if savepoints.restore_file("geopackage", geopackage_output):
+            if self.progress is not None:
+                self.progress("export: resumed completed GeoPackage from verified savepoint")
+        else:
+            with detail_phase(
+                self.progress,
+                f"export: writing GeoPackage ({len(partitions):,} partitions, "
+                f"{len(node_geo):,} centers, {len(x_paths):,} route geometries)",
+            ):
+                write_spatial_geopackage(geopackage_output, partitions, node_geo, x_paths)
+            savepoints.save_file("geopackage", geopackage_output)
 
         roads = as_wgs84(read_geoframe(deps["transport.roads"].path / "roads.json"))
         boundary = None
@@ -345,17 +351,22 @@ class ExportPipeline:
             project_name = f"{self.workspace.area.slug}.qgz"
             if self.progress is not None:
                 self.progress("export: creating QGIS project and sector styling")
-            write_qgis_project(
-                write.output(project_name),
-                area_name=self.workspace.area.name,
-                area_slug=self.workspace.area.slug,
-                boundary=boundary,
-                roads=roads,
-                partitions=partitions,
-                centers=centers,
-                points=published_points,
-                styles=sector_styles,
-            )
+            qgis_output = write.output(project_name)
+            if not savepoints.restore_file("qgis-project", qgis_output):
+                write_qgis_project(
+                    qgis_output,
+                    area_name=self.workspace.area.name,
+                    area_slug=self.workspace.area.slug,
+                    boundary=boundary,
+                    roads=roads,
+                    partitions=partitions,
+                    centers=centers,
+                    points=published_points,
+                    styles=sector_styles,
+                )
+                savepoints.save_file("qgis-project", qgis_output)
+            elif self.progress is not None:
+                self.progress("export: resumed completed QGIS project from verified savepoint")
             outputs[project_name] = project_name
 
         outputs.update({name: name for name in (

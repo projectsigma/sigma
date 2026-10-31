@@ -18,6 +18,7 @@ from sigma.execution import ExecutionPlanner
 from sigma.places.frame_io import read_geoframe, write_geoframe
 from sigma.sources import SourceRef
 from sigma.stages import StageSpec
+from sigma.savepoints import StageSavepoints  # SIGMA_RESUMABLE_SAVEPOINTS_V1
 from sigma.transport._sparse_solver import SparseRoadSolver
 from sigma.transport.network import RoadNetwork, SnappedPoints
 from sigma.transport.roads import FileRoadSource, GeofabrikRoadSource, RoadSource, validate_road_frame
@@ -474,6 +475,7 @@ class SpatialPipeline:
             progress=self.progress,
             continue_on_error=True,
             events=events,
+            savepoints=StageSavepoints(self.workspace.root, recipe.stage, recipe.fingerprint),
         )
         write_geoframe(clustered, write.output("clustered.json"))
         save_sparse_context(
@@ -758,6 +760,7 @@ class SpatialPipeline:
             euclidean_fallback=True,
             continue_on_error=True,
             events=events,
+            savepoints=StageSavepoints(self.workspace.root, recipe.stage, recipe.fingerprint),
         )
         expected_keys = set(
             zip(

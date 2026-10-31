@@ -50,6 +50,11 @@
   let unscoredCandidates = []; // classified but NO SIGMA score, never in scored map source
   let unscoredRenderedKey = null; // only populated upon explicit user opt-in
   let ready = false;             // map layers exist
+  // SIGMA_EXPLORER_LATENCY_V1: generation-guarded paints and frame-coalesced hover.
+  let refreshEpoch = 0;
+  let pendingHoverEvent = null;
+  let hoverFrameScheduled = false;
+  let lastRoutePaletteTheme = null;
 
   // Explicit light default: no OS dark-mode inheritance and no stored setting.
   let themeMode = 'light';
@@ -98,10 +103,13 @@
       paint('roads-line', 'line-color', dark ? '#897f80' : '#949b9b');
       paint('roads-line', 'line-opacity', network ? (dark ? 0.29 : 0.18) : (dark ? 0.53 : 0.38));
       paint('partition-focus-line', 'line-color', dark ? '#e2a2ab' : COLOR.focus);
-      // Match every route depth: dark/light themes affect the palette, not its meaning.
-      for (let step = 1; step <= 20; step++) {
-        const stem = step === 1 ? 'routes' : `routes-step-${step}`;
-        paint(step === 1 ? 'routes-casing' : `${stem}-casing`, 'line-color', dark ? '#191818' : '#ffffff');
+      // Route paint palette changes only when theme changes, never when focus changes.
+      const routePaletteChanged = lastRoutePaletteTheme !== themeMode;
+      if (routePaletteChanged) {
+        for (let step = 1; step <= 20; step++) {
+          const stem = step === 1 ? 'routes' : `routes-step-${step}`;
+          paint(step === 1 ? 'routes-casing' : `${stem}-casing`, 'line-color', dark ? '#191818' : '#ffffff');
+        }
       }
       // Against a dark map, muted/dark strokes avoid bright halos around
       // thousands of colored establishments. Preserve the focus outline.
@@ -119,10 +127,13 @@
       // red = supply, blue = use, purple = both. Same hues at every depth.
       const tripleColor = ['match', ['get', 'kind'], 'both',
         dark ? '#c9a4ed' : COLOR.both, dark ? '#ef9d8b' : COLOR.outgoing];
-      for (let step = 1; step <= 20; step++) {
-        const stem = step === 1 ? 'routes' : `routes-step-${step}`;
-        paint(stem, 'line-color', tripleColor);
-        paint(step === 1 ? 'routes-in' : `${stem}-in`, 'line-color', dark ? '#8cc8e9' : COLOR.incoming);
+      if (routePaletteChanged) {
+        for (let step = 1; step <= 20; step++) {
+          const stem = step === 1 ? 'routes' : `routes-step-${step}`;
+          paint(stem, 'line-color', tripleColor);
+          paint(step === 1 ? 'routes-in' : `${stem}-in`, 'line-color', dark ? '#8cc8e9' : COLOR.incoming);
+        }
+        lastRoutePaletteTheme = themeMode;
       }
       paint('selected-point', 'circle-stroke-color', dark ? '#e9aa55' : '#d99d2c');
       if (state.partitions === 'network' && network) {
@@ -182,11 +193,24 @@
     return jsonCache.get(path);
   };
   const routeCache = new Map();
+  const ROUTE_CACHE_LIMIT = 96; // bounded *expanded* route collections, not establishment tiles
   const getRoutes = path => {
-    if (!routeCache.has(path)) {
-      routeCache.set(path, getJSON(path).then(SigmaGraph.expandRoutes).catch(err => { routeCache.delete(path); throw err; }));
+    if (routeCache.has(path)) {
+      const cached = routeCache.get(path);
+      routeCache.delete(path);
+      routeCache.set(path, cached); // LRU touch
+      return cached;
     }
-    return routeCache.get(path);
+    const request = fetch(path).then(r => {
+      if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+      return r.json();
+    }).then(SigmaGraph.expandRoutes).catch(err => {
+      if (routeCache.get(path) === request) routeCache.delete(path);
+      throw err;
+    });
+    routeCache.set(path, request);
+    if (routeCache.size > ROUTE_CACHE_LIMIT) routeCache.delete(routeCache.keys().next().value);
+    return request;
   };
   const el = (tag, props = {}, ...children) => {
     const node = document.createElement(tag);
@@ -201,6 +225,9 @@
   const isNum = v => typeof v === 'number' && Number.isFinite(v);
   const fmtNum = (v, digits = 4) => isNum(v) ? v.toLocaleString(undefined, {maximumFractionDigits: digits}) : '—';
   const fmtCoef = v => !isNum(v) ? '—' : (v === 0 || Math.abs(v) >= 0.001) ? v.toFixed(4) : v.toPrecision(2);
+  // X weights (coefficient / road distance^lambda) are often far below 0.001;
+  // fmtNum keeps 4 decimals and would print them as 0.
+  const fmtXWeight = v => !isNum(v) ? '—' : (v === 0 || Math.abs(v) >= 0.001) ? fmtNum(v) : v.toExponential(2);
   const fmtDist = v => {
     if (!isNum(v)) return '—';
     if (meta.distance_unit !== 'm') return `${fmtNum(v, 1)} ${meta.distance_unit}`;
@@ -386,6 +413,14 @@
     // Reusing that GeoJSON avoids a costly MapLibre source reparse/repaint.
     const signature = `${z}:${keys.join('|')}`;
     if (signature === lastRenderedTileSignature) { updateStatus(); return; }
+    // As soon as the visible tile set changes, remove stale points while the
+    // new tile data load. A superseded response cannot reinstate them (tileEpoch).
+    // Invalidate the old signature too, so a rapid pan-back cannot reuse an emptied source.
+    lastRenderedTileSignature = '';
+    setData('points', EMPTY());
+    unscoredCandidates = [];
+    unscoredRenderedKey = null;
+    setData('unscored-points', EMPTY());
     try {
       const groups = await Promise.all(keys.map(key => getJSON(`data/tiles/${z}/${key}.geojson`)));
       if (epoch !== tileEpoch) return;
@@ -613,11 +648,9 @@
     // linked and focused sector colors remain intact.
     const baseIcon = themeMode === 'dark' ? 'dark_center_icon' : 'center_icon';
     const connectedIcon = themeMode === 'dark' ? 'dark_linked_center_icon' : 'linked_center_icon';
-    map.setLayoutProperty('centers', 'icon-image', ids ?
-      ['case', centerIn, ['get', connectedIcon], ['get', baseIcon]] :
-      ['get', baseIcon]);
-    if (typeof sigmaLinkedCenterIconExpression === 'function' && network)
-      map.setLayoutProperty('centers', 'icon-image', sigmaLinkedCenterIconExpression());
+    // One icon layout update per selection, not two consecutive reparses.
+    map.setLayoutProperty('centers', 'icon-image', ids && network ?
+      sigmaLinkedCenterIconExpression() : ['get', baseIcon]);
     map.setPaintProperty('centers', 'icon-opacity', ids ?
       networkDepthOpacity('id', 0, step => fadeByStep(1, step), 0.16) : 1);
     map.setFilter('establishments', ['all', ['!=', ['get', 'unclustered'], true], notHidden()]);
@@ -684,12 +717,20 @@
   // display convention only; source/target are always the true directed X edge.
   // Published route geometry is read unchanged from the source node's route file.
   const routePairKey = (a, b) => JSON.stringify([a, b].sort());
+  const sameCoords = (a, b, reverse = false) => {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      const p = a[i], q = b[reverse ? b.length - 1 - i : i];
+      if (!Array.isArray(p) || !Array.isArray(q) || p.length !== q.length) return false;
+      for (let j = 0; j < p.length; j++) if (p[j] !== q[j]) return false;
+    }
+    return true;
+  };
   const sameRoadGeometry = (a, b) => {
     if (!a || !b || a.type !== b.type) return false;
-    if (JSON.stringify(a.coordinates) === JSON.stringify(b.coordinates)) return true;
-    // Reverse geometry can be shared visually, but keep both directed X values.
-    return a.type === 'LineString' &&
-      JSON.stringify(a.coordinates) === JSON.stringify(b.coordinates.slice().reverse());
+    if (a.type === 'LineString') return sameCoords(a.coordinates, b.coordinates) ||
+      sameCoords(a.coordinates, b.coordinates, true);
+    return JSON.stringify(a.coordinates) === JSON.stringify(b.coordinates);
   };
   const routeAnchor = (a, b, ring) => {
     const da = ring.get(a), db = ring.get(b);
@@ -1107,16 +1148,33 @@
 
   // ------------------------------------------------------------------ selection
   function refresh() {
+    // Invalidate in-flight route/hover work BEFORE any synchronous render work.
+    const epoch = ++refreshEpoch;
+    ++routeEpoch;
+    ++hoverEpoch;
+    pendingHoverEvent = null;
+    if (ready) {
+      setData('routes', EMPTY());
+      setData('route-hover', EMPTY());
+    }
     network = selection && nodeIndex.has(selection.id) ? buildNetwork(selection.id) : null;
     sigmaTriangleStyleByNode = computeNetworkTriangleStyles();
-    renderSectors();  // Re-rank sectors when selection or Strongest changes.
     renderSelection();
-    drawGraph();
-    renderConnections();
-    if (!ready) return;
-    applyEmphasis();
-    showRoutes();
-    updateStatus();
+    if (ready) {
+      applyEmphasis();
+      updateStatus();
+    }
+    const finish = () => {
+      if (epoch !== refreshEpoch) return;
+      renderSectors(); // Re-rank when selection or Strongest changes.
+      drawGraph();
+      renderConnections();
+      if (ready) showRoutes();
+    };
+    if (!ready) { finish(); return; }
+    // Let MapLibre paint the new focus before reconstructing the diagram and
+    // fetching exact route geometries. A newer click cancels this work.
+    requestAnimationFrame(() => setTimeout(finish, 0));
   }
 
   function selectUnclustered(point) {
@@ -1368,9 +1426,8 @@
   }
 
   function sectorsChanged() {
-    renderSectors();
     renderCentral();
-    refresh();
+    refresh(); // refresh() schedules exactly one sector-list rebuild
   }
 
   // ------------------------------------------------------------------ map popups
@@ -1416,11 +1473,11 @@
         const outward = p.from === a;
         const supply = outward ? p : {coefficient: p.reverse_coefficient, weight: p.reverse_weight, distance: p.reverse_distance};
         const use = outward ? {coefficient: p.reverse_coefficient, weight: p.reverse_weight, distance: p.reverse_distance} : p;
-        rows.push(`${name(a)} → ${name(b)}: a = ${fmtCoef(supply.coefficient)} (X weight ${fmtNum(supply.weight)})`);
-        rows.push(`${name(b)} → ${name(a)}: a = ${fmtCoef(use.coefficient)} (X weight ${fmtNum(use.weight)})`);
+        rows.push(`${name(a)} → ${name(b)}: a = ${fmtCoef(supply.coefficient)} (X weight ${fmtXWeight(supply.weight)})`);
+        rows.push(`${name(b)} → ${name(a)}: a = ${fmtCoef(use.coefficient)} (X weight ${fmtXWeight(use.weight)})`);
         rows.push(p.separate_paths ? 'Reciprocal X links use two distinct published road paths' : 'Reciprocal X links share the same published road path');
       } else {
-        rows.push(`${name(p.from)} → ${name(p.to)}: a = ${fmtCoef(p.coefficient)} (X weight ${fmtNum(p.weight)})`);
+        rows.push(`${name(p.from)} → ${name(p.to)}: a = ${fmtCoef(p.coefficient)} (X weight ${fmtXWeight(p.weight)})`);
       }
       rows.push(`Road distance ${fmtDist(p.distance)}`);
       return {title: `${near ? shortLabel(near) : a} ${p.kind === 'both' ? '↔' : '—'} ${far ? shortLabel(far) : b} · step ${depth}`,
@@ -1430,16 +1487,10 @@
 
   const POPUP_BLOCKS = 3;
   function onHover(event) {
-    // Query all depth-group layers, with centers and establishments first.
-    const routeLayers = [];
-    for (let step = 1; step <= 20; step++) {
-      const stem = step === 1 ? 'routes' : `routes-step-${step}`;
-      routeLayers.push(stem, step === 1 ? 'routes-in' : `${stem}-in`);
-    }
-    const layers = ['centers', 'establishments', 'unclustered-establishments', ...routeLayers].filter(l =>
+    // Cheap feature query first. Routes are only queried if no point is selectable.
+    const placeLayers = ['centers', 'establishments', 'unclustered-establishments'].filter(l =>
       map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
-    const hits = map.queryRenderedFeatures(event.point, {layers});
-    const places = hits.filter(h => ['centers', 'establishments', 'unclustered-establishments'].includes(h.layer.id));
+    const places = map.queryRenderedFeatures(event.point, {layers: placeLayers});
     const scopedPlaces = places.filter(selectableMapFeature);
     map.getCanvas().style.cursor = scopedPlaces.length ? 'pointer' : '';
     let content = null;
@@ -1448,6 +1499,15 @@
       if (lines) content = el('div', {}, el('div', {className: 'popup-title', textContent: lines[0]}),
         ...lines.slice(1).map(text => el('div', {className: 'popup-row', textContent: text})));
     } else {
+      // Keep every depth in hit testing, but only pay for route queries when needed.
+      const routeLayers = [];
+      for (let step = 1; step <= 20; step++) {
+        const stem = step === 1 ? 'routes' : `routes-step-${step}`;
+        routeLayers.push(stem, step === 1 ? 'routes-in' : `${stem}-in`);
+      }
+      const visibleRoutes = routeLayers.filter(l => map.getLayer(l) &&
+        map.getLayoutProperty(l, 'visibility') !== 'none');
+      const hits = map.queryRenderedFeatures(event.point, {layers: visibleRoutes});
       const blocks = describeRoutes(hits);
       if (blocks.length) {
         content = el('div', {}, ...blocks.slice(0, POPUP_BLOCKS).map(b => el('div', {className: 'popup-block'},
@@ -1461,6 +1521,19 @@
     }
     if (!content) { popup.remove(); return; }
     popup.setLngLat(event.lngLat).setDOMContent(content).addTo(map);
+  }
+
+  // Collapse bursts of mousemove events into one hover inspection per animation frame.
+  function scheduleHover(event) {
+    pendingHoverEvent = event;
+    if (hoverFrameScheduled) return;
+    hoverFrameScheduled = true;
+    requestAnimationFrame(() => {
+      hoverFrameScheduled = false;
+      const latest = pendingHoverEvent;
+      pendingHoverEvent = null;
+      if (latest && ready) onHover(latest);
+    });
   }
 
   function onClick(event) {
@@ -1943,8 +2016,12 @@
         addLayers(data);
         applyTheme(themeMode);
         ready = true;
-        map.on('mousemove', onHover);
-        map.on('mouseout', () => popup.remove());
+        map.on('mousemove', scheduleHover);
+        map.on('mouseout', () => {
+          pendingHoverEvent = null;
+          popup.remove();
+          map.getCanvas().style.cursor = '';
+        });
         map.on('click', onClick);
         map.on('moveend', loadVisiblePoints);
         bindControls();
