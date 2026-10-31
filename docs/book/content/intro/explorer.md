@@ -41,7 +41,7 @@ sigma view quezon_city --ui-only
 3. Inspect incoming, outgoing, or combined connections, and increase the neighborhood depth from direct connections to two steps or the reachable neighborhood. Direction choices govern **neighborhood discovery**; the diagram retains the directed relationships among the displayed nodes.
 4. Use theater view and fit-to-graph when a network is too crowded. Inspect edge attributes and highlight computed X-edge road paths in the map. Incoming routes are dashed blue and outgoing routes solid red.
 
-**Interpretation matters:** A directed X edge represents a *modeled spatial-economic link* grounded in IO technical coefficients, overlapping cluster partitions, and routable road-network separation. It is **not verified trade between two specific establishments**. The displayed X edge weight is `technical_coefficient × road_distance`, not a probability. Routes use SIGMA's published shortest-path geometries; the routing graph itself is undirected.
+**Interpretation matters:** A directed X edge represents a *modeled spatial-economic link* grounded in IO technical coefficients, overlapping cluster partitions, and routable road-network separation. It is **not verified trade between two specific establishments**. The displayed X edge weight is `technical_coefficient / max(road_distance_in_metres, 1) ** x_distance_decay_lambda`, not a probability. Routes use SIGMA's published shortest-path geometries; the routing graph itself is undirected.
 
 For large views, Explorer can switch to density shading rather than loading more than 150,000 establishments at once. The network view is capped at 300 nodes and 1,500 directed edges per selection and marks truncated displays. Neither cap modifies the original SIGMA outputs.
 

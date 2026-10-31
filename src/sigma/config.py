@@ -79,6 +79,7 @@ class AnalysisConfig:
     centrality_direction: Literal["incoming", "outgoing"] = "incoming"
     katz_alpha_factor: float = 0.85
     katz_beta: float = 1.0
+    x_distance_decay_lambda: float = 1.0
     distance_tempering: float = 0.15
 
 

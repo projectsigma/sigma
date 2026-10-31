@@ -91,13 +91,36 @@ def test_managed_analysis_x_accepts_full_directed_economy_and_reciprocal_edges(t
     assert not nx.is_directed_acyclic_graph(result.graph)
     assert result.disconnected.empty
     assert set(result.edges["technical_coefficient"]) == {0.4, 0.6}
-    assert (result.edges["edge_weight"] == result.edges["technical_coefficient"] * result.edges["road_distance"]).all()
+    expected = result.edges["technical_coefficient"] / result.edges["road_distance"].clip(lower=1.0)
+    assert all(abs(actual - wanted) < 1e-12 for actual, wanted in zip(result.edges["edge_weight"], expected, strict=True))
     assert len(result.paths) == 2
     assert str(result.paths.crs) == "EPSG:4326"
     metadata = ws.manifest("analysis.x").metadata
     assert metadata["economic_graph_is_dag"] is False
     assert metadata["x_is_dag"] is False
     assert metadata["zero_distance_self_edges_omitted"] == 2
+    assert metadata["x_distance_decay_lambda"] == 1.0
+    assert metadata["distance_floor_metres"] == 1.0
+
+
+def test_x_decay_exponent_invalidates_x_not_upstream_artifacts(tmp_path):
+    from sigma.analysis import AnalysisRunConfig
+
+    ws, spatial, economic, analysis = _pipelines(tmp_path)
+    first = analysis.x()
+    spatial_ids = {
+        stage: ws.artifact(stage).artifact_id
+        for stage in ("spatial.clusters", "spatial.centers", "spatial.partitions", "economy.graph")
+    }
+    changed = AnalysisPipeline(
+        ws, spatial_pipeline=spatial, economy_pipeline=economic,
+        config=AnalysisRunConfig(x_distance_decay_lambda=2.0),
+    )
+    second = changed.x()
+    assert second.artifact_id != first.artifact_id
+    assert {stage: ws.artifact(stage).artifact_id for stage in spatial_ids} == spatial_ids
+    for row in changed.load_x(second, include_paths=False).edges.itertuples(index=False):
+        assert abs(row.edge_weight - row.technical_coefficient / max(row.road_distance, 1.0) ** 2) < 1e-12
 
 
 def test_analysis_x_is_independent_of_point_distance_stage(tmp_path):

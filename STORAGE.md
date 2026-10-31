@@ -71,3 +71,15 @@ If legacy `*.nodes.cache` or `node-locations.cache` files remain there, stop all
 SIGMA processes and remove *only those confirmed extraction indexes* manually;
 do not delete `sources/` wholesale. Duplicate national PBFs must be verified
 before manual deletion.
+
+
+## Resumable stage savepoints
+
+Long-running clustering, Voronoi, Network X and export work units now persist under
+`<workspace>/state/savepoints/<stage>/<recipe-fingerprint>/` until the complete
+stage artifact commits. Each unit has a SHA-256-verified manifest, and only a
+complete, matching unit can be reused. Successful stage commits clear their
+savepoints. Abandoned unsuccessful runs may leave older savepoints behind;
+review these only while SIGMA is idle. The ordinary `sigma storage prune` command
+currently does not remove `state/savepoints/`. See
+[Resumable stage savepoints](docs/SIGMA_SAVEPOINTS.md) for recovery boundaries.

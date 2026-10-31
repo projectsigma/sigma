@@ -15,6 +15,7 @@ from sigma.execution import ExecutionPlanner
 from sigma.places.frame_io import read_geoframe, write_geoframe
 from sigma.progress_detail import detail_phase  # SIGMA_DETAILED_PROGRESS_V1
 from sigma.stages import StageSpec
+from sigma.savepoints import StageSavepoints, CheckpointedRoad  # SIGMA_RESUMABLE_SAVEPOINTS_V2
 from sigma.workspace import SigmaWorkspace
 
 from .centrality import CentralityResult, compute_centrality
@@ -58,6 +59,7 @@ class AnalysisRunConfig:
     centrality_direction: str = "incoming"
     katz_alpha_factor: float = 0.85
     katz_beta: float = 1.0
+    x_distance_decay_lambda: float = 1.0
     distance_tempering: float = 0.15
 
     def __post_init__(self) -> None:
@@ -73,6 +75,9 @@ class AnalysisRunConfig:
         beta = float(self.katz_beta)
         if not math.isfinite(beta) or beta <= 0:
             raise ValueError("katz_beta must be finite and strictly positive")
+        decay = float(self.x_distance_decay_lambda)
+        if not math.isfinite(decay) or decay < 0.0:
+            raise ValueError("x_distance_decay_lambda must be finite and non-negative")
         tempering = float(self.distance_tempering)
         if not math.isfinite(tempering) or not 0.0 <= tempering <= 1.0:
             raise ValueError("distance_tempering must be finite and between 0 and 1")
@@ -81,6 +86,7 @@ class AnalysisRunConfig:
         object.__setattr__(self, "katz_alpha_factor", alpha_factor)
         object.__setattr__(self, "katz_beta", beta)
         object.__setattr__(self, "distance_tempering", tempering)
+        object.__setattr__(self, "x_distance_decay_lambda", decay)
 
 
 class AnalysisPipeline:
@@ -139,7 +145,7 @@ class AnalysisPipeline:
     def _recipe_x(self, planner, deps) -> ArtifactRecipe:
         return ArtifactRecipe.build(
             "analysis.x",
-            implementation_version="directed-spatial-economic-x-v2-geoparquet",
+            implementation_version="directed-spatial-economic-x-v3-inverse-power-distance",
             dependencies={
                 name: deps[name]
                 for name in (*self._spatial_x_dependencies, self._economic_graph_stage)
@@ -147,7 +153,9 @@ class AnalysisPipeline:
             parameters={
                 "overlap_rule": "positive_area",
                 "road_distance": "shortest_path",
-                "edge_weight": "technical_coefficient_times_road_distance",
+                "edge_weight": "technical_coefficient_times_capped_inverse_road_distance_power",
+                "x_distance_decay_lambda": self.config.x_distance_decay_lambda,
+                "distance_floor_metres": 1.0,
                 "zero_distance_self_edges": "omit",
             },
         )
@@ -160,12 +168,15 @@ class AnalysisPipeline:
         else:
             _, road = self.spatial._retained_with_augmented(deps["spatial.clusters"])
         economic = self.economy.load_graph(deps[self._economic_graph_stage]).graph
+        savepoints = StageSavepoints(self.workspace.root, recipe.stage, recipe.fingerprint)
         graph, disconnected = instantiate_network(
             centers,
             partitions,
             economic,
             road,
             progress=self.progress,
+            x_distance_decay_lambda=self.config.x_distance_decay_lambda,
+            savepoints=savepoints,
         )
 
         nodes = self._node_table(graph)
@@ -173,7 +184,7 @@ class AnalysisPipeline:
             self.progress,
             f"network X: constructing shortest-road-path geometries for {graph.number_of_edges():,} edges",
         ):
-            edges, paths = self._edge_outputs(graph, road, progress=self.progress)
+            edges, paths = self._edge_outputs(graph, CheckpointedRoad(road, graph, savepoints, progress=self.progress), progress=self.progress)
         disconnected_out = self._disconnected_output(disconnected)
         if self.progress is not None:
             self.progress(
@@ -192,7 +203,9 @@ class AnalysisPipeline:
             "zero_distance_self_edges_omitted": int(
                 graph.graph.get("zero_distance_self_edges_omitted", 0)
             ),
-            "edge_weight": "technical_coefficient * road_distance",
+            "edge_weight": "technical_coefficient / max(road_distance_metres, 1) ** x_distance_decay_lambda",
+            "x_distance_decay_lambda": self.config.x_distance_decay_lambda,
+            "distance_floor_metres": 1.0,
             "road_distance_crs": str(road.crs),
         }
         del graph  # release all embedded road_path arrays before path serialization
@@ -212,7 +225,7 @@ class AnalysisPipeline:
         )
         return metadata, {
             "economic_weight": "technical_coefficient",
-            "spatial_weight": "technical_coefficient_times_road_distance",
+            "spatial_weight": "technical_coefficient_times_capped_inverse_road_distance_power",
         }
 
     @staticmethod
@@ -324,7 +337,7 @@ class AnalysisPipeline:
             })
         return ArtifactRecipe.build(
             "analysis.centrality",
-            implementation_version="balanced-directed-katz-geomean-v2",
+            implementation_version="balanced-directed-katz-geomean-v4-scaled-spectrum",
             dependencies={"analysis.x": deps["analysis.x"]},
             parameters=parameters,
         )

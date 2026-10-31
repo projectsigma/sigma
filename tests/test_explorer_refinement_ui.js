@@ -22,7 +22,10 @@ assert.match(js, /sectorSortState\.key === 'places'/);
 assert.match(js, /compareSectorCodes\(a,b\)/);
 // Coefficient strengths remain available in sector detail tooltips.
 assert.match(js, /globalSectorStrength\.get\(s\.code\)/);
-assert.match(js, /renderSectors\(\);  \/\/ Re-rank sectors/);
+// Refresh must re-rank sectors only after confirming this generation is current.
+assert.match(js, /const finish = \(\) => \{\s*if \(epoch !== refreshEpoch\) return;\s*renderSectors\(\);/);
+// Expensive reranking and graph work are deferred until after the next paint.
+assert.match(js, /requestAnimationFrame\(\(\) => setTimeout\(finish, 0\)\);/);
 assert.match(js, /recordSectorStrength\(nodeIndex\.get\(e\.from\), e\.coefficient\)/);
 assert.match(js, /'circle-opacity', ids \?\s*networkDepthOpacity\('node_id', 0\.96, step => fadeByStep\(0\.90, step\), 0\.025\)/);
 assert.match(js, /'line-opacity', ids \? 0\.18 : 0\.38/);

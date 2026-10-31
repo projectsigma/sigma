@@ -269,6 +269,7 @@ def _config(
     voronoi_max_cells: int = 1_000_000,
     centrality_method: str | None = None,
     centrality_direction: str = "incoming",
+    x_distance_decay_lambda: float = 1.0,
     distance_tempering: float = 0.15,
     compatibility_export: bool = True,
     unified_export: bool = True,
@@ -334,6 +335,7 @@ def _config(
             centrality_direction=centrality_direction,  # type: ignore[arg-type]
             katz_alpha_factor=base.analysis.katz_alpha_factor,
             katz_beta=base.analysis.katz_beta,
+            x_distance_decay_lambda=x_distance_decay_lambda,
             distance_tempering=distance_tempering,
         ),
         export=ExportConfig(compatibility=compatibility_export, unified=unified_export),
@@ -478,6 +480,10 @@ def run_command(
         "incoming", "--centrality-direction",
         help="Compatibility option; canonical Katz combines incoming and outgoing and ignores this. Eigenvector also ignores it.",
     ),
+    x_distance_decay_lambda: float = typer.Option(
+        1.0, "--x-distance-decay-lambda",
+        help="Exponent of inverse road-distance attenuation on X edges (default 1.0).",
+    ),
     distance_tempering: float = typer.Option(0.15, "--distance-tempering"),
     force: bool = typer.Option(False, "--force"),
     json_output: bool = typer.Option(False, "--json"),
@@ -495,6 +501,7 @@ def run_command(
             min_cluster_size=min_cluster_size, min_samples=min_samples,
             allow_single_cluster=allow_single_cluster, voronoi_resolution=voronoi_resolution,
             centrality_method=centrality_method, centrality_direction=centrality_direction,
+            x_distance_decay_lambda=x_distance_decay_lambda,
             distance_tempering=distance_tempering,
         )
         if (economy is None and config.spatial.classification is None
@@ -1085,6 +1092,10 @@ def analysis_run(
         "incoming", "--centrality-direction",
         help="Compatibility option; canonical Katz combines incoming and outgoing and ignores this. Eigenvector also ignores it.",
     ),
+    x_distance_decay_lambda: float = typer.Option(
+        1.0, "--x-distance-decay-lambda",
+        help="Exponent of inverse road-distance attenuation on X edges (default 1.0).",
+    ),
     distance_tempering: float = typer.Option(0.15, "--distance-tempering"),
     min_cluster_size: int = typer.Option(5, "--min-cluster-size"),
     min_samples: int | None = typer.Option(None, "--min-samples"),
@@ -1101,6 +1112,7 @@ def analysis_run(
             equivalent=equivalent, mwas_method=mwas_method, source_store=shared_store,
             transaction_preprocessing=transaction_preprocessing, roads_layer=roads_layer,
             centrality_method=centrality_method, centrality_direction=centrality_direction,
+            x_distance_decay_lambda=x_distance_decay_lambda,
             distance_tempering=distance_tempering,
             min_cluster_size=min_cluster_size, min_samples=min_samples,
             allow_single_cluster=allow_single_cluster, voronoi_resolution=voronoi_resolution,

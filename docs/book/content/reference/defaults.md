@@ -49,7 +49,9 @@ These are the main current defaults exposed by `SigmaConfig`.
 | centrality | `katz` |
 | Katz alpha factor | 0.85 |
 | Katz beta | 1.0 |
-| distance tempering | 0.15 |
+| X inverse-distance exponent `x_distance_decay_lambda` | 1.0 |
+| X distance floor | 1 metre |
+| distance tempering (establishments) | 0.15 |
 
 ## Managed roads
 

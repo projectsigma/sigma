@@ -872,3 +872,51 @@ html[data-theme] header.top .top-right > #sigma-guided-tour-link.sigma-guided-ne
 html[data-theme] header.top .top-right > #theme-toggle {
   order:99 !important; margin-left:0 !important;
 }
+
+/* sigma-sector-panel-viewport-scroll-20261031-v1
+   Keep the actions fixed, while only the industry rows scroll. Chromium
+   wraps native details content in ::details-content, so styling the rows
+   alone cannot establish their available flex height. */
+.sector-panel {
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+.sector-panel[open]::details-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.sector-panel > summary,
+.sector-panel > .sector-actions,
+.sector-panel > .sector-overlay-control,
+.sector-panel > .sector-field-head {
+  flex: 0 0 auto;
+}
+/* Retain the existing scroll-height fallback on older browsers. */
+@supports selector(details::details-content) {
+  .sector-panel > .sector-list {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+  }
+}
+/* Below the stacked-layout breakpoint the document scrolls. Sticky keeps
+   the panel's top inset visible while its map remains on screen. */
+@media (max-width: 900px) {
+  .sector-panel {
+    position: sticky;
+    top: 12px;
+    left: auto;
+    margin: 52px 0 0 10px;
+  }
+  /* Width:auto on a normal-flow sticky details would span the whole map. */
+  .sector-panel:not([open]) {
+    width: max-content;
+    max-width: calc(100% - 20px);
+  }
+}
