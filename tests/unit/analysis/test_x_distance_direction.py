@@ -8,6 +8,7 @@ Under the Hood tutorial, with three different road distances.
 """
 from __future__ import annotations
 
+import math
 import geopandas as gpd
 import networkx as nx
 import pytest

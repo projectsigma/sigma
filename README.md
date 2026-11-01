@@ -894,6 +894,7 @@ target economic type
 target cluster
 technical coefficient
 road distance
+effective road distance (center route plus both mean member-to-median road radii)
 road path
 combined edge weight
 ```
@@ -901,10 +902,10 @@ combined edge weight
 The canonical combined edge weight is:
 
 ```text
-technical coefficient / max(road distance in metres, 1) ** x_distance_decay_lambda
+technical coefficient * (source_cluster_count / source_sector_clustered_count) * (target_cluster_count / target_sector_clustered_count) / max(mean_source_radius + center_road_distance + mean_target_radius, 1) ** x_distance_decay_lambda
 ```
 
-The default `x_distance_decay_lambda = 1.0` gives inverse-road-distance attenuation, with a one-metre floor so the spatial factor stays in `(0, 1]`. The X weight is at most the economic coefficient; longer routes weaken rather than strengthen the modeled link. The exponent is distinct from Katz `alpha_factor = 0.85` and establishment `distance_tempering = 0.15`. Same-cluster self-edges remain omitted by the X topology policy. Changing the exponent invalidates `analysis.x` and its downstream centrality/score artifacts, not the upstream clusters, centers, roads, or economic graph.
+The default `x_distance_decay_lambda = 1.0` gives inverse-road-distance attenuation, with a one-metre floor so the spatial factor stays in `(0, 1]`. The X weight is at most the economic coefficient; longer effective hub-mediated distances weaken rather than strengthen the modeled link. Actual center-road path geometry and road_distance remain unchanged. The exponent is distinct from Katz `alpha_factor = 0.85` and establishment `distance_tempering = 0.15`. Same-cluster self-edges remain omitted by the X topology policy. Changing the exponent invalidates `analysis.x` and its downstream centrality/score artifacts, not the upstream clusters, centers, roads, or economic graph.
 
 
 This produces a **multi-relational or multiplex-like ecosystem graph**: economic dependence, spatial co-location, and transport connectivity are represented together. The implementation uses a directed graph (`DiGraph`) rather than a literal `MultiDiGraph`, but the analytical interpretation is multigraph-like because each connection is supported by multiple relationship dimensions.

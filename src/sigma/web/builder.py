@@ -537,6 +537,7 @@ def _build_unstaged_bundle(
             "from": u, "to": v,
             "coefficient": _float(row.get("technical_coefficient")),
             "distance": _float(row.get("road_distance")),
+            "effective_distance": _float(row.get("effective_road_distance")),
             "weight": _float(row.get("edge_weight")),
         }
         edges.append(edge)
@@ -582,6 +583,7 @@ def _build_unstaged_bundle(
                 "from": u, "to": v,
                 "direction": "outgoing" if nid == u else "incoming",
                 "coefficient": edge["coefficient"], "distance": edge["distance"],
+                "effective_distance": edge["effective_distance"],
                 "weight": edge["weight"],
             }
             partner = position.get((v, u))

@@ -51,6 +51,8 @@ These are the main current defaults exposed by `SigmaConfig`.
 | Katz beta | 1.0 |
 | X inverse-distance exponent `x_distance_decay_lambda` | 1.0 |
 | X distance floor | 1 metre |
+| X effective separation | center road distance + source mean road radius + target mean road radius |
+| X cluster size shares | cluster members / all clustered members in the identical economic type, at each endpoint |
 | distance tempering (establishments) | 0.15 |
 
 ## Managed roads
