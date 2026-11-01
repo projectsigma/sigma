@@ -695,12 +695,13 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p>The first is economic (supplier type → user type). The second is spatial: the two cluster polygons overlap with strictly positive area. Overlap decides <em>whether</em> an edge exists; the overlap area is not part of the weight.</p>
           <p>Here <var>F</var><sub>2</sub> and <var>R</var><sub>1</sub> do not overlap, so there is no edge between them.</p>
         </article>
-        <article class="step" data-cap="Graph X from the example. Edge width follows w = a / max(d in metres, 1)^λ_X, with λ_X = 1. Copper: Food → Retail. Blue: Retail → Food.">
+        <article class="step" data-cap="Graph X example: w = a × source sector share × target sector share / max(effective hub distance, 1)^λ_X. Each of the two clusters in each example sector has share 1/2; mean road radii set to zero. Copper: Food → Retail. Blue: Retail → Food.">
           <p class="stage"><span class="shield">10</span>Stage 10 · weights</p>
-          <h3>Economic coupling weakens with road distance</h3>
-          <div class="eq"><var>w</var><sub><var>uv</var></sub> = <var>a</var><sub><var>t</var>(<var>u</var>),<var>t</var>(<var>v</var>)</sub> / max(1, <var>d</var><sub>R</sub>(<var>m</var><sub><var>u</var></sub>, <var>m</var><sub><var>v</var></sub>) / 1 m)<sup><var>λ</var><sub>X</sub></sup></div>
+          <h3>Economic coupling combines sector shares and road distance</h3>
+          <p class="hint">Cluster shares count clustered establishments per exact economic type; the worked example uses 1/2 per cluster. Unclustered places are excluded from the totals.</p>
+          <div class="eq"><var>w</var><sub>uv</sub> = <var>a</var><sub>st</sub> · (<var>N</var><sub>u</sub>/<var>N</var><sub>s</sub>) · (<var>N</var><sub>v</sub>/<var>N</var><sub>t</sub>) / max(1, (<var>r</var><sub>u</sub> + <var>d</var><sub>R</sub>(<var>m</var><sub>u</sub>, <var>m</var><sub>v</sub>) + <var>r</var><sub>v</sub>) / 1 m)<sup><var>λ</var><sub>X</sub></sup></div>
           <p><var>m</var><sub><var>u</var></sub> and <var>m</var><sub><var>v</var></sub> are the two cluster centers. An edge is kept only if the centers are connected by road and the weight is strictly positive.</p>
-          <p class="callout">For a fixed coefficient, <strong>more separation gives less weight</strong>. With <var>λ</var><sub>X</sub> = 1, a 500 m route keeps 1/500 of the coefficient; a 1,400 m route keeps 1/1,400. The one-metre floor caps the distance factor at 1. The worked example now highlights the strongest attenuated link, not the longest one.</p>
+          <p class="callout">For a fixed coefficient, <strong>more separation gives less weight</strong>. With <var>λ</var><sub>X</sub> = 1, a 500 m route keeps 1/500 of the coefficient; a 1,400 m route keeps 1/1,400. This schematic sets the within-cluster mean road radii to zero; in a real run both radii are added to the center route before attenuation. In this schematic, two equally sized clusters per sector give both sector shares 1/2, making every edge 1/4 of its distance-only weight. The one-metre floor caps the distance factor at 1. The worked example now highlights the strongest attenuated link, not the longest one.</p>
           <p class="mini">Same-cluster self-edges remain omitted by an explicit topology rule, even though capped decay at 0 m equals 1. Disconnected centers produce a diagnostic, not an edge. Two-way coefficients still produce two-way edges when territories overlap. The X exponent is separate from point-score tempering.</p>
         </article>
         <article class="step" data-cap="A two-step walk F2 → R2 → F1. Katz adds every walk, discounted by α per step.">
@@ -708,7 +709,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <h3>Why count paths of many steps?</h3>
           <p>An edge is a direct relation. A cluster can also reach others in 2, 3, or more steps. Katz centrality adds up <em>walks</em> (nodes may repeat) and multiplies each extra step by the attenuation <var>α</var>:</p>
           <div class="eq">(<var>I</var> − <var>α</var><var>W</var>)<sup>−1</sup> = <var>I</var> + <var>α</var><var>W</var> + <var>α</var><sup>2</sup><var>W</var><sup>2</sup> + …</div>
-          <p>(<var>W</var><sup><var>k</var></sup>)<sub><var>ij</var></sub> adds, over all <var>k</var>-step walks from <var>i</var> to <var>j</var>, the product of their edge weights. The walk in the figure adds <var>α</var><sup>2</sup> × (0.20/500) × (0.10/1,400) to the outgoing score of <var>F</var><sub>2</sub> and to the incoming score of <var>F</var><sub>1</sub>.</p>
+          <p>(<var>W</var><sup><var>k</var></sup>)<sub><var>ij</var></sub> adds, over all <var>k</var>-step walks from <var>i</var> to <var>j</var>, the product of their edge weights. The walk in the figure adds <var>α</var><sup>2</sup> × (0.20×0.25/500) × (0.10×0.25/1,400) to the outgoing score of <var>F</var><sub>2</sub> and to the incoming score of <var>F</var><sub>1</sub>.</p>
         </article>
         <article class="step" data-cap="Balanced Katz computed live on the example graph. Node size follows C. Change the α factor with the slider.">
           <p class="stage"><span class="shield">11</span>Stage 11 · directed Katz</p>
@@ -1842,7 +1843,7 @@ FIGS.xgraph = (svg, sec) => {
   const P = { F1: [100, 110], R1: [300, 110], F2: [100, 330], R2: [300, 330] };
   const RAD = 28;
   const EDG = [['F1', 'R1', .20, 600], ['R1', 'F1', .10, 600], ['F1', 'R2', .20, 1400], ['R2', 'F1', .10, 1400], ['F2', 'R2', .20, 500], ['R2', 'F2', .10, 500]]
-    .map(([a, b, coefficient, d]) => [a, b, coefficient / Math.max(1, d), coefficient, d]);
+    .map(([a, b, coefficient, d]) => [a, b, coefficient * 0.5 * 0.5 / Math.max(1, d), coefficient, d]);
   const maxXWeight = Math.max(...EDG.map(e => e[2]));
   const edgeEls = EDG.map(([a, b, w]) => {
     const p = P[a], q = P[b], mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2, dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy);

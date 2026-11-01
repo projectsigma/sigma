@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 
-from typing import Callable
+from typing import Callable, Mapping
 import json
 
 import geopandas as gpd
@@ -31,6 +31,45 @@ from sigma.transport.network import AugmentedNetwork
 from .graph import make_node_id
 
 _DIAGNOSTIC_COLUMNS = ["type1", "cluster1", "type2", "cluster2", "status"]
+
+
+def mean_hub_effective_distance(
+    center_road_distance: float, source_mean_radius: float, target_mean_radius: float,
+) -> float:
+    """Mean length of routes constrained through both cluster 1-medians, in metres.
+
+    This is an upper bound on the mean direct shortest-road separation on an
+    undirected road metric, not an actual pairwise mean or a geometric route.
+    """
+    d, ra, rb = (float(center_road_distance), float(source_mean_radius), float(target_mean_radius))
+    if any(not math.isfinite(value) or value < 0 for value in (d, ra, rb)):
+        raise ValueError("mean-hub distance requires finite nonnegative road distances")
+    result = d + ra + rb
+    if not math.isfinite(result):
+        raise ValueError("mean-hub effective road distance overflowed")
+    return result
+
+
+def inverse_mean_hub_x_weight(
+    coefficient: float, effective_distance: float, decay_lambda: float = 1.0,
+) -> float:
+    """Inverse mean-hub weighting a_st / max(D in metres, 1) ** lambda.
+
+    The one-metre floor applies only to the weighting kernel.
+    The measured road distances and route geometries remain unaltered.
+    Shared by full routing and weight-only artifact updates.
+    """
+    a, d, lam = float(coefficient), float(effective_distance), float(decay_lambda)
+    if not math.isfinite(a) or a <= 0:
+        raise ValueError("technical coefficient must be finite and positive")
+    if not math.isfinite(d) or d < 0:
+        raise ValueError("effective road distance must be finite and nonnegative")
+    if not math.isfinite(lam) or lam < 0:
+        raise ValueError("X attenuation exponent must be finite and nonnegative")
+    result = a * (max(d / 1.0, 1.0) ** -lam)
+    if not math.isfinite(result) or result <= 0:
+        raise ValueError("X edge weight underflowed or was nonfinite")
+    return result
 
 
 def _positive_area_overlaps(left_geometry, right: gpd.GeoDataFrame) -> list[int]:
@@ -122,6 +161,8 @@ def instantiate_network(
     progress: Callable[[str], None] | None = None,
     *,
     x_distance_decay_lambda: float = 1.0,
+    mean_road_radius_by_cluster: Mapping[tuple[str, int], float] | None = None,
+    cluster_sector_shares: Mapping[tuple[str, int], float] | None = None,
     savepoints=None,
 ) -> tuple[nx.DiGraph, pd.DataFrame]:
     """Instantiate cluster-level directed network ``X`` from overlapping partitions.
@@ -150,6 +191,18 @@ def instantiate_network(
             center_x=float(row.geometry.x),
             center_y=float(row.geometry.y),
         )
+
+    # A share is based on the clustered establishments in the *exact* economic
+    # type, not on all establishments in a broader IO16/IO80 parent category.
+    # None keeps legacy direct callers' weights unchanged. Managed X always
+    # supplies a complete, validated share mapping.
+    if cluster_sector_shares is not None:
+        if set(cluster_sector_shares) != set(center_index):
+            raise ValueError("cluster sector shares must cover every X center exactly")
+        for key, share in cluster_sector_shares.items():
+            value = float(share)
+            if not math.isfinite(value) or not 0.0 < value <= 1.0:
+                raise ValueError(f"invalid cluster sector share {key}: {share}")
 
     diagnostics: list[dict[str, object]] = []
     partitions_by_type = {
@@ -287,11 +340,28 @@ def instantiate_network(
                     omitted_zero_self_edges += 1
                     continue
 
-                # Treat road distances as metres: a 1 m floor makes the decay
-                # dimensionless, finite at d=0, and at most one. The floor
-                # affects weight only; retain the exact measured road distance.
-                combined_weight = economic_weight * (max(road_distance, 1.0) ** -decay_lambda)
-                if combined_weight == 0.0:
+                # Retain the true center-to-center route distance and geometry.
+                # Production passes within-cluster mean road radii; direct legacy
+                # callers without that mapping preserve their old behavior.
+                if mean_road_radius_by_cluster is None:
+                    effective_distance = road_distance
+                else:
+                    effective_distance = mean_hub_effective_distance(
+                        road_distance,
+                        mean_road_radius_by_cluster[(type1, cluster1)],
+                        mean_road_radius_by_cluster[(type2, cluster2)],
+                    )
+                # Capped inverse-power attenuation: at lambda=1,
+                # the pre-share weight is a / max(D / 1m, 1).
+                # The one-metre floor affects the weight only, not stored
+                # center-to-center road distances or route geometry.
+                combined_weight = inverse_mean_hub_x_weight(economic_weight, effective_distance, decay_lambda)
+                if cluster_sector_shares is not None:
+                    combined_weight *= (
+                        float(cluster_sector_shares[(type1, cluster1)])
+                        * float(cluster_sector_shares[(type2, cluster2)])
+                    )
+                if not math.isfinite(combined_weight) or combined_weight <= 0.0:
                     raise ValueError(
                         "X edge weight underflowed to zero; reduce x_distance_decay_lambda"
                     )
@@ -303,6 +373,7 @@ def instantiate_network(
                     # consume a generalized X graph during the migration period.
                     dag_weight=economic_weight,
                     road_distance=road_distance,
+                    effective_road_distance=effective_distance,
                     road_path=road_path,
                     weight=combined_weight,
                 )

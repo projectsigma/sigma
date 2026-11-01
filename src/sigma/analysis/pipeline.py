@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 import math
+import shutil
 from typing import Mapping
 
 import geopandas as gpd
@@ -21,7 +22,7 @@ from sigma.workspace import SigmaWorkspace
 from .centrality import CentralityResult, compute_centrality
 from .graph import make_node_id
 from .scoring import tempered_point_scores
-from .x_graph import instantiate_network
+from .x_graph import instantiate_network, mean_hub_effective_distance, inverse_mean_hub_x_weight
 
 
 _X_EDGE_COLUMNS = [
@@ -31,6 +32,7 @@ _X_EDGE_COLUMNS = [
     "target_cluster",
     "technical_coefficient",
     "road_distance",
+    "effective_road_distance",
     "edge_weight",
 ]
 _DISCONNECTED_COLUMNS = [
@@ -40,6 +42,22 @@ _DISCONNECTED_COLUMNS = [
     "target_cluster",
     "reason",
 ]
+
+
+def _clustered_sector_shares(points: pd.DataFrame) -> dict[tuple[str, int], float]:
+    """Allocate each exact economic sector's clustered members among its X nodes."""
+    required = {"type", "cluster"}
+    if not required <= set(points.columns):
+        raise ValueError("sector-share X requires type and cluster columns")
+    counts = points.groupby(["type", "cluster"], sort=False).size()
+    sector_totals = points.groupby("type", sort=False).size()
+    result = {
+        (str(t), int(c)): float(count) / float(sector_totals.loc[t])
+        for (t, c), count in counts.items()
+    }
+    if any(not math.isfinite(v) or not 0.0 < v <= 1.0 for v in result.values()):
+        raise ValueError("sector-share X requires positive finite cluster proportions")
+    return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,7 +142,7 @@ class AnalysisPipeline:
         stages.update(economy_pipeline.planner.stages)
         stages["analysis.x"] = StageSpec(
             "analysis.x",
-            (*self._spatial_x_dependencies, self._economic_graph_stage),
+            (*self._spatial_x_dependencies, "spatial.point_distances", self._economic_graph_stage),
             self._recipe_x,
             self._exec_x,
         )
@@ -145,15 +163,17 @@ class AnalysisPipeline:
     def _recipe_x(self, planner, deps) -> ArtifactRecipe:
         return ArtifactRecipe.build(
             "analysis.x",
-            implementation_version="directed-spatial-economic-x-v3-inverse-power-distance",
+            implementation_version="directed-spatial-economic-x-v6-inverse-mean-hub-sector-shares",
             dependencies={
                 name: deps[name]
-                for name in (*self._spatial_x_dependencies, self._economic_graph_stage)
+                for name in (*self._spatial_x_dependencies, "spatial.point_distances", self._economic_graph_stage)
             },
             parameters={
                 "overlap_rule": "positive_area",
                 "road_distance": "shortest_path",
-                "edge_weight": "technical_coefficient_times_capped_inverse_road_distance_power",
+                "edge_weight": "technical_coefficient_times_both_clustered_sector_shares_times_inverse_mean_hub_distance",
+                "cluster_share_denominator": "clustered_establishments_per_exact_type",
+                "effective_distance": "center_road_plus_both_mean_member_road_radii",
                 "x_distance_decay_lambda": self.config.x_distance_decay_lambda,
                 "distance_floor_metres": 1.0,
                 "zero_distance_self_edges": "omit",
@@ -163,6 +183,29 @@ class AnalysisPipeline:
     def _exec_x(self, planner, recipe, deps, write: ArtifactWrite):
         centers = self.spatial.read_centers(deps["spatial.centers"])
         partitions = self.spatial.read_partitions(deps["spatial.partitions"])
+        member_distances = self.spatial.read_point_distances(deps["spatial.point_distances"])
+        required = {"type", "cluster", "distance_to_cluster_median"}
+        if not required <= set(member_distances.columns):
+            raise ValueError("mean-hub X requires scored member-to-1-median road distances")
+        # Each retained establishment contributes once to its cluster mean.
+        radii = member_distances.groupby(["type", "cluster"], sort=False)[
+            "distance_to_cluster_median"
+        ].mean()
+        mean_radii = {(str(t), int(c)): float(value) for (t, c), value in radii.items()}
+        center_keys = set(zip(centers["type"].astype(str), centers["cluster"].astype(int)))
+        if missing := center_keys - set(mean_radii):
+            raise ValueError(f"mean-hub X missing member radius for {len(missing)} centers")
+        if any(not math.isfinite(value) or value < 0 for value in mean_radii.values()):
+            raise ValueError("mean-hub X has nonfinite or negative member road radius")
+        # Count each retained, clustered establishment once. Unclustered records
+        # have no X node, so they are excluded from both the numerator and the
+        # sector denominator. Hierarchical types are matched *exactly*.
+        cluster_sector_shares = _clustered_sector_shares(member_distances)
+        if set(cluster_sector_shares) != center_keys:
+            raise ValueError("sector-share X cluster counts must match all X centers")
+        reused = self._reuse_x_routes_for_weight_only_change(recipe, deps, write, mean_radii, cluster_sector_shares)
+        if reused is not None:
+            return reused
         if hasattr(self.spatial, "analysis_road"):
             road = self.spatial.analysis_road(deps)
         else:
@@ -176,6 +219,8 @@ class AnalysisPipeline:
             road,
             progress=self.progress,
             x_distance_decay_lambda=self.config.x_distance_decay_lambda,
+            mean_road_radius_by_cluster=mean_radii,
+            cluster_sector_shares=cluster_sector_shares,
             savepoints=savepoints,
         )
 
@@ -203,7 +248,9 @@ class AnalysisPipeline:
             "zero_distance_self_edges_omitted": int(
                 graph.graph.get("zero_distance_self_edges_omitted", 0)
             ),
-            "edge_weight": "technical_coefficient / max(road_distance_metres, 1) ** x_distance_decay_lambda",
+            "edge_weight": "technical_coefficient * source_cluster_sector_share * target_cluster_sector_share / max(effective_road_distance_metres, 1) ** x_distance_decay_lambda",
+            "effective_distance": "center_road_plus_both_mean_member_road_radii",
+            "cluster_share_denominator": "clustered_establishments_per_exact_type",
             "x_distance_decay_lambda": self.config.x_distance_decay_lambda,
             "distance_floor_metres": 1.0,
             "road_distance_crs": str(road.crs),
@@ -224,9 +271,223 @@ class AnalysisPipeline:
             json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
         return metadata, {
-            "economic_weight": "technical_coefficient",
-            "spatial_weight": "technical_coefficient_times_capped_inverse_road_distance_power",
+            "economic_weight": "technical_coefficient_times_both_cluster_sector_shares",
+            "spatial_weight": "technical_coefficient_times_capped_inverse_mean_hub_distance_power",
         }
+
+    def _reuse_x_routes_for_weight_only_change(
+        self,
+        recipe: ArtifactRecipe,
+        deps,
+        write: ArtifactWrite,
+        mean_radii: Mapping[tuple[str, int], float],
+        cluster_sector_shares: Mapping[tuple[str, int], float],
+    ) -> tuple[dict[str, object], dict[str, object]] | None:
+        """Reuse an older X artifact's *unchanged* center-to-center road routes.
+
+        This is an incremental algorithm for X, not a sidecar output. An X recipe
+        change caused solely by distance weighting / point radii must not cause
+        400k path reconstructions. If ANY routing/topology input changed, decline
+        reuse and let the established full-routing implementation execute.
+        """
+        previous = self.workspace.artifact("analysis.x")
+        if previous is None:
+            return None
+        same_recipe_overlay = previous.recipe_fingerprint == recipe.fingerprint
+        if same_recipe_overlay and not (previous.path / "x_paths_overlay.json").is_file():
+            # A forced rerun of a full-routing artifact still takes the full
+            # route-construction path, preserving the existing determinism test.
+            return None
+        try:
+            store = self.workspace.artifacts
+            previous_manifest = store.manifest(previous)
+            if same_recipe_overlay:
+                # Force=True re-executes the numeric kernel from the validated
+                # overlay, not an alternative route/artifact representation.
+                # Keep the ORIGINAL base-geometry provenance so files and
+                # metadata reproduce the exact immutable artifact identity.
+                prior_overlay = json.loads(
+                    (previous.path / "x_paths_overlay.json").read_text(encoding="utf-8")
+                )
+                if (not isinstance(prior_overlay, dict) or prior_overlay.get("version") != 1
+                        or prior_overlay.get("kind") !=
+                        "immutable_parquet_hardlink_plus_current_edge_csv"):
+                    raise ValueError("previous X overlay has an unsupported format")
+                route_source_artifact_id = prior_overlay.get("source_x_artifact_id")
+                if (not isinstance(route_source_artifact_id, str) or not route_source_artifact_id
+                        or previous_manifest.metadata.get("x_route_geometry_reused_from") !=
+                        route_source_artifact_id):
+                    raise ValueError("previous X overlay has inconsistent base-geometry provenance")
+            else:
+                route_source_artifact_id = previous.artifact_id
+            geom_deps = set(self._spatial_x_dependencies) | {self._economic_graph_stage}
+            stored_deps = previous_manifest.recipe.dependencies
+            # Exact match of every upstream routing/topology dependency,
+            # including preserved road-network versions and economy identity.
+            if set(stored_deps) - {"spatial.point_distances"} != geom_deps:
+                return None
+            for name in geom_deps:
+                if stored_deps[name]["artifact_id"] != deps[name].artifact_id:
+                    return None
+            required = (
+                "x_nodes.csv", "x_edges.csv", "x_paths.parquet",
+                "disconnected_overlap_pairs.csv", "x.json",
+            )
+            if any(not (previous.path / name).is_file() for name in required):
+                return None
+            if not store.validate(previous).valid:
+                # Do not use truncated/tampered geometry; let the full path run.
+                return None
+
+            # Centrality/weights depend only on the edge table, not the road
+            # geometry. Recompute using SIGMA's *same* kernel as full routing.
+            old_edges = pd.read_csv(
+                previous.path / "x_edges.csv", dtype=str, keep_default_na=False,
+            )
+            required_edges = (
+                "source_type", "source_cluster", "target_type", "target_cluster",
+                "technical_coefficient", "road_distance",
+            )
+            if any(name not in old_edges for name in required_edges):
+                return None
+            edges = old_edges.copy()
+            for col in ("source_cluster", "target_cluster"):
+                edges[col] = edges[col].map(int)
+            for col in ("technical_coefficient", "road_distance"):
+                edges[col] = edges[col].map(float)
+            source_radii = [mean_radii[(str(t), int(c))] for t, c in zip(
+                edges["source_type"], edges["source_cluster"], strict=True,
+            )]
+            target_radii = [mean_radii[(str(t), int(c))] for t, c in zip(
+                edges["target_type"], edges["target_cluster"], strict=True,
+            )]
+            effective = [
+                mean_hub_effective_distance(center, ra, rb)
+                for center, ra, rb in zip(
+                    edges["road_distance"], source_radii, target_radii, strict=True,
+                )
+            ]
+            edges["effective_road_distance"] = effective
+            source_shares = [cluster_sector_shares[(str(t), int(c))]
+                             for t, c in zip(edges["source_type"], edges["source_cluster"], strict=True)]
+            target_shares = [cluster_sector_shares[(str(t), int(c))]
+                             for t, c in zip(edges["target_type"], edges["target_cluster"], strict=True)]
+            edges["edge_weight"] = [
+                inverse_mean_hub_x_weight(coeff, distance, self.config.x_distance_decay_lambda)
+                * float(source_share) * float(target_share)
+                for coeff, distance, source_share, target_share in zip(
+                    edges["technical_coefficient"], effective, source_shares, target_shares,
+                    strict=True,
+                )
+            ]
+            if any(not math.isfinite(value) or value <= 0.0
+                   for value in edges["edge_weight"]):
+                raise ValueError("sector-share X weight underflow or invalid value")
+            # pyarrow updates numeric attributes of the SAME stored WKB rows.
+            # It neither calls the shortest-path engine nor decodes geometry.
+            import pyarrow as pa
+            import pyarrow.parquet as pq
+
+            parquet_source = pq.ParquetFile(previous.path / "x_paths.parquet")
+            source_schema = parquet_source.schema_arrow
+            if b"geo" not in (source_schema.metadata or {}):
+                raise ValueError("saved X paths have no GeoParquet metadata")
+            if parquet_source.metadata.num_rows != len(edges):
+                raise ValueError("saved X route row count differs from edge table")
+            keys = ("source_type", "source_cluster", "target_type", "target_cluster")
+            for key in keys:
+                if key not in source_schema.names:
+                    raise ValueError(f"saved X routes are missing key {key}")
+
+            # Geometry/route topology is immutable and was validated above.
+            # Validate row order using ONLY key columns (not enormous WKB blobs).
+            # A weight-only change must never allocate another GeoParquet copy.
+            offset = 0
+            for batch in parquet_source.iter_batches(batch_size=16384, columns=list(keys)):
+                route_keys = pa.Table.from_batches([batch])
+                end = offset + route_keys.num_rows
+                segment = edges.iloc[offset:end]
+                for key in keys:
+                    if route_keys.column(key).to_pylist() != segment[key].tolist():
+                        raise ValueError(f"saved X route row order differs at {key}, row {offset}")
+                offset = end
+            if offset != len(edges):
+                raise ValueError("saved X path stream ended before all edges")
+            # The temporary artifact is on the same filesystem as the saved X.
+            # NTFS hard links use no additional route-data blocks. Never copy
+            # the whole Parquet on hardlink failure: fail before any rerouting.
+            import os
+            source_parquet = previous.path / "x_paths.parquet"
+            target_parquet = write.output("x_paths.parquet")
+            try:
+                os.link(source_parquet, target_parquet)
+            except OSError as exc:
+                raise OSError(
+                    f"Cannot hardlink saved X route GeoParquet ({exc}). "
+                    "Refusing to copy its geometry or reroute while disk is limited."
+                ) from exc
+            # A raw read of x_paths.parquet shows the BASE artifact's numeric
+            # attributes; the current edge values live in x_edges.csv. All
+            # supported readers must overlay current values after key checks.
+            overlay = {
+                "version": 1,
+                "kind": "immutable_parquet_hardlink_plus_current_edge_csv",
+                "source_x_artifact_id": route_source_artifact_id,
+                "current_edge_table": "x_edges.csv",
+                "base_geometry_table": "x_paths.parquet",
+                "current_numeric_columns": [
+                    "technical_coefficient", "road_distance",
+                    "effective_road_distance", "edge_weight",
+                ],
+            }
+            write.output("x_paths_overlay.json").write_text(
+                json.dumps(overlay, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+            )
+            for name in ("x_nodes.csv", "disconnected_overlap_pairs.csv"):
+                shutil.copyfile(previous.path / name, write.output(name))
+            edges = edges.reindex(columns=_X_EDGE_COLUMNS)
+            edges.to_csv(
+                write.output("x_edges.csv"), index=False,
+                float_format="%.17g", lineterminator="\n",
+            )
+            meta = dict(previous_manifest.metadata)
+            meta.update({
+                "node_count": int(meta.get("node_count") or
+                                  len(pd.read_csv(previous.path / "x_nodes.csv"))),
+                "edge_count": len(edges),
+                "edge_weight": "technical_coefficient * source_cluster_sector_share * target_cluster_sector_share / max(effective_road_distance_metres, 1) ** x_distance_decay_lambda",
+                "effective_distance": "center_road_plus_both_mean_member_road_radii",
+                "cluster_share_denominator": "clustered_establishments_per_exact_type",
+                "x_distance_decay_lambda": self.config.x_distance_decay_lambda,
+                "distance_floor_metres": 1.0,
+                "x_route_geometry_reused_from": route_source_artifact_id,
+                "x_route_geometry_reuse": "validated-upstream-artifacts-and-parquet-row-keys",
+                "x_route_geometry_storage": "ntfs-hardlink-with-current-edge-overlay",
+            })
+            meta.pop("log_reference_distance_metres", None)
+            write.output("x.json").write_text(
+                json.dumps(meta, indent=2, sort_keys=True) + "\n", encoding="utf-8",
+            )
+            if self.progress is not None:
+                self.progress(
+                    f"network X: hardlinked {len(edges):,} saved route geometries "
+                    f"without rerouting or rewriting route WKB; recalculated edge weights"
+                )
+            return meta, {
+                "economic_weight": "technical_coefficient_times_both_cluster_sector_shares",
+                "spatial_weight": "technical_coefficient_times_capped_inverse_mean_hub_distance_power",
+                "routing_reused": True,
+                "routing_source_artifact": route_source_artifact_id,
+            }
+        except (KeyError, IndexError, TypeError, ValueError, OSError) as exc:
+            # A potentially stale or malformed cached routing result must never
+            # be published. Do NOT hide the reason or silently fall back after
+            # partially writing a new artifact.
+            raise RuntimeError(
+                "A previous X artifact passed upstream dependency checks but "
+                "cannot be reused safely. Refusing an implicit expensive reroute: "
+                f"{exc}. Inspect the saved X artifact or run an explicit repair."
+            ) from exc
 
     @staticmethod
     def _node_table(graph: nx.DiGraph) -> pd.DataFrame:
@@ -274,6 +535,7 @@ class AnalysisPipeline:
                 "target_cluster": int(target_data["cluster"]),
                 "technical_coefficient": float(data["technical_coefficient"]),
                 "road_distance": float(data["road_distance"]),
+                "effective_road_distance": float(data.get("effective_road_distance", data["road_distance"])),
                 "edge_weight": float(data["weight"]),
             }
             table_rows.append(common)
@@ -539,7 +801,9 @@ class AnalysisPipeline:
         )
         for column in ("source_cluster", "target_cluster"):
             edges[column] = edges[column].map(int)
-        for column in ("technical_coefficient", "road_distance", "edge_weight"):
+        for column in ("technical_coefficient", "road_distance", "edge_weight", "effective_road_distance"):
+            if column not in edges.columns:  # older managed X artifacts remain readable
+                continue
             # Python float parsing round-trips our %.17g serialization exactly;
             # pandas' fast numeric parser can select an adjacent IEEE-754 value.
             edges[column] = edges[column].map(float)
@@ -564,6 +828,25 @@ class AnalysisPipeline:
             if paths.crs is None or paths.crs.to_epsg() != 4326:
                 raise ValueError("analysis X paths must use EPSG:4326")
             paths = paths.set_crs("EPSG:4326", allow_override=True)
+            overlay_file = ref.path / "x_paths_overlay.json"
+            if overlay_file.is_file():
+                overlay = json.loads(overlay_file.read_text(encoding="utf-8"))
+                if (overlay.get("version") != 1 or overlay.get("kind") !=
+                        "immutable_parquet_hardlink_plus_current_edge_csv"):
+                    raise ValueError("unsupported or malformed X geometry-weight overlay")
+                if len(paths) != len(edges):
+                    raise ValueError("X base route geometry and current edge table have different row counts")
+                # Never attach new weights to the wrong geometry.
+                for key in ("source_type", "source_cluster", "target_type", "target_cluster"):
+                    if key not in paths or key not in edges:
+                        raise ValueError(f"X geometry-weight overlay missing key: {key}")
+                    if not (paths[key].astype(str).to_numpy() ==
+                            edges[key].astype(str).to_numpy()).all():
+                        raise ValueError(f"X base geometry row keys differ from current edges: {key}")
+                for key in ("technical_coefficient", "road_distance",
+                            "effective_road_distance", "edge_weight"):
+                    if key in edges:
+                        paths[key] = edges[key].to_numpy(dtype=float)
         else:
             # Centrality needs edge weights and topology but no route geometries.
             paths = gpd.GeoDataFrame(geometry=gpd.GeoSeries([], crs="EPSG:4326"))
@@ -586,6 +869,8 @@ class AnalysisPipeline:
                 technical_coefficient=float(row.technical_coefficient),
                 dag_weight=float(row.technical_coefficient),
                 road_distance=float(row.road_distance),
+                **({"effective_road_distance": float(row.effective_road_distance)}
+                   if "effective_road_distance" in edges.columns else {}),
                 weight=float(row.edge_weight),
             )
         return XResult(graph, nodes, edges, disconnected, paths)

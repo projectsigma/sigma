@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import geopandas as gpd
@@ -41,13 +42,16 @@ def test_economic_dag_input_uses_inverse_distance_x_edge_fixture():
     edges, paths = AnalysisPipeline._edge_outputs(graph, road)
     golden = json.loads(Path("tests/golden/engine/x_score_output_fixture.json").read_text())
 
-    assert edges.to_dict("records") == golden["x_edges"]
+    assert edges.drop(columns=["effective_road_distance", "edge_weight"]).to_dict("records") == [
+        {k: v for k, v in row.items() if k != "edge_weight"} for row in golden["x_edges"]
+    ]
+    assert edges["effective_road_distance"].tolist() == edges["road_distance"].tolist()
     assert list(paths.columns) == [
         "from_id", "from_type", "from_cluster", "to_id", "to_type", "to_cluster",
         "source_type", "source_cluster", "target_type", "target_cluster",
-        "technical_coefficient", "road_distance", "edge_weight", "geometry",
+        "technical_coefficient", "road_distance", "effective_road_distance", "edge_weight", "geometry",
     ]
-    assert list(edges.columns) == golden["x_edge_columns"]
+    assert list(edges.drop(columns=["effective_road_distance"]).columns) == golden["x_edge_columns"]
     assert diagnostics.empty
     assert graph[make_node_id("A", 0)][make_node_id("B", 0)]["weight"] == pytest.approx(3.0 / 16.0)
 
@@ -197,3 +201,38 @@ def test_spatial_types_must_belong_to_economic_graph():
     economic.add_node("A")
     with pytest.raises(ValueError, match="outside the economic graph"):
         instantiate_network(centers, partitions, economic, road)
+
+
+def test_sector_share_weighting_multiplies_both_cluster_shares():
+    road, centers, partitions = _legacy_fixture()
+    economic = nx.DiGraph()
+    economic.add_edge("A", "B", weight=3.0)
+    shares = {("A", 0): 0.2, ("B", 0): 0.3}
+    radii = {("A", 0): 2.0, ("B", 0): 3.0}
+    graph, diagnostics = instantiate_network(
+        centers, partitions, economic, road,
+        mean_road_radius_by_cluster=radii,
+        cluster_sector_shares=shares,
+    )
+    assert diagnostics.empty
+    edge = graph[make_node_id("A", 0)][make_node_id("B", 0)]
+    assert edge["road_distance"] == pytest.approx(16.0)
+    assert edge["effective_road_distance"] == pytest.approx(21.0)
+    assert edge["weight"] == pytest.approx(3.0 * 0.2 * 0.3 / 21.0)
+
+
+@pytest.mark.parametrize("shares", [
+    {("A", 0): 1.0},
+    {("A", 0): 0.0, ("B", 0): 0.3},
+    {("A", 0): 0.2, ("B", 0): 1.1},
+    {("A", 0): float("nan"), ("B", 0): 0.3},
+])
+def test_sector_share_weight_rejects_missing_or_invalid_shares(shares):
+    road, centers, partitions = _legacy_fixture()
+    economic = nx.DiGraph()
+    economic.add_edge("A", "B", weight=3.0)
+    with pytest.raises(ValueError, match="cluster sector share"):
+        instantiate_network(
+            centers, partitions, economic, road,
+            cluster_sector_shares=shares,
+        )
