@@ -51,6 +51,8 @@ const nodes = [], links = [], fits = [];
 const collection = arr => ({
   length: arr.length,
   filter(fn) {return collection(arr.filter(fn));},
+  map(fn) {return arr.map(fn);},
+  forEach(fn) {return arr.forEach(fn);},
   addClass(name) {for (const n of arr) n.classes.add(name);},
   style(values) {for (const n of arr) n.style(values);return this;}
 });
@@ -63,6 +65,8 @@ const cy = {
     const target = {data: key => key ? el.data[key] : el.data, classes,
       appliedStyle: {},
       hasClass(name) {return classes.has(name);},
+      id() {return el.data.id;},
+      position() {return {x: 0, y: 0};},
       style(values) {Object.assign(this.appliedStyle, values);return this;}};
     (el.group === 'nodes' ? nodes : links).push(target);
   }},
@@ -73,6 +77,7 @@ const cy = {
     return collection(nodes);
   },
   edges: () => links,
+  collection(items) {return collection(items);},
   zoom: () => zoom,
   resize() {},
   fit(elements, padding) {fits.push({elements, padding});},

@@ -13,7 +13,7 @@ assert.match(js,/'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-
 assert(!js.includes("'text-background-opacity': 0.93"), 'No opaque label backgrounds');
 assert.match(js,/paint\('partition-linked-fill', 'fill-opacity', network \?/);
 assert.match(js,/step => fadeByStep\(dark \? 0\.17 : 0\.105, step\)/);
-assert.match(js,/const face = themeMode === 'dark' \? 'dark_center_icon'/);
+assert.match(js,/const base = themeMode === 'dark' \? 'dark_center_icon'/);
 assert.match(js,/darkLinkedIconByType\.set\(key, darkLinkedName\)/);
 assert.match(js,/applyTheme\(themeMode\); \/\/ Restore theme-aware paints/);
 console.log('PASS: graph labels outside nodes, no white backgrounds, dark map paints and dark triangle artwork.');
