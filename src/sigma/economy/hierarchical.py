@@ -14,7 +14,7 @@ next coarser group, so their places are not lost as type-wise clustering noise.
 An ambiguous/coarse tag does not identify an IO240 leaf.  How a coarse place is
 assigned depends on ``coarse_policy``:
 
-``contain`` (default)
+``contain`` (optional)
     A coarse place carries its own IO240 candidate set (``io240_codes`` from tagging,
     restricted to the leaves of its tag; the tag's leaves when no candidates exist).
     It joins a group only when one group contains all of its candidates.  A coarse place
@@ -26,11 +26,11 @@ assigned depends on ``coarse_policy``:
     No place is assigned to a group that excludes any of its candidates.  The share
     trades sector detail (split parents) against coverage (unassigned places).
 
-``residual`` (legacy)
+``residual`` (default)
     A coarse place is assigned exactly when one group contains every leaf of its tag;
     otherwise it is assigned to the residual by convention.  The residual holds the
     leaves that were *not* observed often enough to be kept, so this convention selects
-    the least supported sectors; it is kept only to reproduce earlier builds.
+    the least supported sectors; it is the exploratory default; the assignment remains a documented convention.
 """
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ from .model import Economy, Sector, SectorCatalog
 _COLUMNS = ("io240_code", "io80_code", "io16_code")
 _REPORTED = 10
 COARSE_POLICIES = ("contain", "residual")
-DEFAULT_COARSE_POLICY = "contain"
+DEFAULT_COARSE_POLICY = "residual"
 DEFAULT_MAX_STRADDLE_SHARE = 0.25
 
 

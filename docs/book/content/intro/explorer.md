@@ -26,12 +26,12 @@ If you have already run the analysis, you need only `sigma view pasig`.
 When you are changing only Explorer/Guided Tutorial **HTML, CSS, JavaScript, images, logo or favicon**, update an *existing* Explorer bundle without recreating its graph, route geometries, polygons or establishment tiles:
 
 ```powershell
-sigma view pasig --ui-only
+sigma view pasig --fast
 # For another already-built area:
-sigma view quezon_city --ui-only
+sigma view quezon_city --fast
 ```
 
-`--ui-only` starts the normal local browser server, but copies only static website assets. It refuses an absent or unrecognized bundle, preserves the bundle's local/public profile, and **does not check whether the SIGMA data have changed**. Use `sigma view pasig` to check for changed outputs, or `sigma view pasig --refresh` to force regeneration; do not combine `--ui-only` with `--refresh`. Ordinary `sigma view` can rebuild after frontend code changes because the published bundle fingerprint includes frontend code.
+`--fast` starts the normal local browser server, but copies only static website assets. It refuses an absent or unrecognized bundle, preserves the bundle's local/public profile, and **does not check whether the SIGMA data have changed**. Use `sigma view pasig` to check for changed outputs, or `sigma view pasig --refresh` to force regeneration; do not combine `--fast` with `--refresh`. Ordinary `sigma view` can rebuild after frontend code changes because the published bundle fingerprint includes frontend code.
  The CLI also supports custom `--workspace`, `--source-dir`, and `--output-dir` paths, and `--no-browser` or `--port` for local hosting preferences.
 
 ## Explore a cluster network
@@ -61,3 +61,5 @@ Bundles are static website files; serve them over HTTP, not with `file://`. `sig
 Use the generated `<area>.qgz` when you need normal GIS tooling and detailed layer inspection. Use **Explorer** to start from a mapped establishment and navigate its **cluster-level X neighborhood** interactively. Both are views of published SIGMA products, not alternate analytical engines.
 
 Explorer principally reads `sigma_points.parquet`, `sigma_X_nodes.csv`, `sigma_X_edges.csv`, and the `clusters` and `paths` layers of `sigma_spatial_outputs.gpkg`; optional published roads, boundary, metadata, and manifest add map context and integrity checks. More detail is available in the repository's [SIGMA Explorer guide](https://github.com/projectsigma/sigma/blob/main/SIGMA_EXPLORER.md) and [Reading outputs](../reference/outputs.md).
+
+The previous `--ui-only` spelling remains supported as an alias for `--fast`.

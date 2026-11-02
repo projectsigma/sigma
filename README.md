@@ -30,7 +30,7 @@ sigma view pasig
 
 The browser opens at `http://127.0.0.1:8765/` by default. Use `sigma view pasig --refresh` after changing published outputs, or `sigma view pasig --no-browser` to print the URL without launching a browser. To prepare a portable static site from published results, use `sigma export-web pasig`; see the [Explorer guide](SIGMA_EXPLORER.md) and [illustrated workflow in the documentation book](docs/book/content/intro/explorer.md).
 
-**Fast UI iterations:** After an Explorer bundle already exists, use `sigma view pasig --ui-only` to copy the current HTML, CSS, JS, logo and favicon into that bundle and open the browser **without regenerating** its graph, geographic tiles or routes. This is useful when changing visual design or Guided Tutorial styling. It does **not** check whether SIGMA's published analytical outputs changed; use ordinary `sigma view pasig` to validate freshness or `--refresh` for a full rebuild. `--ui-only` and `--refresh` cannot be combined. See the [Explorer guide](SIGMA_EXPLORER.md).
+**Fast UI iterations:** After an Explorer bundle already exists, use `sigma view pasig --fast` to copy the current HTML, CSS, JS, logo and favicon into that bundle and open the browser **without regenerating** its graph, geographic tiles or routes. This is useful when changing visual design or Guided Tutorial styling. It does **not** check whether SIGMA's published analytical outputs changed; use ordinary `sigma view pasig` to validate freshness or `--refresh` for a full rebuild. `--fast` and `--refresh` cannot be combined. See the [Explorer guide](SIGMA_EXPLORER.md). The previous `--ui-only` spelling remains supported as an alias for `--fast`.
 
 **Interpretation:** Each X node represents an **economic-type cluster**, not one firm. An edge is a **modeled spatial-economic relationship**, not evidence that two establishments actually trade. The default Explorer bundle contains individual establishment locations and should remain private unless data rights, attribution, and publication risks have been reviewed. A reduced `--public` export omits establishment-level records but is **not a guarantee of anonymity**. The separate [SIGMA documentation website](https://projectsigma.github.io/sigma/) explains the methods; it does not automatically host your local Explorer data.
 
@@ -145,6 +145,8 @@ sigma storage report --help
 sigma storage prune --help
 sigma analysis run --help
 ```
+
+See the [complete `run` and `view` option reference](docs/SIGMA_RUN_VIEW_CLI.md), including cache/refresh semantics.
 
 > **PowerShell note.** `--quiet` is a global option, so place it before the subcommand: `sigma --quiet run pasig`, not `sigma run pasig --quiet`.
 
@@ -355,7 +357,7 @@ The default handoff is:
 %USERPROFILE%\Documents\SIGMA\workspaces\pasig\places\places.parquet
 ```
 
-The default economy is PSA 2018 IO80. Deterministic classification is the default; the optional LLM path is off.
+By default, `sigma load` also builds this area's hierarchical IO240/IO80/IO16 economy from the packaged PSA 2018 IO240 reference (see *Choosing the IO resolution at load time* below); the places handoff itself carries PSA 2018 IO80 codes. Deterministic classification is the default; the optional LLM path is off.
 
 Useful variants:
 
@@ -380,6 +382,22 @@ sigma load pasig --force
 ```
 
 You may also provide a custom economy directory through `--economy PATH`; otherwise use `builtin:io80` or `builtin:io16`.
+
+### Choosing the IO resolution at load time
+
+`sigma load AREA` builds an area-specific hierarchical economy: exact IO240 industries where enough places support them, and IO80 or IO16 groups elsewhere. It uses the national PSA 2018 IO240 reference that is versioned in this repository under `src/sigma/resources/economy/psa_2018_io240/`. The first such load creates `hierarchical-defaults.json` in the SIGMA data folder (`coarse_policy=residual`, `min_places=5`); that file points to the packaged reference. For candidate-conservative attribution, set `coarse_policy=contain` explicitly. Edit the profile, or use `sigma economy hierarchical-configure`, to change the settings.
+
+```powershell
+# Default: hierarchical IO240/IO80/IO16 economy for this area
+sigma load pasig
+
+# Fixed national resolutions
+sigma load pasig --io-level 16
+sigma load pasig --io-level 80
+sigma load pasig --io-level 240
+```
+
+The choice is recorded in `<workspace>\economy-selection.json`, and `sigma run AREA` follows it. Legacy areas with no recorded selection or prior hierarchy remain IO80 until explicitly reloaded. In fixed IO240 mode only places with an exact IO240 code are used, and `sigma load` reports how many. `--io-level` cannot be combined with `--economy`. If the hierarchical settings change after an area was loaded, `sigma run` stops and asks you to refresh or reload the area instead of rebuilding it with different settings. Details: [`docs/SIGMA_LOAD_PORTABILITY.md`](docs/SIGMA_LOAD_PORTABILITY.md).
 
 ---
 
@@ -473,7 +491,10 @@ sigma run pasig --transaction-preprocessing mwas_ras_fast
 # Legacy Engine-equivalent profile
 sigma run pasig --equivalent --mwas-method fast
 
-# Force recomputation under the requested configuration
+# Recompute analytical stages (clustering through scoring) from already loaded places
+sigma run pasig --refresh
+
+# Legacy: force terminal scoring; other valid stages may be reused
 sigma run pasig --force
 
 # Structured result
@@ -605,7 +626,7 @@ Run `sigma view pasig` to open **SIGMA Explorer**, an interactive counterpart to
 ```powershell
 sigma view pasig                # local browser view; uses existing exports
 sigma view pasig --refresh      # refresh the derived visualization bundle
-sigma view pasig --ui-only      # copy current UI files only; reuse existing graph/routes
+sigma view pasig --fast      # copy current UI files only; reuse existing graph/routes
 sigma export-web pasig          # write <output>\explorer for portable hosting
 sigma export-web pasig --public # reduced-data bundle in <output>\explorer-public
 ```
@@ -669,7 +690,7 @@ sigma run metro_manila
 | Run full analysis/export | `sigma run pasig` |
 | Explore results in a local browser | `sigma view pasig` |
 | Rebuild Explorer from latest exports | `sigma view pasig --refresh` |
-| Refresh only Explorer UI files | `sigma view pasig --ui-only` |
+| Refresh only Explorer UI files | `sigma view pasig --fast` |
 | Export browser-ready results | `sigma export-web pasig` |
 | Export reduced-data public review bundle | `sigma export-web pasig --public` |
 | Inspect cache/stage state | `sigma status pasig` |
@@ -1297,7 +1318,7 @@ The default spatial policy is **network-first with graceful Euclidean fallback**
 the sigma-engine behavior:
 
 ```text
-clustering:  network HDBSCAN -> Euclidean HDBSCAN fallback by road component
+clustering:  network HDBSCAN EOM -> network HDBSCAN leaf (EOM exception only) -> Euclidean HDBSCAN EOM by road component
 1-median:    network 1-median -> Euclidean centroid -> road/network snap fallback
 Voronoi:     network Voronoi -> finer network retries -> planar Euclidean Voronoi fallback
 ```

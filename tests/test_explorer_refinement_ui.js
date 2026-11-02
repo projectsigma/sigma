@@ -23,7 +23,7 @@ assert.match(js, /compareSectorCodes\(a,b\)/);
 // Coefficient strengths remain available in sector detail tooltips.
 assert.match(js, /globalSectorStrength\.get\(s\.code\)/);
 // Refresh must re-rank sectors only after confirming this generation is current.
-assert.match(js, /const finish = \(\) => \{\s*if \(epoch !== refreshEpoch\) return;\s*renderSectors\(\);/);
+assert.match(js, /const finish = \(\) => \{\s*if \(epoch !== refreshEpoch\) return;\s*sigmaPerf\('sectorPanel', renderSectors\);/);
 // Expensive reranking and graph work are deferred until after the next paint.
 assert.match(js, /requestAnimationFrame\(\(\) => setTimeout\(finish, 0\)\);/);
 assert.match(js, /recordSectorStrength\(nodeIndex\.get\(e\.from\), e\.coefficient\)/);

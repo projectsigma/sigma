@@ -1,0 +1,241 @@
+code,label
+001,Palay
+002,Corn
+003,Coconut including copra
+004,Sugarcane including muscovado sugar-making in the farm
+005,Banana
+006,Mango
+007,Pineapple
+008,Coffee
+009,Cassava
+010,Rubber
+011,Cacao
+012,Abaca
+013,Tobacco
+014,Sweet potato
+015,Citrus fruits
+016,Papaya
+017,"Other fruits, n.e.c."
+018,Leafy and stem vegetables
+019,Fruit bearing vegetables
+020,Onion
+021,Horticultural specialties and nursery products
+022,"Other agricultural crops, n.e.c."
+023,Hog farming
+024,Cattle farming
+025,Carabao farming
+026,Goat farming
+027,Dairy farming
+028,Chicken
+029,Egg production
+030,"Other poultry, livestock and animals, n.e.c."
+031,Forestry and logging
+032,Ocean fishing (including fish corals)
+033,Inland and coastal fishing
+034,Prawn culture and Operation of fish farms and nurseries
+035,Pearl culture and pearl shell gathering
+036,Seaweeds farming
+037,"Mollusks and other crustacean farm operations (except prawn farm operations) and other fishing activities, n.e.c"
+038,"Support activities to agriculture, forestry and fishing"
+039,Coal and ligmite
+040,Crude petroleum and natural gas
+041,Gold and other precious metal ores
+042,Nickel ores
+043,Copper ores
+044,"Quarrying of stone, clay, gravel and sand"
+045,Other mining and quarrying
+046,Slaughtering and meat packing
+047,"Production, processing and preserving of meat and meat products"
+048,Canning/packing of fish and other marine products
+049,Other types of processing of fish and other marine products
+050,Processing and preserving of fruits and vegetables
+051,"Virgin coconut oil, dessicated coconut, and nata de coco"
+052,"Vegetable and animal oils and fats, n.e.c."
+053,Milk and cream
+054,"Butter, cheese and curd"
+055,"Ice cream and sherbet, ice drop, ice candy and other flavored ices"
+056,"Other dairy products, n.e.c."
+057,Rice/corn milling
+058,"Grain and vegetable mill products, except rice and corn"
+059,Starches and starch products
+060,Bakery products
+061,Sugar other sugarcane products
+062,"Cocoa, chocolate and sugar confectionery"
+063,"Macaroni, noodles, couscous and similar farinaceous products"
+064,Prepared meals and dishes
+065,Food supplements from herbs and other plants
+066,Coffee roasting and processing
+067,"Food products, n.e.c."
+068,Animal feeds
+069,Alcoholic liquors and wine
+070,Malt liquors and malt
+071,Soft drinks
+072,"Drinks flavored with fruit juices, syrups or other materials"
+073,Drinking water and mineral water
+074,"Other beverages, n.e.c."
+075,Cigarettes
+076,"Cigars and chewing and smoking tobacco, snuff"
+077,"Tobacco leaf flue-curing and re-drying and other tobacco manufacturing, n.e.c."
+078,"Spinning, texturizing, weaving and finishing of textiles"
+079,Knitted and crocheted fabrics
+080,"Knitted or crocheted hosiery, underwear and outerwear when knitted or crocheted directly into shape"
+081,"Knitted and crocheted fabrics, n.e.c."
+082,"Made-up textile articles, except wearing apparel"
+083,Carpets and rugs
+084,"Cordage, rope, twine and netting"
+085,Embroidered fabrics
+086,"Other textiles, n.e.c."
+087,Ready-made garments manufacturing (excluding embroidered garments)
+088,Ready-made embroidered garments manufacturing
+089,Custom tailoring and dressmaking
+090,"Other wearing apparel, n.e.c."
+091,Tanning and dressing of leather
+092,Products of leather and imitation leather
+093,Shoes
+094,"Other footwear, n.e.c."
+095,Sawmilling and planing of wood
+096,Veneer sheets and plywoods
+097,"Laminboard, particle board and other panels and board"
+098,Builders' carpentry and joinery; millworking
+099,Wood carvings
+100,"Products of bamboo, cane, rattan and the like, and plaiting materials except furniture"
+101,"Other products of wood, except furniture, n.e.c."
+102,"Pulp, paper and paperboard"
+103,Containers and boxes of paper and paperboard
+104,Other articles of paper and paperboard
+105,"Printing, and service activities related to printing"
+106,Reproduction of recorded media
+107,Refined petroleum products
+108,Other petroleum products
+109,Basic chemicals except fertilizers and nitrogen compounds
+110,Fertilizers and nitrogen compounds
+111,Plastics in primary forms and of synthetic rubber
+112,Pesticides and other agro- chemical products
+113,"Paints, varnishes and similar coatings, printing ink and mastics"
+114,"Soap and detergents, cleaning and polishing preparations, perfumes and toilet preparations"
+115,"Other chemical products, n.e.c."
+116,Basic pharmaceutical products and pharmaceutical preparations
+117,Rubber products
+118,Plastic products
+119,Flat glass (including float glass)
+120,Glass and glass products
+121,Cement
+122,"Other non-metallic mineral products, n.e.c."
+123,Basic iron and steel
+124,Casting/foundry of iron and steel
+125,Basic precious and non-ferrous metals
+126,Non-ferrous metal casting
+127,Structural metal products
+128,Metal containers
+129,"Forging, pressing, stamping and roll-forming of metal; powder metallurgy"
+130,"Cutlery, hand tools and general hardware"
+131,"Other fabricated metal products, n.e.c."
+132,Electronic valves and tubes
+133,Semi-conductor devices and other electronic components
+134,Computers and peripheral equipment and accessories
+135,Communication equipment
+136,Consumer electronics
+137,"Measuring, testing, navigating and control equipment"
+138,Watches and clocks
+139,"Irradiation, electromedical and electrotherapeutic equipment"
+140,Optical instruments and photographic equipment
+141,Magnetic and optical media
+142,"Electric motors, generators and transformers and electric generating sets"
+143,Batteries and accumulators
+144,Wiring and wiring devices
+145,Electric lighting equipment
+146,Domestic appliances
+147,Other electrical equipment
+148,"Engines and turbines, except aircraft, vehicle and cycle engines"
+149,"Pumps, compressors, taps and valves"
+150,Office machinery and equipment (except computers and peripheral equipment)
+151,Other general purpose machinery
+152,Agricultural and forestry machinery
+153,"Machinery for mining, quarrying and construction"
+154,Other special purpose machinery
+155,"Motor Vehicles, Trailers and Semi-Trailers"
+156,Building of ships and boats
+157,Railway locomotive and rolling stock
+158,Air and spacecraft and related machinery
+159,Motorcyles
+160,Bicycles and invalid carriages
+161,"Other transport equipment, n.e.c."
+162,"Wood and rattan furniture (reed, wicker, and cane)"
+163,Plastic furniture
+164,Furniture and fixtures of metal
+165,"Other furniture and fixtures,n.e.c."
+166,"Jewelry, bijouterie and related articles"
+167,Musical instruments
+168,Sports goods
+169,Games and toys
+170,Medical and dental instruments and supplies
+171,"Other manufacturing, n.e.c."
+172,"Electric power generation, transmission and distribution"
+173,Steam and hot water supply; and manufacture and distribution of gas
+174,"Water collection, treatment and supply"
+175,"Sewerage, and waste management and remediation activities"
+176,Construction
+177,"Wholesale trade, except of motor vehicles and motorcycles"
+178,"Retail trade, except of motor vehicles and motorcycles"
+179,Sale and repair of motor vehicles and motorcycles
+180,Railway transport
+181,Bus line operation
+182,Tourist buses and cars including chartered and rent-a-car
+183,Public utility cars and taxicab operation
+184,Jeepney and other land transport services
+185,Road freight transport
+186,Water transport
+187,Air transport
+188,Warehousing and storage
+189,Support activities for transportation
+190,Postal and courier activities
+191,Short term acommodation activities
+192,Other accommodation
+193,Food and beverage service activities
+194,Publishing activities
+195,"Motion picture, video and television programme activities"
+196,Sound recording and music publishing activities
+197,Programming and broadcasting activities
+198,Wired telecommunications activities
+199,Wireless telecommunications activities
+200,Satellite telecommunications activities
+201,"Other telecommunications activities, n.e.c."
+202,"Computer programming, consultancy and related activities"
+203,Information service
+204,Banking Institutions
+205,Non-banks
+206,Life insurance
+207,Non-life and other insurance activities
+208,Activities auxiliary to financial intermediation
+209,Real estate activities
+210,Ownership of dwellings
+211,Legal activities
+212,"Accounting, bookeeping and auditing activities; tax consultancy"
+213,Activities of head offices; management consultancy activities
+214,Architecture and engineering activities; technical testing and analysis
+215,Scientific research and development
+216,Advertising
+217,Market research and public opinion polling
+218,Specialized design activities
+219,Photographic activities
+220,"Other professional, scientific and technical activities, n.e.c."
+221,Veterinary activities
+222,Rental and leasing activities
+223,Employment activities
+224,"Travel agency, tour operator, reservation service and related activities"
+225,Security and investigation activities
+226,Call center and related activities
+227,"Other administrative and support service activities, n.e.c."
+228,Public Administration and Defense; Compulsory social security
+229,Public education
+230,Private education
+231,Public human health
+232,Private human health
+233,Social work activities
+234,"Arts, entertainment, and recreation"
+235,Repair of computers and personal and household goods
+236,"Spa, steam bath, slendering, and body building activities"
+237,"Beauty treatment, personal grooming activities and other wellness activities, n.e.c."
+238,Laundry services
+239,Funeral and related activities
+240,Other personal service activities

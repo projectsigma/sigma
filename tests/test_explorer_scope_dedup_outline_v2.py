@@ -42,10 +42,12 @@ def test_map_clicks_and_hover_are_scoped():
 
 def test_triangle_border_follows_link_type_and_depth_not_fixed_blue():
     s = source()
-    assert 'sigmaTriangleStyleByNode = computeNetworkTriangleStyles();' in s
+    assert "sigmaTriangleStyleByNode = sigmaPerf('triangleStyles', computeNetworkTriangleStyles);" in s
     assert "reciprocal ? 'both' : (e.source === near ? 'outgoing' : 'incoming')" in s
     assert 'Math.max(0.26, 1 / Math.sqrt(depth)) * (0.7 + 1.5 * wn)' in s
-    assert 'sigmaLinkedCenterIconExpression());' in s
+    assert "map.setLayoutProperty('centers', 'icon-image', ids && network ?" in s
+    assert "sigmaLinkedCenterIconExpression() : ['get', baseIcon]);" in s
+    assert "sigmaLinkedCenterIconExpression() : ['get', base]);" in s
     assert 'sigmaSyncSelectedTriangle();' in s
     assert "const palette = theme === 'dark'" in s
     assert 'map.addImage(name, ctx.getImageData' in s

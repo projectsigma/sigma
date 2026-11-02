@@ -3,3 +3,5 @@ src/sigma/resources/classification/**/*.csv text eol=lf
 src/sigma/resources/classification/manifest.json text eol=lf
 src/sigma/resources/classification/**/*.parquet binary
 src/sigma/resources/classification/**/*.xlsx binary
+# Checksum-controlled national IO240 reference package (load portability patch v4).
+src/sigma/resources/economy/psa_2018_io240/** text eol=lf

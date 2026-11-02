@@ -51,6 +51,7 @@ where = ["src"]
 "sigma.resources" = ["*.txt"]
 "sigma.resources.areas" = ["data/*.yml", "data/boundaries/*.gpkg"]
 "sigma.resources.economy.psa_2018_io80" = ["*.csv", "*.yml"]
+"sigma.resources.economy.psa_2018_io240" = ["*.csv", "*.json", "*.yml", "economy/*.csv", "economy/*.yml", "*.md"]
 "sigma.resources.economy.psa_2018_io16" = ["*.csv", "*.yml"]
 
 "sigma.resources.classification" = ["manifest.json", "crosswalks/*.csv", "io/*.csv", "psic_rev5/*.parquet", "psic_rev5/*.xlsx"]

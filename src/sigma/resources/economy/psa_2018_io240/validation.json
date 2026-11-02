@@ -1,0 +1,193 @@
+{
+  "classification_workbook_sha256": "899b64ff5c4be178d8ccf5cb35b72a4b26f66657f0270cb3f5528c365d6fbe4f",
+  "crosswalk_rows": 240,
+  "data_column_1based": 3,
+  "data_row_1based": 11,
+  "fingerprints": {
+    "archived_2026_10_29_economy": "fbca581fa5c40a9f6c5db65559bc0bbb084486394b96de96950583bb57bdc270",
+    "economy": "96f59ae785e875e952c2a684cba1c8761891554bcfb53cba9b4f3ef8729d9470",
+    "sector": "299403e62a2a38ff4262c81f629adca4a635db724ada396b5efa1e6c4d3fda31",
+    "total_output": "b0cd02e927929bae019fa455e919d415c60a89f3a85ae4a72c66133c0006ea02",
+    "transactions": "f68aafd0d6aa4f078b10c9c1f373889518d83318f56345c3dde94bace026aa86"
+  },
+  "hash_normalization": "crlf-to-lf",
+  "io240_matrix_shape": [
+    240,
+    240
+  ],
+  "labels": {
+    "label_sources": {
+      "concordance": 0,
+      "io240_parents.csv": 239,
+      "neutral": 0,
+      "workbook": 1
+    },
+    "workbook_label_difference_codes": [
+      "001",
+      "002",
+      "003",
+      "004",
+      "005",
+      "006",
+      "007",
+      "008",
+      "009",
+      "010",
+      "011",
+      "012",
+      "013",
+      "014",
+      "015",
+      "016",
+      "017",
+      "018",
+      "019",
+      "020",
+      "021",
+      "022",
+      "028",
+      "039",
+      "040",
+      "041",
+      "042",
+      "043",
+      "051",
+      "052",
+      "053",
+      "054",
+      "055",
+      "056",
+      "058",
+      "059",
+      "060",
+      "061",
+      "062",
+      "063"
+    ],
+    "workbook_label_differences": 131
+  },
+  "output_location": "row 256, TI Total Inputs",
+  "packager_version": "v3",
+  "persisted_reconciliation": {
+    "io16": {
+      "total_output": {
+        "accepted": true,
+        "criterion": "relative",
+        "l1_relative_error": 5.256251041233237e-09,
+        "max_absolute_difference": 0.09603033028542995,
+        "max_relative_error": 8.7790800146895e-09,
+        "reference_decimals": null,
+        "relative_tolerance": 2e-07,
+        "source_decimals": null,
+        "what": "persisted IO240 gross output vs IO16",
+        "worst_difference_over_envelope": null
+      },
+      "transactions": {
+        "accepted": true,
+        "criterion": "relative",
+        "l1_relative_error": 1.0929193305232238e-15,
+        "max_absolute_difference": 3.958120942115784e-09,
+        "max_relative_error": 1.1192563704866379e-15,
+        "reference_decimals": null,
+        "relative_tolerance": 2e-07,
+        "source_decimals": null,
+        "what": "persisted IO240 transactions vs IO16",
+        "worst_difference_over_envelope": null
+      }
+    },
+    "io80": {
+      "total_output": {
+        "accepted": true,
+        "criterion": "relative",
+        "l1_relative_error": 5.128115914111126e-16,
+        "max_absolute_difference": 3.026798367500305e-09,
+        "max_relative_error": 6.124556758089427e-16,
+        "reference_decimals": null,
+        "relative_tolerance": 2e-07,
+        "source_decimals": null,
+        "what": "persisted IO240 gross output vs IO80",
+        "worst_difference_over_envelope": null
+      },
+      "transactions": {
+        "accepted": true,
+        "criterion": "relative",
+        "l1_relative_error": 1.082255097098031e-15,
+        "max_absolute_difference": 3.725290298461914e-09,
+        "max_relative_error": 3.547514343621433e-15,
+        "reference_decimals": null,
+        "relative_tolerance": 2e-07,
+        "source_decimals": null,
+        "what": "persisted IO240 transactions vs IO80",
+        "worst_difference_over_envelope": null
+      }
+    }
+  },
+  "psa_source": "https://psa.gov.ph/statistics/supply-and-use-input-output/tables",
+  "published_decimals": {
+    "total_output": null,
+    "transactions": null
+  },
+  "reconciliation": {
+    "io16": {
+      "total_output": {
+        "accepted": true,
+        "criterion": "relative",
+        "l1_relative_error": 5.256251047605268e-09,
+        "max_absolute_difference": 0.09603033028542995,
+        "max_relative_error": 8.7790800146895e-09,
+        "reference_decimals": null,
+        "relative_tolerance": 2e-07,
+        "source_decimals": null,
+        "what": "PSA IO240 gross output vs IO16",
+        "worst_difference_over_envelope": null
+      },
+      "transactions": {
+        "accepted": true,
+        "criterion": "relative",
+        "l1_relative_error": 1.0842221787203484e-15,
+        "max_absolute_difference": 3.958120942115784e-09,
+        "max_relative_error": 1.1192563704866379e-15,
+        "reference_decimals": null,
+        "relative_tolerance": 2e-07,
+        "source_decimals": null,
+        "what": "PSA IO240 transactions vs IO16",
+        "worst_difference_over_envelope": null
+      }
+    },
+    "io80": {
+      "total_output": {
+        "accepted": true,
+        "criterion": "relative",
+        "l1_relative_error": 4.82650230125229e-16,
+        "max_absolute_difference": 3.026798367500305e-09,
+        "max_relative_error": 6.124556758089427e-16,
+        "reference_decimals": null,
+        "relative_tolerance": 2e-07,
+        "source_decimals": null,
+        "what": "PSA IO240 gross output vs IO80",
+        "worst_difference_over_envelope": null
+      },
+      "transactions": {
+        "accepted": true,
+        "criterion": "relative",
+        "l1_relative_error": 1.0776776092111794e-15,
+        "max_absolute_difference": 3.725290298461914e-09,
+        "max_relative_error": 3.547514343621433e-15,
+        "reference_decimals": null,
+        "relative_tolerance": 2e-07,
+        "source_decimals": null,
+        "what": "PSA IO240 transactions vs IO80",
+        "worst_difference_over_envelope": null
+      }
+    }
+  },
+  "reference_files_sha256": {
+    "crosswalk.csv": "57e95ab8ed174eb0af1530ba428fc01461eba413dd568495b7b4a6c1c2bd05ed",
+    "economy/economy.yml": "96373f7ca6c26f6a3847802f63de02fe56288dfaa0e1d76fa20925b0d58badca",
+    "economy/sectors.csv": "f49084f6ca44fd902f97df78d84f06b5f62460d9c6b2fa2ddf721b413f475253",
+    "economy/total_output.csv": "722773264ee4be436d3c7292af09be4f258a7d45c045b82571b24d3f5e77dfb6",
+    "economy/transactions.csv": "578257cc43f1203de8b73927cba221699eca9e1b1c72a75282ceecd8f18f5516"
+  },
+  "transaction_workbook_sha256": "3b478281dd0564363b24b8c5b6dcfc511e110c3e88602b1a01ccc9749923edf2",
+  "workbook_sheet": "240 TT"
+}

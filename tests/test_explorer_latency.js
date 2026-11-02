@@ -22,14 +22,14 @@ function section(start, end) {
     get: (_, prop) => prop === 'id' ? lastSelectionId : undefined,
   });
   // refresh's generation variables are scoped within the test function itself.
-  const wrapped = new Function('selection', 'nodeIndex', 'buildNetwork',
+  const wrapped = new Function('sigmaPerf', 'sigmaSyncSelectedTriangle', 'sigmaTriangleImageCache', 'SIGMA_TRIANGLE_IMAGE_LIMIT', 'pruneSigmaTriangleImages', 'selection', 'nodeIndex', 'buildNetwork',
     'computeNetworkTriangleStyles', 'renderSelection', 'ready', 'applyEmphasis', 'updateStatus',
     'renderSectors', 'drawGraph', 'renderConnections', 'showRoutes', 'setData', 'EMPTY',
     'requestAnimationFrame', 'setTimeout',
     `let refreshEpoch=0, routeEpoch=0, hoverEpoch=0, pendingHoverEvent=null, sigmaTriangleStyleByNode=null, network=null;\n${script}\nreturn {refresh};`);
   const callbacks = ['renderSelection', 'applyEmphasis', 'updateStatus', 'renderSectors', 'drawGraph', 'renderConnections', 'showRoutes'];
   const cb = Object.fromEntries(callbacks.map(key => [key, () => work.push(`${key}:${lastSelectionId}`)]));
-  const handler = wrapped(sharedSelection, nodeIndex, id => ({focus:id}), () => new Map(),
+  const handler = wrapped((_label, fn) => fn(), () => {}, new Map(), 640, () => {}, sharedSelection, nodeIndex, id => ({focus:id}), () => new Map(),
     cb.renderSelection, true, cb.applyEmphasis, cb.updateStatus, cb.renderSectors, cb.drawGraph,
     cb.renderConnections, cb.showRoutes, (name, data) => {
       if (name === 'routes' || name === 'route-hover') {

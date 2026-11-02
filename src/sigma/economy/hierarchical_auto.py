@@ -36,6 +36,178 @@ def profile_path() -> Path:
     return sigma_home() / "hierarchical-defaults.json"
 
 
+PACKAGE_REFERENCE = "package:psa_2018_io240"
+_REFERENCE_FILES = (
+    "crosswalk.csv", "economy/economy.yml", "economy/sectors.csv",
+    "economy/transactions.csv", "economy/total_output.csv",
+)
+
+
+def _canonical_sha256(payload: bytes) -> str:
+    """Line-ending-independent text hash (same rule as economy/builtin.py)."""
+    import hashlib
+    return hashlib.sha256(payload.replace(b"\r\n", b"\n").replace(b"\r", b"\n")).hexdigest()
+
+
+def packaged_reference(root: Any = None) -> dict[str, str]:
+    """Verified repository-owned PSA IO240 reference; never consults workspace data.
+
+    Hashes ignore CRLF/LF differences, so a Windows checkout with core.autocrlf
+    and a Linux checkout verify the same package.
+    """
+    import io
+    from importlib.resources import files
+    from sigma.classification.io_mapping_compat import load_catalog
+    from sigma.classification.reference import load_builtin_io_reference
+    from .hierarchical import tagging_consistency
+
+    base = files("sigma.resources.economy.psa_2018_io240") if root is None else root
+    audit_file = base.joinpath("validation.json")
+    if not audit_file.is_file():
+        raise EconomyValidationError(
+            "national PSA IO240 reference not installed in SIGMA package; "
+            "run scripts/sigma_pack_io240_repo.py and commit the validated reference files"
+        )
+    manifest = json.loads(audit_file.read_text(encoding="utf-8"))
+    if manifest.get("hash_normalization") != "crlf-to-lf":
+        raise EconomyValidationError(
+            "national IO240 package was written by an older packager; rebuild it with "
+            "scripts/sigma_pack_io240_repo.py --replace-existing"
+        )
+    hashes = manifest.get("reference_files_sha256")
+    if not isinstance(hashes, dict) or set(hashes) != set(_REFERENCE_FILES):
+        raise EconomyValidationError("national IO240 package has incomplete SHA-256 manifest")
+    for name, expected in hashes.items():
+        resource = base.joinpath(*name.split("/"))
+        if not resource.is_file() or _canonical_sha256(resource.read_bytes()) != expected:
+            raise EconomyValidationError(f"national IO240 reference failed integrity check: {name}")
+    hierarchy = pd.read_csv(io.StringIO(base.joinpath("crosswalk.csv").read_text(encoding="utf-8")),
+                            dtype=str, keep_default_na=False)
+    if len(hierarchy) != 240 or hierarchy.io240_code.duplicated().any():
+        raise EconomyValidationError("bundled IO240 reference must have exactly 240 unique leaves")
+    current = dict(zip(hierarchy.io240_code, hierarchy.io80_code, strict=True))
+    if current != dict(load_builtin_io_reference().io240_parent_map):
+        raise EconomyValidationError("bundled IO240 hierarchy differs from current PR #17 tagging parents")
+    catalog = load_catalog()
+    for row in hierarchy.itertuples(index=False):
+        if row.io80_code not in catalog or row.io16_code != catalog[row.io80_code].io16_code:
+            raise EconomyValidationError("bundled IO240 parent links differ from current IO80/IO16")
+    require_sigma_io80_io16(hierarchy)
+    if not tagging_consistency(hierarchy)["consistent"]:
+        raise EconomyValidationError("bundled IO240 hierarchy conflicts with current PSIC IO tagging")
+    resolved = Path(str(base)).resolve()
+    return {"io240_dir": str(resolved / "economy"), "crosswalk": str(resolved / "crosswalk.csv")}
+
+
+def default_profile_document() -> dict[str, Any]:
+    """Settings written to a new local hierarchical-defaults.json.
+
+    Package references are resolved when read, so reinstalling SIGMA does not
+    break the profile. New configurations use the residual assignment policy.
+    Existing local profiles (including historical residual) remain untouched.
+    """
+    return {
+        "schema_version": _PROFILE_VERSION,
+        "mode": "area_hierarchical",
+        "io240_dir": PACKAGE_REFERENCE,
+        "crosswalk": PACKAGE_REFERENCE,
+        "min_places": 5,
+        "check_psa": True,
+        "coarse_policy": "residual",
+        "max_straddle_share": DEFAULT_MAX_STRADDLE_SHARE,
+        "created_by": "sigma load (portable-hierarchy patch v4) from the packaged PSA IO240 reference",
+    }
+
+
+def _resolve_profile(data: dict[str, Any], *, source: str) -> dict[str, Any]:
+    """Resolve the source location lazily, without requiring IO240 for fixed runs.
+
+    The existing run command calls read_profile() before resolving area selection.
+    IO240 validation must happen only for hierarchical builds, never implicitly
+    for fixed IO16/IO80, custom, or legacy IO80 workspaces.
+    """
+    from importlib.resources import files
+    data = dict(data)
+    using_package = PACKAGE_REFERENCE in (data.get("io240_dir"), data.get("crosswalk"))
+    if using_package:
+        root = Path(str(files("sigma.resources.economy.psa_2018_io240"))).resolve()
+        paths = {"io240_dir": str(root / "economy"), "crosswalk": str(root / "crosswalk.csv")}
+        for key in ("io240_dir", "crosswalk"):
+            if data.get(key) == PACKAGE_REFERENCE:
+                data[key] = paths[key]
+    data["_package_reference"] = using_package
+    data["_source"] = source
+    return data
+
+
+def validate_profile_inputs(profile: dict[str, Any]) -> None:
+    """Check the complete 240-sector national reference before loading places."""
+    from sigma.classification.reference import load_builtin_io_reference
+    from .hierarchical import tagging_consistency
+    if profile.get("_package_reference"):
+        checked = packaged_reference()  # SHA checks and canonical reference structure
+        for key in ("io240_dir", "crosswalk"):
+            if Path(profile[key]).expanduser().resolve() != Path(checked[key]).resolve():
+                raise EconomyValidationError(f"national package {key} moved unexpectedly")
+    source = Path(profile["io240_dir"]).expanduser().resolve()
+    crosswalk_path = Path(profile["crosswalk"]).expanduser().resolve()
+    if not (source / "economy.yml").is_file() or not crosswalk_path.is_file():
+        raise EconomyValidationError(
+            "hierarchical reference files are missing: "
+            f"economy={source}; crosswalk={crosswalk_path}. "
+            "They may have been removed during storage cleanup. Set io240_dir "
+            "and crosswalk to 'package:psa_2018_io240' in hierarchical-defaults.json, "
+            "or configure other verified references before sigma load."
+        )
+    model = Economy.from_directory(source)
+    if len(model.sectors) != 240 or model.x is None:
+        raise EconomyValidationError("the hierarchical source must be a complete 240-sector IO economy")
+    crosswalk = pd.read_csv(crosswalk_path, dtype=str, keep_default_na=False)
+    columns = {"io240_code", "io80_code", "io16_code"}
+    if not columns.issubset(crosswalk):
+        raise EconomyValidationError("hierarchy crosswalk lacks io240_code, io80_code, or io16_code")
+    if (len(crosswalk) != 240 or crosswalk["io240_code"].duplicated().any()
+            or set(crosswalk["io240_code"]) != set(model.sectors.codes)):
+        raise EconomyValidationError("hierarchy crosswalk is not the complete 240-industry partition")
+    require_sigma_io80_io16(crosswalk)
+    current = load_builtin_io_reference().io240_parent_map
+    parents = dict(zip(crosswalk.io240_code, crosswalk.io80_code, strict=True))
+    if parents != current:
+        mismatches = [c for c in sorted(set(parents) | set(current)) if parents.get(c) != current.get(c)]
+        raise EconomyValidationError(
+            "hierarchical crosswalk differs from current PR #17 IO240 parents "
+            f"(e.g. IO240 {mismatches[:8]}). Use the validated reference."
+        )
+    report = tagging_consistency(crosswalk)
+    if not report["consistent"]:
+        raise EconomyValidationError(
+            "hierarchical reference conflicts with current IO tagging: " + str(report)[:800]
+        )
+
+
+def packaged_profile() -> dict[str, Any]:
+    """The default profile with package references resolved; nothing is written."""
+    return _resolve_profile(default_profile_document(), source="package default (no local file yet)")
+
+
+def ensure_local_profile() -> tuple[Path, bool]:
+    """Create SIGMA_HOME/hierarchical-defaults.json from the package default if absent."""
+    path = profile_path()
+    if path.is_file():
+        return path, False
+    packaged_reference()  # never write a profile that points to a missing or altered package
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".hierarchical-defaults-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            json.dump(default_profile_document(), stream, indent=2, sort_keys=True)
+            stream.write("\n")
+        os.replace(tmp, path)
+    finally:
+        Path(tmp).unlink(missing_ok=True)
+    return path, True
+
+
 def read_profile() -> dict[str, Any] | None:
     path = profile_path()
     if not path.is_file():
@@ -54,7 +226,7 @@ def read_profile() -> dict[str, Any] | None:
     # silently adopt the new containment/parent-merging model on the next run.
     data.setdefault("coarse_policy", "residual")
     data.setdefault("max_straddle_share", DEFAULT_MAX_STRADDLE_SHARE)
-    return data
+    return _resolve_profile(data, source=str(path))
 
 
 def save_profile(io240_dir: str | Path, crosswalk: str | Path, *, min_places: int = 5,
@@ -107,10 +279,24 @@ def auto_economy(workspace: str | Path, *, explicit: str | None = None) -> Econo
     """
     if explicit is not None:
         return None
+    from .load_policy import read_selection
+    chosen = read_selection(workspace)
+    if chosen is not None and chosen["io_level"] == "custom":
+        from .load_policy import selected_custom_economy
+        return selected_custom_economy(workspace, chosen)
+    if chosen is not None and chosen["io_level"] in ("16", "80"):
+        return Economy.builtin("io" + chosen["io_level"])
+    if chosen is not None and chosen["io_level"] == "240":
+        return Economy.from_directory(packaged_reference()["io240_dir"])
     root = Path(workspace).expanduser().resolve() / "hierarchical"
     marker = root / ".sigma-hierarchical-manifest.json"
     economy_dir = root / "economy"
     if not marker.exists() and not economy_dir.exists():
+        if chosen is not None and chosen["io_level"] == "hierarchical":
+            raise EconomyValidationError(
+                "this workspace is configured for hierarchical IO, but derived outputs are missing; "
+                "rerun sigma load (or sigma run, which rebuilds them) to regenerate them, not IO80"
+            )
         return None
     if not marker.is_file() or not (economy_dir / "economy.yml").is_file():
         raise EconomyValidationError(
@@ -140,6 +326,10 @@ def selected_places(workspace: str | Path, economy: Economy) -> Path | None:
     Verify the editable baseline's hash. If users filtered or edited places after
     building the partition, fail instead of applying a stale classification.
     """
+    from .load_policy import fixed_selected_places
+    fixed = fixed_selected_places(workspace, economy)
+    if fixed is not None:
+        return fixed
     root = Path(workspace).expanduser().resolve() / "hierarchical"
     model = root / "economy" / "economy.yml"
     preview = root / "places.parquet"
@@ -162,7 +352,7 @@ def selected_places(workspace: str | Path, economy: Economy) -> Path | None:
     return preview
 
 
-def profile_is_current(workspace: str | Path, profile: dict[str, Any]) -> bool:
+def _outputs_match_profile(workspace: str | Path, profile: dict[str, Any]) -> bool:
     """Rebuild on changed places, crosswalk or source IO240 Economy fingerprint."""
     root = Path(workspace).expanduser().resolve()
     audit_path = root / "hierarchical" / "economy" / "audit.json"
@@ -193,4 +383,56 @@ def profile_is_current(workspace: str | Path, profile: dict[str, Any]) -> bool:
         )
     except (OSError, ValueError, KeyError, TypeError):
         return False
+
+
+def profile_is_current(workspace: str | Path, profile: dict[str, Any]) -> bool:
+    """Selection-aware staleness guard that cannot migrate a legacy IO80 area.
+
+    A pre-patch workspace with no economy-selection.json and no hierarchical
+    artifacts remains IO80 even if some *other* area created the global profile.
+    Explicit fixed and custom choices bypass IO240 validation entirely.
+    Only a selected hierarchy (or previously generated legacy hierarchy) may
+    trigger the existing per-area hierarchy builder from sigma run.
+    """
+    from .load_policy import identity_differences, profile_identity, read_selection, update_profile_identity
+    chosen = read_selection(workspace)
+    if chosen is not None and chosen["io_level"] in ("16", "80", "240", "custom"):
+        return True
+    if chosen is None:
+        # A legacy IO80 workspace has never published a complete hierarchy:
+        # leave it IO80 even when another area created the global profile.
+        # For a completed *legacy hierarchical* workspace, retain the original
+        # checksum contract. An edited handoff or changed input must not make
+        # a stale hierarchy look current. An implicit run will refuse to rebuild
+        # an unrecorded legacy hierarchy (see the shared builder guard).
+        legacy = Path(workspace).expanduser().resolve() / "hierarchical"
+        if ((legacy / "economy" / "audit.json").is_file()
+                and (legacy / ".sigma-hierarchical-manifest.json").is_file()):
+            return _outputs_match_profile(workspace, profile)
+        return True
+    validate_profile_inputs(profile)
+    recorded = chosen.get("profile_identity")
+    if recorded is None:
+        raise EconomyValidationError(
+            "hierarchical workspace has no recorded reference/policy identity. "
+            "Refusing to rebuild it implicitly; run sigma load AREA or "
+            "sigma economy hierarchical-refresh explicitly."
+        )
+    if _outputs_match_profile(workspace, profile):
+        if recorded:
+            current = profile_identity(profile)
+            if identity_differences(recorded, current):
+                update_profile_identity(workspace, current)
+        return True
+    if recorded:
+        changes = identity_differences(recorded, profile_identity(profile))
+        if changes:
+            raise EconomyValidationError(
+                "this area's hierarchical settings changed since it was loaded ("
+                + "; ".join(changes) + "). 'sigma run' will not change the area's typology silently. "
+                "To adopt the new settings and keep edits to places/places.parquet, run "
+                f"'sigma economy hierarchical-refresh --workspace {Path(workspace)}'; "
+                "or rerun 'sigma load <area>' with the intended method."
+            )
+    return False
 # sigma-canonical-sparse-hierarchy-v1
