@@ -485,11 +485,20 @@ def run_command(
         help="Exponent of inverse road-distance attenuation on X edges (default 1.0).",
     ),
     distance_tempering: float = typer.Option(0.15, "--distance-tempering"),
-    force: bool = typer.Option(False, "--force"),
+    refresh: bool = typer.Option(
+        False, "--refresh",
+        help="Recompute analytical stages from loaded places; reuse sources and prepared roads.",
+    ),
+    force: bool = typer.Option(
+        False, "--force",
+        help="Legacy: force only final scoring; cached upstream stages may be reused.",
+    ),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Run spatial/economic analysis from the previously loaded places GeoParquet."""
     try:
+        if refresh and force:
+            raise ValueError("--refresh and --force cannot be combined")
         road_source = _road_source(roads, managed_roads, roads_layer, required=True)
         shared_store = _initialized_source_store(source_store)
         workspace = _workspace_for(area, workspace, areas_file)
@@ -527,7 +536,7 @@ def run_command(
             input_path = resolver() if callable(resolver) else job.places_path
             progress(f"analysis input: {input_path}")
             progress("starting spatial, economic, X, centrality, scoring, and export stages")
-        result = job.run(force=force)
+        result = job.refresh() if refresh else job.run(force=force)
         payload = {"run_manifest": str(result.run_manifest) if result.run_manifest else None,
                    "places_input": str(job.places_path),
                    "outputs": {k: str(v) for k, v in result.outputs.items()}}
@@ -547,6 +556,10 @@ def load(
     source_store: Path | None = typer.Option(None, "--source-store", file_okay=False, hidden=True),
     areas_file: Path | None = typer.Option(None, "--areas-file", exists=True, dir_okay=False),
     economy: str | None = typer.Option(None, "--economy"),
+    io_level: str | None = typer.Option(
+        None, "--io-level",
+        help="Area IO typology: hierarchical (default), 16, 80, or 240. Mutually exclusive with --economy.",
+    ),
     refresh_geofabrik: bool = typer.Option(False, "--refresh-geofabrik", help="Refresh the initialized national OSM source before loading places."),
     refresh_overture: bool = typer.Option(False, "--refresh-overture", help="Refresh the area-specific Overture Places snapshot."),
     clip: bool = typer.Option(True, "--clip/--no-clip"),
@@ -559,6 +572,22 @@ def load(
 ) -> None:
     """Load, reconcile, classify, and label an area's places into editable GeoParquet."""
     try:
+        from .economy.hierarchical_auto import (
+            read_profile, packaged_profile, packaged_reference, validate_profile_inputs,
+        )
+        from .economy.load_policy import CLI_IO_LEVELS
+        if io_level is not None and io_level not in CLI_IO_LEVELS:
+            raise typer.BadParameter("--io-level must be hierarchical, 16, 80, or 240", param_hint="--io-level")
+        if io_level is not None and economy is not None:
+            raise typer.BadParameter("--io-level and --economy cannot be combined", param_hint="--io-level")
+        chosen_level = io_level or ("hierarchical" if economy is None else "custom")
+        # Preflight BEFORE loading: a missing or altered national reference stops
+        # here; it never causes a silent switch to IO80.
+        if chosen_level == "hierarchical":
+            candidate_profile = read_profile() or packaged_profile()
+            validate_profile_inputs(candidate_profile)
+        elif chosen_level == "240":
+            packaged_reference()
         shared_store = _initialized_source_store(source_store)
         workspace = _workspace_for(area, workspace, areas_file)
         progress = _progress()
@@ -574,16 +603,47 @@ def load(
         if progress is not None:
             progress(f"loading places for {area}: OSM + Overture reconciliation and economic labelling")
         result = job.load(force=force)
-        if economy is None and (Path(workspace) / "places" / "places.parquet").is_file():
-            from .economy.hierarchical_auto import read_profile
-            profile = read_profile()
-            if profile is None:
-                typer.echo("Hierarchical IO240 not configured: using IO80. Run "
-                           "'sigma economy hierarchical-configure --help' for one-time setup.", err=True)
-            else:
+        if (Path(workspace) / "places" / "places.parquet").is_file():
+            from .economy.load_policy import write_selection
+            if chosen_level == "hierarchical":
+                from .economy.hierarchical_auto import ensure_local_profile
+                from .economy.load_policy import profile_identity
+                defaults_path, created = ensure_local_profile()
+                profile = read_profile()
+                if created:
+                    typer.echo(
+                        f"Created {defaults_path} from the packaged PSA IO240 reference "
+                        f"(coarse_policy={profile['coarse_policy']}, min_places={profile['min_places']}). "
+                        "Edit it, or use 'sigma economy hierarchical-configure', to change these settings.",
+                        err=True,
+                    )
                 if progress is not None:
-                    progress("constructing area-specific IO240/IO80/IO16 residual economy")
-                _hierarchical_build_from_profile(workspace, profile)
+                    progress(
+                        f"constructing per-area hierarchical economy (coarse_policy={profile['coarse_policy']}, "
+                        f"min_places={profile['min_places']}; settings: {profile.get('_source', defaults_path)})"
+                    )
+                _hierarchical_build_from_profile(workspace, profile, allow_unselected_refresh=True)
+                write_selection(workspace, "hierarchical", profile_identity=profile_identity(profile))
+            elif chosen_level in ("16", "80", "240"):
+                from .economy.load_policy import build_fixed_preview
+                selected = (
+                    _economy("builtin:io" + chosen_level)
+                    if chosen_level in ("16", "80")
+                    else Economy.from_directory(Path(packaged_reference()["io240_dir"]))
+                )
+                preview = build_fixed_preview(workspace, chosen_level, selected)
+                write_selection(workspace, chosen_level, economy=selected, coverage=preview.coverage)
+                message = (
+                    f"fixed IO{chosen_level}: {preview.assigned:,} of {preview.total:,} places "
+                    f"({preview.coverage['assigned_share']:.1%}) have an IO{chosen_level} code; "
+                    "the others are left unassigned"
+                )
+                if chosen_level == "240":
+                    typer.echo(message, err=True)
+                elif progress is not None:
+                    progress(message)
+            elif chosen_level == "custom":
+                write_selection(workspace, "custom", economy=_economy(economy), economy_spec=economy)
         payload = {"canonical": _artifact_payload(result.canonical),
                    "psic": _artifact_payload(result.psic_classified),
                    "classified": _artifact_payload(result.classified_places),
@@ -685,11 +745,11 @@ def hierarchical_build(
              "Setting it to the run's --min-cluster-size avoids sectors too small to form a cluster.",
     ),
     coarse_policy: str = typer.Option(
-        "contain", "--coarse-policy",
-        help="How places tagged only at IO80/IO16 are assigned. 'contain' (default): only to a "
-             "sector that contains all of the place's IO240 candidates; a parent is kept whole "
-             "when its straddling places outnumber its exactly assigned places. 'residual': "
-             "legacy rule that assigns them to the '-Other' residual by convention.",
+        "residual", "--coarse-policy",
+        help="How coarse IO80/IO16 places are assigned. 'residual' (default): "
+             "assigns ambiguous places to an available '-Other' sector by convention; "
+             "'contain': only assign when one sector holds every IO240 candidate "
+             "and optionally keep a straddled parent whole (see --max-straddle-share).",
     ),
     max_straddle_share: float = typer.Option(
         0.25, "--max-straddle-share", min=0.0, max=1.0,
@@ -1001,8 +1061,8 @@ def hierarchical_configure(
     crosswalk: Path = typer.Option(..., "--crosswalk", exists=True, dir_okay=False),
     min_places: int = typer.Option(5, "--min-places", min=1),
     check_psa: bool = typer.Option(True, "--check-psa/--no-check-psa"),
-    coarse_policy: str = typer.Option("contain", "--coarse-policy",
-                                      help="'contain' (default) or legacy 'residual'"),
+    coarse_policy: str = typer.Option("residual", "--coarse-policy",
+                                      help="'residual' (default) or 'contain' (candidate-conservative option)"),
     max_straddle_share: float = typer.Option(0.25, "--max-straddle-share", min=0.0, max=1.0),
 ) -> None:
     """Once per SIGMA installation: select real IO240 inputs for per-area builds."""
@@ -1017,17 +1077,42 @@ def hierarchical_configure(
         _handle_error(exc)
 
 
-def _hierarchical_build_from_profile(workspace: Path, profile: dict, *, json_output: bool = False) -> None:
+def _hierarchical_build_from_profile(workspace: Path, profile: dict, *, json_output: bool | None = None, allow_unselected_refresh: bool = False) -> None:
     # Reuse the same validated, transactional builder as the manual CLI command.
-    hierarchical_build(
-        workspace=workspace, io240_dir=Path(profile["io240_dir"]),
-        crosswalk=Path(profile["crosswalk"]), output_dir=None,
-        replace=True, strict_coarse=False, min_places=profile["min_places"],
-        coarse_policy=profile.get("coarse_policy", "contain"),
-        max_straddle_share=profile.get("max_straddle_share", 0.25),
-        activate=False, check_psa=profile["check_psa"],
-        cluster_report_threshold=5, json_output=json_output,
-    )
+    # An implicit sigma run MUST NOT silently migrate a pre-v4 hierarchy whose
+    # selection/settings were never recorded. An explicit sigma load is allowed
+    # (allow_unselected_refresh=True); explicit hierarchical-refresh passes
+    # json_output=False/True and remains allowed. No run command body is changed.
+    if json_output is None and not allow_unselected_refresh:
+        from .economy.load_policy import read_selection
+        from .errors import EconomyValidationError
+        legacy = Path(workspace).expanduser().resolve() / "hierarchical"
+        if (read_selection(workspace) is None
+                and (legacy / "economy" / "audit.json").is_file()
+                and (legacy / ".sigma-hierarchical-manifest.json").is_file()):
+            raise EconomyValidationError(
+                "legacy hierarchical output is stale or its reference policy changed; "
+                "refusing implicit reconstruction under an unrecorded profile. "
+                "To deliberately adopt the current profile and retain handoff edits, "
+                "run 'sigma economy hierarchical-refresh --workspace <workspace>', "
+                "or explicitly run 'sigma load <area>' to reclassify places."
+            )
+    # Called from 'load' or 'run' (json_output=None), the build report goes to
+    # stderr, so their own stdout (including --json) stays one document.
+    # 'hierarchical-refresh' passes json_output and keeps its report on stdout.
+    import contextlib
+    import sys
+    redirect = contextlib.redirect_stdout(sys.stderr) if json_output is None else contextlib.nullcontext()
+    with redirect:
+        hierarchical_build(
+            workspace=workspace, io240_dir=Path(profile["io240_dir"]),
+            crosswalk=Path(profile["crosswalk"]), output_dir=None,
+            replace=True, strict_coarse=False, min_places=profile["min_places"],
+            coarse_policy=profile.get("coarse_policy", "residual"),
+            max_straddle_share=profile.get("max_straddle_share", 0.25),
+            activate=False, check_psa=profile["check_psa"],
+            cluster_report_threshold=5, json_output=bool(json_output),
+        )
 
 
 @economy_app.command("hierarchical-refresh")
@@ -1516,7 +1601,10 @@ def view_command(
     output_dir: Path | None = typer.Option(None, "--output-dir", file_okay=False, help="Explorer bundle directory."),
     port: int = typer.Option(8765, "--port", min=0, max=65535, help="Local port; the next free port is used if it is taken."),
     no_browser: bool = typer.Option(False, "--no-browser"),
-    ui_only: bool = typer.Option(False, "--ui-only", help="Fast UI-only update of an existing Explorer bundle; reuse all published data."),
+    ui_only: bool = typer.Option(
+        False, "--fast", "--ui-only",
+        help="Quick UI-only update of an existing Explorer bundle; reuse all published data. --ui-only is a compatible alias.",
+    ),
     refresh: bool = typer.Option(False, "--refresh", help="Rebuild even when the bundle matches the latest outputs."),
     roads: bool | None = typer.Option(
         None, "--roads/--no-roads", help="Include SIGMA's published roads. Default: include unless very large."
@@ -1534,11 +1622,11 @@ def view_command(
         public = public or destination.name == "explorer-public" or bundle_profile(destination) == "public"
         profile = "public" if public else "local"
         if ui_only and refresh:
-            raise ValueError("--ui-only cannot be combined with --refresh")
+            raise ValueError("--fast/--ui-only cannot be combined with --refresh")
         if ui_only:
             updated = refresh_web_assets(destination, profile=profile)
             typer.echo(f"Explorer UI assets refreshed ({updated} files); analytical data reused.")
-            typer.echo("Note: --ui-only does not check source-data freshness. Use plain 'sigma view' to validate inputs, or --refresh to rebuild data.")
+            typer.echo("Note: --fast does not check source-data freshness. Use plain 'sigma view' to validate inputs, or --refresh to rebuild data.")
         elif refresh or not bundle_is_current(source, destination, include_roads=roads, profile=profile):
             result = build_web_bundle(source, destination, include_roads=roads, force=True, profile=profile)
             for warning in result.get("warnings", []):

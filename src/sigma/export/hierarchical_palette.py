@@ -123,7 +123,39 @@ def build_palette(workspace: str | Path, economy_id: str | None = None) -> dict[
     if not isinstance(derivation, dict) or derivation.get('crosswalk_file_sha256') != checksum:
         raise ValueError('hierarchical economy and audit crosswalk provenance disagree')
     # Existing gross-output fallback remains unchanged by this targeted fix.
-    reference = workspace.parent.parent / 'references' / 'psa_2018_io240'
+    # PR #19 crosswalk hash validation above remains authoritative.
+    # Select the national gross-output fallback by EXACT source fingerprint.
+    from sigma.economy import Economy as _NationalEconomy
+    from sigma.economy.hierarchical_auto import packaged_reference as _packaged_reference
+    from sigma.economy.hierarchical_auto import read_profile as _read_profile
+    source_manifest = workspace / 'hierarchical' / '.sigma-hierarchical-manifest.json'
+    if not source_manifest.is_file():
+        raise FileNotFoundError('hierarchical source-identity manifest missing')
+    source_fingerprint = json.loads(source_manifest.read_text(encoding='utf-8')).get('source_economy_fingerprint')
+    if not source_fingerprint:
+        raise ValueError('hierarchical source economy fingerprint is missing')
+    source_dirs = [workspace.parent.parent / 'references' / 'psa_2018_io240' / 'economy']
+    problems = []
+    for _lookup in (lambda: _packaged_reference()['io240_dir'], lambda: (_read_profile() or {}).get('io240_dir')):
+        try:
+            found = _lookup()
+            if found:
+                source_dirs.append(Path(found))
+        except Exception as exc:  # report below only if nothing matches
+            problems.append(str(exc))
+    matching, seen = [], set()
+    for candidate in source_dirs:
+        key = str(candidate.expanduser().resolve())
+        if key in seen or not (candidate / 'economy.yml').is_file():
+            continue
+        seen.add(key)
+        if _NationalEconomy.from_directory(candidate).economy_fingerprint == source_fingerprint:
+            matching.append(candidate)
+    if not matching:
+        raise ValueError('no national IO240 economy matches this hierarchy (looked in: '
+                         + ', '.join(sorted(seen)) + ('; ' + '; '.join(problems) if problems else '')
+                         + '); rebuild it with sigma load or sigma economy hierarchical-refresh')
+    reference = matching[0].parent
     cross = pd.read_csv(xwalk, dtype=str, keep_default_na=False)
     if not {'io240_code', 'io80_code'}.issubset(cross):
         raise ValueError('official crosswalk missing required columns')

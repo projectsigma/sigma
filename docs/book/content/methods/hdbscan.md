@@ -74,4 +74,19 @@ Core distance, mutual reachability, hierarchy, stability, and EOM/leaf extractio
 
 ## Fallback
 
-If the network HDBSCAN path fails for a type and continuation is enabled, SIGMA has a separately labeled Euclidean HDBSCAN recovery path scoped by road component. Audits should therefore inspect method/status fields rather than assuming every cluster came from the primary network metric.
+The default extraction is **network HDBSCAN EOM**. If the HDBSCAN call raises
+*after a road-distance neighbor graph has been constructed*, SIGMA retries
+**network HDBSCAN leaf** on that **same sparse distance graph**, with the same
+clustering parameters except `cluster_selection_method`. It does not rerun the
+road-neighbor search for that retry. If both network selections fail, or the
+neighbor search itself fails, SIGMA uses the existing **Euclidean HDBSCAN**
+recovery path (EOM by default), separately within each connected road component (when
+continuation is enabled). A run explicitly configured for leaf does not retry
+leaf again.
+
+A successful EOM result, even one with no clusters or oversized clusters, is
+**not** an error and does not trigger fallback. The adaptive horizon's
+last-successful-trial and pair-cap handling are unchanged. Audit fields identify
+`network_hdbscan`, `network_hdbscan_leaf_fallback`, or
+`euclidean_hdbscan_fallback`; the network leaf recovery also records the
+original EOM exception in `eom_failure` and in a recovery event.

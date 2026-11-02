@@ -185,6 +185,59 @@ def test_full_run_command_delegates_to_sigma_run_without_cli_orchestration(monke
 
 
 
+def test_full_run_cli_refresh_recomputes_managed_analysis(monkeypatch, tmp_path: Path):
+    calls = {}
+
+    class FakeResult:
+        run_manifest = tmp_path / "output" / "sigma_manifest.json"
+        outputs = {"sigma_manifest.json": run_manifest}
+
+    class FakeJob:
+        places_path = tmp_path / "ws" / "places" / "places.parquet"
+
+        def refresh(self):
+            calls["refreshed"] = True
+            return FakeResult()
+
+        def run(self, *, force=False):
+            calls["force"] = force
+            return FakeResult()
+
+    monkeypatch.setattr("sigma.cli._job", lambda **kwargs: FakeJob())
+    result = runner.invoke(app, ["run", "quezon_city", "--refresh", "--json"])
+    assert result.exit_code == 0, result.output
+    assert calls == {"refreshed": True}
+    assert json.loads(result.stdout)["run_manifest"] == str(FakeResult.run_manifest)
+
+
+def test_full_run_cli_rejects_refresh_with_force():
+    result = runner.invoke(app, ["run", "quezon_city", "--refresh", "--force"])
+    assert result.exit_code == 2
+    assert "cannot be combined" in result.output
+
+
+def test_facade_refresh_forces_all_analytical_stages_without_loading(monkeypatch, tmp_path: Path):
+    api = Sigma(
+        "quezon_city", workspace=tmp_path / "ws", economy=Economy.builtin("io16"),
+        source_store=tmp_path / "initialized-sources",
+    )
+    calls = []
+    sentinel = object()
+    monkeypatch.setattr(api, "_require_loaded_places", lambda: tmp_path / "places.parquet")
+    monkeypatch.setattr(api, "_economy_pipeline", lambda: SimpleNamespace(analysis_graph_stage="economy.graph"))
+    monkeypatch.setattr(api, "ensure", lambda stage, *, force=False: calls.append((stage, force)))
+    monkeypatch.setattr(api, "run", lambda *, force=False: sentinel)
+
+    assert api.refresh() is sentinel
+    assert calls == [(stage, True) for stage in (
+        "spatial.points", "spatial.clusters", "spatial.centers",
+        "spatial.point_distances", "spatial.partitions", "economy.definition",
+        "economy.transactions.raw", "economy.transactions.effective",
+        "economy.coefficients", "economy.graph", "analysis.x",
+        "analysis.centrality", "analysis.scores",
+    )]
+
+
 def test_full_run_cli_accepts_explicit_eigenvector_centrality(monkeypatch, tmp_path: Path):
     calls = {}
 

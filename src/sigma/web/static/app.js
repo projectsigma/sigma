@@ -40,7 +40,7 @@
   const darkLinkedIconByType = new Map(); // dark linked center icons
   const hidden = new Set();      // sector codes switched off in the sector panel
   const globalSectorStrength = new Map(); // max incident IO coefficient per sector
-  const state = {direction: 'both', depth: '1', top: '5', partitions: 'network'};
+  const state = {direction: 'both', depth: '1', top: '3', partitions: 'network'};
   let selection = null;          // {id, point}
   let network = null;
   const jsonCache = new Map();
@@ -51,16 +51,29 @@
   let unscoredRenderedKey = null; // only populated upon explicit user opt-in
   let ready = false;             // map layers exist
   // SIGMA_EXPLORER_LATENCY_V1: generation-guarded paints and frame-coalesced hover.
+  // sigma-explorer-interaction-latency-v2-20261102: redundant layout update removal,
+  // bounded icons, grouped edge styling, layout reuse, same-focus fast path.
   let refreshEpoch = 0;
   let pendingHoverEvent = null;
   let hoverFrameScheduled = false;
   let lastRoutePaletteTheme = null;
+  // Optional CPU timing: ?sigma_perf=1. Disabled in ordinary use.
+  const sigmaPerfEnabled = new URLSearchParams(location.search).get('sigma_perf') === '1';
+  function sigmaPerf(label, fn) {
+    if (!sigmaPerfEnabled) return fn();
+    const started = performance.now();
+    try { return fn(); }
+    finally { console.debug('[SIGMA perf]', label, (performance.now() - started).toFixed(1), 'ms'); }
+  }
 
   // Explicit light default: no OS dark-mode inheritance and no stored setting.
   let themeMode = 'light';
   let lastAppliedGraphTheme = null;
   function applyTheme(choice) {
+    // sigma-explorer-interaction-latency-v2: update dynamic icons on theme changes only.
+    const priorThemeMode = themeMode;
     themeMode = choice === 'dark' ? 'dark' : 'light';
+    const themeModeChanged = priorThemeMode !== themeMode;
     const dark = themeMode === 'dark';
     document.documentElement.dataset.theme = themeMode;
     // sigma-action-label-toggle-v1: show the action, not the current theme.
@@ -73,17 +86,14 @@
       themeToggle.setAttribute('aria-label', `Switch to ${nextLabel.toLowerCase()}`);
       themeToggle.title = `Switch to ${nextLabel.toLowerCase()}`;
     }
-    if (ready && map && map.getLayer && map.getLayer('centers')) {
-      const ids = network ? [...network.ring.keys()] : null;
-      const inNetwork = ['in', ['get', 'id'], ['literal', ids || []]];
-      const face = themeMode === 'dark' ? 'dark_center_icon' : 'center_icon';
-      const linked = themeMode === 'dark' ? 'dark_linked_center_icon' : 'linked_center_icon';
-      map.setLayoutProperty('centers', 'icon-image', ids ?
-        ['case', inNetwork, ['get', linked], ['get', face]] : ['get', face]);
-    }
-    if (ready && map && map.getLayer && map.getLayer('centers') && network) {
-      map.setLayoutProperty('centers', 'icon-image', sigmaLinkedCenterIconExpression());
-      sigmaSyncSelectedTriangle();
+    // applyEmphasis() already sets the selected-network icon expression.
+    // Repeating it here caused up to two extra MapLibre layout reparses per click.
+    // Explicit light/dark toggles still update the expression exactly once.
+    if (themeModeChanged && ready && map && map.getLayer && map.getLayer('centers')) {
+      const base = themeMode === 'dark' ? 'dark_center_icon' : 'center_icon';
+      map.setLayoutProperty('centers', 'icon-image', network ?
+        sigmaLinkedCenterIconExpression() : ['get', base]);
+      if (network) sigmaSyncSelectedTriangle();
     }
     // MapLibre paints are independent of HTML/CSS; restyle geographic context.
     if (map && map.getLayer) {
@@ -486,7 +496,54 @@
     return id != null && network.ring.has(String(id));
   }
 
+  // sigma-sector-clusters-katz-triangles-20261101-v1
+  // Visual-only, area-based scaling from published X-node Katz centrality.
+  // Quantile clipping prevents outliers from overwhelming crowded maps.
+  // No score, cluster assignment or network relationship is recomputed.
+  let katzCenterLimits = null;
+  function initializeKatzCenterLimits() {
+    const values = [...nodeIndex.values()].map(n => n.centrality).filter(isNum).sort((a, b) => a - b);
+    if (!values.length) { katzCenterLimits = null; return; }
+    const quantile = p => {
+      const position = (values.length - 1) * p;
+      const low = Math.floor(position), high = Math.ceil(position);
+      return values[low] + (values[high] - values[low]) * (position - low);
+    };
+    let low = quantile(0.05), high = quantile(0.95);
+    if (high <= low) { low = values[0]; high = values[values.length - 1]; }
+    katzCenterLimits = [low, high];
+  }
+  function katzCenterScale(centrality) {
+    if (!isNum(centrality) || !katzCenterLimits) return 1;
+    const [low, high] = katzCenterLimits;
+    const normalized = high > low
+      ? Math.max(0, Math.min(1, (centrality - low) / (high - low))) : 0.5;
+    // Triangle AREA (not side length) varies linearly with normalized centrality.
+    // The 0.78–1.22 size interval keeps low values clickable and high values tidy.
+    return Math.sqrt(0.78 * 0.78 + (1.22 * 1.22 - 0.78 * 0.78) * normalized);
+  }
+  function katzCenterIconSize(at11, at15, at18) {
+    // Zoom must be the top-level interpolate input for MapLibre expressions.
+    const scale = ['coalesce', ['get', 'katz_scale'], 1];
+    return ['interpolate', ['linear'], ['zoom'],
+      11, ['*', at11, scale], 15, ['*', at15, scale], 18, ['*', at18, scale]];
+  }
+
+  // Only image variants not used by the current network are eligible for eviction.
   const sigmaTriangleImageCache = new Map();
+  const SIGMA_TRIANGLE_IMAGE_LIMIT = 640;
+  let sigmaTriangleImageSequence = 0;
+  let sigmaActiveTriangleImages = new Set();
+  function pruneSigmaTriangleImages() {
+    if (sigmaTriangleImageCache.size <= SIGMA_TRIANGLE_IMAGE_LIMIT) return;
+    for (const [key, image] of sigmaTriangleImageCache) {
+      if (sigmaActiveTriangleImages.has(image)) continue;
+      // The current MapLibre style no longer references this image.
+      if (map && map.hasImage && map.hasImage(image)) map.removeImage(image);
+      sigmaTriangleImageCache.delete(key);
+      if (sigmaTriangleImageCache.size <= SIGMA_TRIANGLE_IMAGE_LIMIT) break;
+    }
+  }
   let sigmaTriangleStyleByNode = new Map();
 
   function computeNetworkTriangleStyles() {
@@ -536,9 +593,16 @@
     const scale = selected ? 1.08 : 0.8;
     // Convert displayed line pixels into source-icon pixels at map zoom 15.
     const rawWidth = link ? link.routeWidth / scale : 2.0;
-    const stroke = Math.max(0.85, Math.min(3.7, Math.round(rawWidth * 4) / 4));
+    // Half-pixel buckets avoid generating near-identical raster icons.
+    const stroke = Math.max(0.85, Math.min(3.7, Math.round(rawWidth * 2) / 2));
     const key = [String(node.type), selected, theme, border, stroke].join('|');
-    if (sigmaTriangleImageCache.has(key)) return sigmaTriangleImageCache.get(key);
+    if (sigmaTriangleImageCache.has(key)) {
+      const cached = sigmaTriangleImageCache.get(key);
+      sigmaTriangleImageCache.delete(key);
+      sigmaTriangleImageCache.set(key, cached); // LRU touch
+      sigmaActiveTriangleImages.add(cached);
+      return cached;
+    }
     const size = selected ? 36 : 32;
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
@@ -552,13 +616,17 @@
     if (selected) { ctx.moveTo(5, 6); ctx.lineTo(31, 6); ctx.lineTo(18, 32); }
     else { ctx.moveTo(5, 6); ctx.lineTo(27, 6); ctx.lineTo(16, 27); }
     ctx.closePath(); ctx.fill(); ctx.stroke();
-    const name = `sigma-link-outline-v2-${sigmaTriangleImageCache.size}`;
+    // Monotone IDs prevent collisions when stale images are evicted.
+    const name = `sigma-link-outline-v2-${sigmaTriangleImageSequence++}`;
     map.addImage(name, ctx.getImageData(0, 0, size, size));
     sigmaTriangleImageCache.set(key, name);
+    sigmaActiveTriangleImages.add(name);
     return name;
   }
 
   function sigmaLinkedCenterIconExpression() {
+    // The expression describes the full current set of referenced linked icons.
+    sigmaActiveTriangleImages = new Set();
     const base = themeMode === 'dark' ? 'dark_center_icon' : 'center_icon';
     if (!network) return ['get', base];
     const pairs = [];
@@ -576,7 +644,8 @@
     const valid = node && isNum(node.lon) && isNum(node.lat);
     setData('selected-center', {type: 'FeatureCollection', features: valid ? [{
       type: 'Feature',
-      properties: {type: node.type, icon: sigmaTriangleIcon(node, true, themeMode)},
+      properties: {type: node.type, icon: sigmaTriangleIcon(node, true, themeMode),
+        katz_scale: katzCenterScale(node.centrality)},
       geometry: {type: 'Point', coordinates: [node.lon, node.lat]}
     }] : []});
   }
@@ -737,6 +806,7 @@
     return da < db ? a : db < da ? b : String(a) < String(b) ? a : b;
   };
   async function showRoutes() {
+    const routeStarted = sigmaPerfEnabled ? performance.now() : 0;
     const epoch = ++routeEpoch;
     ++hoverEpoch;
     setData('route-hover', EMPTY());
@@ -816,6 +886,8 @@
         a.properties.wn - b.properties.wn ||
         String(a.properties.pair_key).localeCompare(String(b.properties.pair_key)));
       setData('routes', {type: 'FeatureCollection', features});
+      if (sigmaPerfEnabled) console.debug('[SIGMA perf]', 'routesIncludingFetchAndGeoJSON',
+        (performance.now() - routeStarted).toFixed(1), 'ms', 'features', features.length);
     } catch (err) {
       if (epoch === routeEpoch) { setData('routes', EMPTY()); showError(err); }
     }
@@ -940,6 +1012,8 @@
   // the fitted zoom so an ordinary wheel gesture changes glyph size gently,
   // without bringing back oversized nodes in small networks.
   let graphGlyphFitZoom = 1;
+  const graphPositionCache = new Map();
+  const GRAPH_POSITION_CACHE_LIMIT = 12;
   function syncNetworkGlyphs() {
     if (!cy || !network) return;
     const count = cy.nodes().length;
@@ -965,15 +1039,30 @@
       cy.nodes('.focus').style({width: px(focusSize), height: px(focusSize),
         'border-width': px(1.6), 'font-size': px(small ? 10.5 : 9.5),
         'text-margin-y': px(6)});
+      // Collection-level style bypasses instead of one Cytoscape mutation per edge.
+      // A 1/16 strength bucket changes displayed width by at most ~0.022 screen pixels.
+      const groups = new Map();
       cy.edges().forEach(edge => {
-        const strength = Number(edge.data('wn')) || 0;
+        const strength = Math.max(0, Math.min(1, Number(edge.data('wn')) || 0));
+        const bucket = Math.round(strength * 16);
         const major = edge.hasClass('focus-edge');
         const outer = edge.hasClass('outer-edge');
-        edge.style({width: px(major ? 1.3 + 0.7 * strength :
-          dense ? 0.42 + 0.2 * strength : 0.7 + 0.4 * strength),
-          opacity: major ? 0.88 : dense ? (outer ? 0.10 : 0.22) : 0.5,
-          'arrow-scale': major ? 0.65 : dense ? 0.48 : 0.65});
+        const mode = major ? 'focus' : dense ? (outer ? 'outer' : 'middle') : 'normal';
+        const key = `${mode}:${bucket}`;
+        let entry = groups.get(key);
+        if (!entry) {
+          const approximateStrength = bucket / 16;
+          entry = {edges: [], style: {
+            width: px(major ? 1.3 + 0.7 * approximateStrength :
+              dense ? 0.42 + 0.2 * approximateStrength : 0.7 + 0.4 * approximateStrength),
+            opacity: major ? 0.88 : dense ? (outer ? 0.10 : 0.22) : 0.5,
+            'arrow-scale': major ? 0.65 : dense ? 0.48 : 0.65
+          }};
+          groups.set(key, entry);
+        }
+        entry.edges.push(edge);
       });
+      for (const group of groups.values()) cy.collection(group.edges).style(group.style);
     });
   }
 
@@ -1009,8 +1098,25 @@
     // Label only the focus in dense networks; other nodes retain hover details.
     if (ids.length <= LIMIT.labelledNodes) cy.nodes().addClass('labelled');
     else cy.nodes().filter(n => Number(n.data('ring')) <= 1).addClass('labelled');
-    cy.layout({name: 'concentric', concentric: n => n.data('level'), levelWidth: () => 1, minNodeSpacing: 16,
-      startAngle: 1.5 * Math.PI, clockwise: true, equidistant: true, avoidOverlap: true, animate: false, fit: true, padding: 26}).run();
+    // Re-visiting an unchanged focus/topology can reuse the identical computed layout.
+    // Shape includes directed edges, rings and focus; no analytical data is changed.
+    const graphShapeKey = JSON.stringify([network.focus,
+      ids.map(id => [id, network.ring.get(id)]),
+      network.edges.map(e => [e.source, e.target])]);
+    const previousPositions = graphPositionCache.get(graphShapeKey);
+    if (previousPositions) {
+      graphPositionCache.delete(graphShapeKey);
+      graphPositionCache.set(graphShapeKey, previousPositions);
+      cy.layout({name: 'preset', positions: previousPositions, fit: true,
+        padding: 26, animate: false}).run();
+    } else {
+      cy.layout({name: 'concentric', concentric: n => n.data('level'), levelWidth: () => 1, minNodeSpacing: 16,
+        startAngle: 1.5 * Math.PI, clockwise: true, equidistant: true, avoidOverlap: true, animate: false, fit: true, padding: 26}).run();
+      const positions = Object.fromEntries(cy.nodes().map(n => [n.id(), n.position()]));
+      graphPositionCache.set(graphShapeKey, positions);
+      if (graphPositionCache.size > GRAPH_POSITION_CACHE_LIMIT)
+        graphPositionCache.delete(graphPositionCache.keys().next().value);
+    }
     // Default to Fit graph for every selection, never Focus nearby.
     cy.resize();
     cy.fit(undefined, 24);
@@ -1157,19 +1263,26 @@
       setData('routes', EMPTY());
       setData('route-hover', EMPTY());
     }
-    network = selection && nodeIndex.has(selection.id) ? buildNetwork(selection.id) : null;
-    sigmaTriangleStyleByNode = computeNetworkTriangleStyles();
+    network = selection && nodeIndex.has(selection.id) ?
+      sigmaPerf('buildNetwork', () => buildNetwork(selection.id)) : null;
+    sigmaTriangleStyleByNode = sigmaPerf('triangleStyles', computeNetworkTriangleStyles);
     renderSelection();
     if (ready) {
-      applyEmphasis();
+      sigmaPerf('mapEmphasis', applyEmphasis);
       updateStatus();
+      // Focus appearance also changes when depth/direction/visibility changes.
+      // It must be synchronized even when the theme itself did not change.
+      if (network) sigmaSyncSelectedTriangle();
     }
     const finish = () => {
       if (epoch !== refreshEpoch) return;
-      renderSectors(); // Re-rank when selection or Strongest changes.
-      drawGraph();
-      renderConnections();
+      sigmaPerf('sectorPanel', renderSectors); // Re-rank when selection or Strongest changes.
+      sigmaPerf('cytoscapeGraph', drawGraph);
+      sigmaPerf('connectionsTable', renderConnections);
       if (ready) showRoutes();
+      // Prune only after the newly selected source/style references are installed.
+      if (ready && sigmaTriangleImageCache.size > SIGMA_TRIANGLE_IMAGE_LIMIT)
+        requestAnimationFrame(pruneSigmaTriangleImages);
     };
     if (!ready) { finish(); return; }
     // Let MapLibre paint the new focus before reconstructing the diagram and
@@ -1194,9 +1307,18 @@
       $('place-description').textContent = 'This establishment has no X node for its sector and cluster.';
       return;
     }
+    // Clicking another establishment in the same cluster changes its detail,
+    // not the network topology: do not rebuild the map or Cytoscape graph.
+    const sameFocus = Boolean(network && network.focus === id && selection && selection.id === id);
     selection = {id, point};
-    refresh();
-    sigmaSyncSelectedTriangle();
+    if (sameFocus) {
+      renderSelection();
+      if (ready) updateStatus();
+      sigmaSyncSelectedTriangle();
+    } else {
+      // refresh() updates the selected triangle after all map/theme work.
+      refresh();
+    }
     setData('selected-point', point && point.coordinates ? {type: 'FeatureCollection', features: [
       {type: 'Feature', properties: {}, geometry: {type: 'Point', coordinates: point.coordinates}}]} : EMPTY());
     if (options.fly && isNum(n.lon) && isNum(n.lat)) map.easeTo({center: [n.lon, n.lat], zoom: Math.max(map.getZoom(), 13.5), duration: 400});
@@ -1204,6 +1326,11 @@
   }
 
   function clearSelection() {
+    if (!selection && !network) {
+      // Keep the historical URL-clearing behavior even for a repeat click.
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
+      return;
+    }
     selection = null;
     ++hoverEpoch;
     setData('selected-center', EMPTY());
@@ -1388,6 +1515,7 @@
       let n;
       if (sectorSortState.key === 'name') n = nameOf(a).localeCompare(nameOf(b));
       else if (sectorSortState.key === 'places') n = a.points - b.points;
+      else if (sectorSortState.key === 'clusters') n = a.clusters - b.clusters;
       else n = compareSectorCodes(a,b);
       return (sectorSortState.descending ? -n : n) || compareSectorCodes(a,b);
     });
@@ -1408,7 +1536,9 @@
         el('span',{className:'name sector-title',textContent:p.name}),
         el('span',{className:'sector-code',textContent:p.code}),
         el('span',{className:'sector-mini-count',textContent:s.points.toLocaleString(),
-          title:`${s.points.toLocaleString()} establishments`}));
+          title:`${s.points.toLocaleString()} establishments`}),
+        el('span',{className:'sector-cluster-count',textContent:s.clusters.toLocaleString(),
+          title:`${s.clusters.toLocaleString()} X clusters`}));
       list.append(label);
     }
     const visibleEnabled = eligible.filter(s => !hidden.has(s.code)).length;
@@ -1790,6 +1920,7 @@
       if (!feature.properties) feature.properties = {};
       const type = String(feature.properties.type);
       feature.properties.center_icon = centerIconByType.get(type) || 'sigma-center-default';
+      feature.properties.katz_scale = katzCenterScale(nodeIndex.get(String(feature.properties.id))?.centrality);
       feature.properties.linked_center_icon = linkedCenterIconByType.get(type) || 'sigma-center-linked-default';
       feature.properties.dark_center_icon = darkCenterIconByType.get(type) || 'sigma-center-dark-default';
       feature.properties.dark_linked_center_icon = darkLinkedIconByType.get(type) || 'sigma-center-linked-dark-default';
@@ -1799,7 +1930,7 @@
       layout: {
         visibility: 'none',
         'icon-image': centerIconLayout,
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.55, 15, 0.8, 18, 1],
+        'icon-size': katzCenterIconSize(0.55, 0.8, 1),
         'icon-allow-overlap': true,
         'icon-ignore-placement': true
       },
@@ -1808,7 +1939,7 @@
     map.addLayer({id: 'selected-center', type: 'symbol', source: 'selected-center',
       layout: {
         'icon-image': selectedCenterIconExpression(),
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.8, 15, 1.08, 18, 1.2],
+        'icon-size': katzCenterIconSize(0.8, 1.08, 1.2),
         'icon-allow-overlap': true,
         'icon-ignore-placement': true
       },
@@ -1889,9 +2020,9 @@
     document.querySelectorAll('[data-sector-order]').forEach(button => {
       button.addEventListener('click', () => {
         const key = button.dataset.sectorOrder;
-        if (!['name','code','places'].includes(key)) return;
+        if (!['name','code','places','clusters'].includes(key)) return;
         if (sectorSortState.key === key) sectorSortState.descending = !sectorSortState.descending;
-        else { sectorSortState.key = key; sectorSortState.descending = key === 'places'; }
+        else { sectorSortState.key = key; sectorSortState.descending = key === 'places' || key === 'clusters'; }
         renderSectors();
       });
     });
@@ -1942,6 +2073,7 @@
     if (meta.schema_version !== 3) throw new Error('This Explorer bundle was built by another version. Run "sigma view <area> --refresh".');
     for (const s of meta.sectors) sectors.set(s.code, s);
     for (const n of graph.nodes) { nodeIndex.set(n.id, n); pairIndex.set(n.id, new Map()); }
+    initializeKatzCenterLimits();
     for (const e of graph.edges) {
       const a = pairIndex.get(e.from), b = pairIndex.get(e.to);
       if (!a || !b) continue;

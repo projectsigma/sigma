@@ -417,7 +417,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
         <article class="step" data-cap="Each canonical place receives one economic type. Colors: Food (teal) and Retail (blue).">
           <p class="stage"><span class="shield">3</span>Stage 3</p>
           <h3>Give each place an economic type</h3>
-          <p>Name, OSM tags, and source categories go through reviewed deterministic crosswalks and name rules to a PSIC industry code (Philippine Standard Industrial Classification). The code is then mapped to one sector of the selected input–output (IO) economy: PSA 2018 IO80 by default, or IO16, or a custom economy.</p>
+          <p>Name, OSM tags, and source categories go through reviewed deterministic crosswalks and name rules to a PSIC industry code (Philippine Standard Industrial Classification). The code supplies candidate industries for the selected input–output (IO) economy. By default, SIGMA uses an area-specific hierarchy of PSA 2018 IO240, IO80, and IO16 industries; explicit IO16, IO80, IO240, or custom economies remain available. Stage 3A below explains how the local sectors are selected.</p>
           <ul>
             <li>Strong source categories take precedence.</li>
             <li>Compatible OSM tag combinations are allowed.</li>
@@ -432,6 +432,29 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
         <figcaption class="figcap"></figcaption>
       </figure>
     </div>
+  </section>
+
+
+  <!-- sigma-under-the-hood-current-run-hierarchy-3a-20261102-v1 -->
+  <section class="sigma-hier3a gut" id="hierarchical-tagging" aria-labelledby="sigma-hier3a-title">
+    <div class="sigma-hier3a-head">
+      <p class="part-no">Stage 3A · After tagging, before clustering</p>
+      <h2 id="sigma-hier3a-title">How SIGMA constructs an area-specific industry hierarchy</h2>
+      <p>PSIC and the official IO concordances provide candidate industries. The <strong>local establishment evidence</strong> determines which of those industries remain separate and which fold into their parent. This example is illustrative, not a result from the current area.</p>
+    </div>
+    <div class="sigma-hier3a-scene" role="img" aria-label="Animated illustration: PSIC tagging produces candidates in IO240. A well-supported precise industry remains X:Y:Z, while unsupported IO240 siblings form X:Y:o under their IO80 parent. Broad IO80 and IO16 groups remain possible.">
+      <div class="sigma-hier3a-step"><div class="sigma-hier3a-label">Evidence</div><div class="sigma-hier3a-tiles"><span>6 exact tags</span><span>3 broad tags</span></div><small>Mapped establishments and PSIC candidates</small></div>
+      <div class="sigma-hier3a-arrow" aria-hidden="true">→</div>
+      <div class="sigma-hier3a-step"><div class="sigma-hier3a-label">Parent structure</div><div class="sigma-hier3a-chain"><span>IO16 · X</span><span>IO80 · X:Y</span><span>IO240 · X:Y:Z</span></div><small>Each detailed industry belongs to one parent at each level</small></div>
+      <div class="sigma-hier3a-arrow" aria-hidden="true">→</div>
+      <div class="sigma-hier3a-step sigma-hier3a-result"><div class="sigma-hier3a-label">Local sectors</div><div class="sigma-hier3a-tiles"><span class="sigma-hier3a-fine">X:Y:Z</span><span class="sigma-hier3a-other">X:Y:o</span></div><small>Retain supported detail; fold other IO240 siblings into a residual</small></div>
+    </div>
+    <p class="sigma-hier3a-hint">Sparse codes: <code>X:Y:Z</code> = detailed IO240 industry; <code>X:Y:o</code> = other IO240 industries within an IO80 parent; <code>X:Y</code> = whole IO80 parent; <code>X:o</code> = remaining industries within an IO16 parent; <code>X</code> = whole IO16 parent. Here X, Y and Z stand for actual two-, two-, and three-digit codes. A branch needs at least <code>min_places</code> exact supporting establishments (5 in the standard area profile).</p>
+    <div class="sigma-hier3a-policies">
+      <div><b>Residual · default</b><p>Keeps supported detailed sectors separate. When a coarse tag spans multiple groups, it may be assigned to the parent's residual sector by convention, when that residual exists. This is exploratory attribution, not a verified fine industry.</p></div>
+      <div><b>Contain · optional</b><p>Assigns a coarse establishment only when a sector contains all its candidates. It may keep a parent whole if too many establishments would straddle a split; remaining straddlers stay unassigned.</p></div>
+    </div>
+    <p class="sigma-hier3a-foot">The resulting sectors form a mutually exclusive partition of all 240 reference industries. SIGMA aggregates transactions and total output to that partition before clustering establishments by their assigned local economic type.</p>
   </section>
 
   <!-- ======================= PART 2 ======================= -->
@@ -1038,7 +1061,7 @@ function overview() {
     D: [3, 0, 'sp', '1-median centers;', 'Voronoi territories', 'centers'],
     E: [0, 1, 'sp', 'Geofabrik roads', 'same file as OSM', 'roads'],
     F: [1, 1, 'sp', 'Road graph ~G~_{R}', 'road distance ~d~_{R}', 'roads'],
-    G: [0, 2, 'ec', 'PSA 2018 IO80', 'transactions ~Z~', 'economy'],
+    G: [0, 2, 'ec', 'Hierarchical IO', 'PSA 2018 → local types', 'economy'],
     H: [1, 2, 'ec', 'Coefficients', '~a~_{~ij~} = ~z~_{~ij~} / ~x~_{~j~}', 'economy'],
     X: [3, 2, 'ou', 'Graph ~X~', 'nodes (~t~, ~c~)', 'graph'],
     K: [4, 2, 'ou', 'Balanced Katz', 'centrality ~C~', 'graph'],

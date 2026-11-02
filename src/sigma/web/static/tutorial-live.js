@@ -83,22 +83,80 @@
     return {code, name:name.trim() || code};
   }
   function economyDisplayName(value) {
-    if (/^psa-2018-io240-hierarchical/i.test(value)) return 'Area-specific hierarchical IO economy';
+    if (/io240/i.test(String(value)) && /hierarchical/i.test(String(value))) return 'Area-specific hierarchical IO economy';
     if (/^psa-2018-io80$/i.test(value)) return 'PSA 2018 · IO80';
     if (/^psa-2018-io16$/i.test(value)) return 'PSA 2018 · IO16';
     return value;
   }
 
+  // sigma-under-the-hood-current-run-hierarchy-3a-20261102-v1:
+  // Metadata is small; show useful run information before requesting the big graph.
   async function start() {
-    const responses = await Promise.all(['data/metadata.json', 'data/graph.json'].map(async path => {
+    const fetchJSON = async path => {
       const r = await fetch(path, {cache: 'no-store'});
       if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
       return r.json();
-    }));
-    const [meta, graph] = responses;
-    if (meta.schema_version !== 3 || !Array.isArray(meta.sectors) ||
-        !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
-      throw new Error('Incompatible Explorer bundle. Run sigma view <area> --refresh.');
+    };
+    const meta = await fetchJSON('data/metadata.json');
+    if (!meta || meta.schema_version !== 3 || !Array.isArray(meta.sectors)) {
+      throw new Error('Incompatible Explorer metadata. Run sigma view <area> --refresh.');
+    }
+    // Independent summary survives missing or oversized graph.json.
+    {
+      const counts = meta.counts || {};
+      const area = meta.area || 'current study area';
+      const economy = meta.economy_id || 'not identified in run metadata';
+      $('live-title').textContent = `${area} · ${economyDisplayName(economy)}`;
+      $('live-title').title = `Source economic specification: ${economy}`;
+      const values = [
+        ['Establishments', fmt(counts.points)],
+        ['Sector clusters', fmt(counts.clusters)],
+        ['Directed X links', fmt(counts.edges)],
+        ['Economic types', fmt(meta.sectors.length)]
+      ];
+      replace($('live-stats'), ...values.map(([label, value]) => {
+        const block = text('div', '', 'live-stat');
+        block.append(text('strong', value), text('span', label));
+        return block;
+      }));
+      $('live-status').textContent = 'Published run summary loaded · loading cluster details…';
+    }
+    // Yield one frame so the summary can paint before parsing potentially large X data.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    let graph;
+    let partialGraph = false;
+    let graphProblem = '';
+    try {
+      graph = await fetchJSON('data/graph.json');
+      if (!graph || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
+        throw new Error('data/graph.json has an incompatible shape');
+      }
+    } catch (error) {
+      // sigma-current-run-resilience-20261103-v2: the geographic node index
+      // is already part of the Explorer bundle, even when the large graph fails.
+      graphProblem = String(error && (error.message || error));
+      console.warn('SIGMA tutorial full X graph unavailable; using published center locations', error);
+      const centers = await fetchJSON('data/nodes.geojson');
+      if (!centers || !Array.isArray(centers.features)) {
+        throw new Error(`Neither graph.json nor nodes.geojson is usable: ${graphProblem}`);
+      }
+      const fallbackNodes = centers.features.filter(f => {
+        const coords = f && f.geometry && f.geometry.coordinates;
+        return f && f.properties && f.properties.id != null &&
+          Array.isArray(coords) && coords.length >= 2 &&
+          Number.isFinite(Number(coords[0])) && Number.isFinite(Number(coords[1]));
+      }).map(f => ({
+        id: String(f.properties.id), type: String(f.properties.type),
+        cluster: f.properties.cluster, lon: Number(f.geometry.coordinates[0]),
+        lat: Number(f.geometry.coordinates[1]),
+        centrality: null, members: null, in_degree: null, out_degree: null,
+        route_file: null,
+      }));
+      if (!fallbackNodes.length) {
+        throw new Error(`No usable X cluster centers in nodes.geojson: ${graphProblem}`);
+      }
+      graph = {nodes: fallbackNodes, edges: []};
+      partialGraph = true;
     }
     const nodes = graph.nodes;
     const edges = graph.edges;
@@ -140,9 +198,11 @@
       .slice(0, 3).map(s => `${sectorDisplay(s).name}: ${number(s.points)} places`).join(' · ');
     $('live-title').textContent = `${area} · ${economyName}`;
     $('live-title').title = `Source economic specification: ${economy}`;
-    $('live-status').textContent = meta.profile === 'public'
-      ? 'Published aggregate profile · individual places excluded'
-      : 'Published local profile · individual places available in Explorer';
+    $('live-status').textContent = partialGraph
+      ? `Published run · cluster map available; edge/centrality details unavailable (${graphProblem})`
+      : (meta.profile === 'public'
+        ? 'Published aggregate profile · individual places excluded'
+        : 'Published local profile · individual places available in Explorer');
     const statValues = [
       ['Establishments', number(counts.points)],
       ['Sector clusters', number(counts.clusters)],
@@ -187,7 +247,9 @@
         const detail = text('p', `${nodeLabel(chosen)} has ${number(chosen.members)} establishments, ` +
           `${number(chosen.in_degree)} published incoming and ${number(chosen.out_degree)} outgoing X links. ` +
           `Its published centrality is ${fmt(chosen.centrality, 6)}.`, 'live-focus-description');
-        const linkText = links.length ?
+        const linkText = partialGraph
+          ? 'The published center map is available, but incident X links and Katz centrality could not be loaded in this session.'
+          : links.length ?
           `Example modeled link: ${sectorLabel(nodeMap.get(idStr(links[0].from))?.type || '?')} → ` +
           `${sectorLabel(nodeMap.get(idStr(links[0].to))?.type || '?')}, coefficient ${frac(links[0].coefficient)}.` :
           'No incident X links were published for this cluster.';
@@ -214,6 +276,9 @@
       const clusterCount = (bySector.get(idStr(node?.type)) || []).length;
       const c = k => number(counts[k]);
       const note = (what, certainty = '') => [what, certainty];
+      if (partialGraph && ['roads', 'economy', 'xgraph', 'score'].includes(section) && idx > 0) {
+        return note('The current run statistics and center positions remain available. Detailed X edge values are unavailable in this session.', 'The full graph did not load; no absent edge or unreported centrality is being inferred.');
+      }
       if (section === 'places') {
         if (idx === 0) return note(`The current ${area} bundle contains ${c('points')} canonical establishments across ${number(meta.sectors.length)} economic types. Its individual OSM and Overture source records are not exposed here.`, 'Published output; not raw source counts');
         if (idx <= 3) return note('Record candidate distances, fuzzy-name matching decisions, and canonical-source pairs are not exported to Explorer. The figure is a worked illustration, not a reconstruction of actual matching.', 'Intermediate provenance must be examined in the SIGMA pipeline outputs');
@@ -238,7 +303,7 @@
       }
       if (section === 'xgraph') {
         if (idx === 0) return note(`${c('clusters')} X nodes and ${c('edges')} directed X links (or ${c('linked_pairs')} linked node pairs) appear in ${area}.`, 'Sector coupling is a model, not confirmed commercial trade');
-        if (idx === 1) return note(example ? `Published link: ${sectorLabel(nodeMap.get(idStr(example.from))?.type)} → ${sectorLabel(nodeMap.get(idStr(example.to))?.type)}; a = ${frac(example.coefficient)}, road distance = ${fmt(example.distance, 2)} ${meta.distance_unit || ''}, X weight = ${frac(example.weight)}.` : 'No incident X link for this cluster.', 'Displayed road distance is the actual center-to-center route. When effective_road_distance is present, the X weight uses center road distance plus both mean member-to-median road radii, capped below at 1 metre, then multiplies by both clusters' shares of establishments among clustered records of their exact economic types. This is not a trade probability');
+        if (idx === 1) return note(example ? `Published link: ${sectorLabel(nodeMap.get(idStr(example.from))?.type)} → ${sectorLabel(nodeMap.get(idStr(example.to))?.type)}; a = ${frac(example.coefficient)}, road distance = ${fmt(example.distance, 2)} ${meta.distance_unit || ''}, X weight = ${frac(example.weight)}.` : 'No incident X link for this cluster.', 'Displayed road distance is the actual center-to-center route. When effective_road_distance is present, the X weight uses center road distance plus both mean member-to-median road radii, capped below at 1 metre, then multiplies by the source and target cluster shares among clustered establishments of their respective economic types. This is not a trade probability');
         if (idx <= 4) return note(node ? `In this run, ${nodeLabel(node)} has published centrality ${fmt(node.centrality, 6)} and degrees ${number(node.in_degree)} in / ${number(node.out_degree)} out.` : 'No cluster is selected.', 'Raw Katz in/out scores and α configuration are not present in the Explorer bundle');
         return note('The published X graph provides combined centrality, not the complete Katz iteration history or separately normalized sender/receiver contributions.', 'Worked diagrams remain illustrative');
       }
@@ -321,9 +386,17 @@
     lens();
   }
   start().catch(error => {
-    $('live-status').textContent = `Published run could not be loaded: ${error.message || error}`;
-    $('live-title').textContent = 'Tutorial examples only';
-    $('live-focus').textContent = 'The methodological walkthrough below still works. Open this tutorial from a freshly generated SIGMA Explorer bundle to show area-specific evidence.';
+    // sigma-current-run-resilience-20261103-v2: do not destroy a valid
+    // metadata summary just because a graph-dependent panel failed later.
+    const summaryReady = $('live-stats') && $('live-stats').children.length > 0;
+    const message = String(error && (error.message || error));
+    $('live-status').textContent = summaryReady
+      ? `Published run summary available · detail error: ${message}`
+      : `Published run could not be loaded: ${message}`;
+    if (!summaryReady) $('live-title').textContent = 'Tutorial examples only';
+    $('live-focus').textContent = summaryReady
+      ? `The statistics above are from the published run. Cluster details failed: ${message}`
+      : `The current run could not be loaded: ${message}. The worked illustrations below remain available.`;
     $('live-sector').disabled = true;
     $('live-node').disabled = true;
     $('live-open-cluster').hidden = true;

@@ -920,3 +920,86 @@ html[data-theme] header.top .top-right > #theme-toggle {
     max-width: calc(100% - 20px);
   }
 }
+
+/* sigma-sector-clusters-katz-triangles-20261101-v1
+   Keep Industry and Code comfortable while adding a narrow numeric Clusters
+   column. The last (Places) count stays at the far right. */
+.sector-panel { width: min(401px, calc(100vw - 20px)); }
+.sector-panel .sector-field-head,
+.sector-panel .sector-list .sector-item {
+  grid-template-columns: 16px 10px minmax(0, 1fr) 58px 55px 50px !important;
+  column-gap: 3px !important;
+}
+.sector-panel .sector-field-head .sector-sort-button:nth-child(3) {
+  grid-column: 5; text-align: right; font-size: 9.5px;
+}
+.sector-panel .sector-field-head .sector-sort-button:nth-child(4) {
+  grid-column: 6; text-align: right; font-size: 10px;
+}
+.sector-panel .sector-list .sector-item > .sector-cluster-count {
+  grid-column: 5; display: block; min-width: 0; width: 100%;
+  color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums;
+  font-weight: 500; text-align: right; white-space: nowrap;
+}
+.sector-panel .sector-list .sector-item > .sector-mini-count { grid-column: 6; }
+.sector-panel .sector-list .sector-item.sector-item--unscored > .sector-cluster-count {
+  color: #a62e35;
+}
+html[data-theme="dark"] .sector-panel .sector-list .sector-item.sector-item--unscored > .sector-cluster-count {
+  color: #e9a3a6;
+}
+@media (max-width: 900px) {
+  .sector-panel { width: min(387px, calc(100vw - 20px)); }
+  .sector-panel .sector-field-head,
+  .sector-panel .sector-list .sector-item {
+    grid-template-columns: 14px 10px minmax(0, 1fr) 55px 52px 47px !important;
+    column-gap: 2px !important;
+  }
+}
+
+/* sigma-sector-order-places-then-clusters-20261102-v1
+   Visual order and DOM order both read Industry | Code | Places | Clusters.
+   Keep existing panel widths, numeric alignment and responsive breakpoints. */
+.sector-panel .sector-field-head,
+.sector-panel .sector-list .sector-item {
+  grid-template-columns: 16px 10px minmax(0, 1fr) 58px 50px 55px !important;
+}
+.sector-panel .sector-field-head .sector-sort-button[data-sector-order="places"] {
+  grid-column: 5; text-align: right; font-size: 10px;
+}
+.sector-panel .sector-field-head .sector-sort-button[data-sector-order="clusters"] {
+  grid-column: 6; text-align: right; font-size: 9.5px;
+}
+.sector-panel .sector-list .sector-item > .sector-mini-count { grid-column: 5; }
+.sector-panel .sector-list .sector-item > .sector-cluster-count { grid-column: 6; }
+@media (max-width: 900px) {
+  .sector-panel .sector-field-head,
+  .sector-panel .sector-list .sector-item {
+    grid-template-columns: 14px 10px minmax(0, 1fr) 55px 47px 52px !important;
+  }
+}
+
+/* sigma-sector-clusters-width-80pct-20261102-v1
+   Clusters track -20%: 55 -> 44px (desktop), 52 -> 41.6px (narrow).
+   Preserve Place and Code widths; use freed space for Industry. */
+.sector-panel .sector-field-head,
+.sector-panel .sector-list .sector-item {
+  grid-template-columns: 16px 10px minmax(0, 1fr) 58px 50px 44px !important;
+}
+/* Slightly tighter typography preserves the full sortable Clusters label. */
+.sector-panel .sector-field-head .sector-sort-button[data-sector-order="clusters"] {
+  font-size: 8.5px;
+  letter-spacing: -0.2px;
+  overflow: visible;
+  text-overflow: clip;
+}
+.sector-panel .sector-field-head .sector-sort-button[data-sector-order="clusters"] .sort-direction {
+  font-size: 8px;
+  margin-left: -1px;
+}
+@media (max-width: 900px) {
+  .sector-panel .sector-field-head,
+  .sector-panel .sector-list .sector-item {
+    grid-template-columns: 14px 10px minmax(0, 1fr) 55px 47px 41.6px !important;
+  }
+}

@@ -88,7 +88,7 @@ def test_coarse_only_with_all_children_used_is_rejected():
     with pytest.raises(EconomyValidationError, match="no unambiguous residual"):
         build_hierarchical_economy(p, e, h, strict_coarse=True, coarse_policy="residual")
     with pytest.raises(EconomyValidationError, match="no single sector contains"):
-        build_hierarchical_economy(p, e, h, strict_coarse=True)
+        build_hierarchical_economy(p, e, h, strict_coarse=True, coarse_policy="contain")
 
 
 def test_inconsistent_hierarchy_rejected():
@@ -164,7 +164,7 @@ def test_multi_group_io16_coarse_without_residual_fails_closed():
     with pytest.raises(EconomyValidationError, match="no unambiguous residual"):
         build_hierarchical_economy(p, e, h, strict_coarse=True, coarse_policy="residual")
     with pytest.raises(EconomyValidationError, match="no single sector contains"):
-        build_hierarchical_economy(p, e, h, strict_coarse=True)
+        build_hierarchical_economy(p, e, h, strict_coarse=True, coarse_policy="contain")
 
 
 def test_io240_does_not_mutate_input_and_order_is_repeatable():

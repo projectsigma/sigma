@@ -338,7 +338,10 @@ def _run_sparse_hdbscan(
     radius = ceiling if config.distance_mode == "fixed" else _start_radius(config)
     previous_labels: np.ndarray | None = None
     previous_membership: np.ndarray | None = None
+    previous_selection_method: str | None = None
     last: tuple[np.ndarray, np.ndarray, float, int, float, int, float] | None = None
+    last_selection_method = config.cluster_selection_method
+    last_eom_failure: str | None = None
     last_stable = False
     successful_trials = 0
     trial = 0
@@ -400,14 +403,38 @@ def _run_sparse_hdbscan(
             radius = smaller
             continue
 
-        result = hdbscan(
-            distances,
-            weights,
+        # SIGMA_NETWORK_LEAF_FALLBACK_V1: reuse the successfully built sparse
+        # road-distance graph if EOM raises. A valid EOM result, even with zero
+        # clusters or very large clusters, is not a fallback trigger.
+        selection_method = config.cluster_selection_method
+        eom_failure: str | None = None
+        selection_kwargs = dict(
             min_cluster_size=config.min_cluster_size,
             min_samples=config.min_samples,
-            cluster_selection_method=config.cluster_selection_method,
+            cluster_selection_method=selection_method,
             allow_single_cluster=config.allow_single_cluster,
         )
+        try:
+            result = hdbscan(distances, weights, **selection_kwargs)
+        except (ValueError, RuntimeError, MemoryError) as eom_exc:
+            if selection_method != "eom":
+                raise
+            if progress is not None:
+                progress(
+                    f"clustering: {label}: network EOM failed after neighbor search; "
+                    "retrying network leaf on the same distance graph"
+                )
+            selection_kwargs["cluster_selection_method"] = "leaf"
+            try:
+                result = hdbscan(distances, weights, **selection_kwargs)
+            except (ValueError, RuntimeError, MemoryError) as leaf_exc:
+                raise RuntimeError(
+                    "network EOM and network leaf both failed "
+                    f"(EOM: {type(eom_exc).__name__}: {eom_exc}; "
+                    f"leaf: {type(leaf_exc).__name__}: {leaf_exc})"
+                ) from leaf_exc
+            selection_method = "leaf"
+            eom_failure = f"{type(eom_exc).__name__}: {eom_exc}"
         obs_labels = result.labels[position]
         obs_membership = result.probabilities[position]
         pair_count = int(distances.nnz // 2)
@@ -420,6 +447,7 @@ def _run_sparse_hdbscan(
         )
         stable = (
             previous_labels is not None
+            and previous_selection_method == selection_method
             and np.array_equal(previous_labels, obs_labels)
             and np.allclose(
                 previous_membership,
@@ -460,6 +488,11 @@ def _run_sparse_hdbscan(
             noise_share,
         )
         last_stable = bool(stable)
+        last_selection_method = selection_method
+        last_eom_failure = eom_failure
+        trace[-1]["cluster_selection_method"] = selection_method
+        if eom_failure is not None:
+            trace[-1]["eom_failure"] = eom_failure
 
         if config.distance_mode == "fixed":
             status = "fixed"
@@ -477,12 +510,19 @@ def _run_sparse_hdbscan(
 
         previous_labels = obs_labels.copy()
         previous_membership = obs_membership.copy()
+        previous_selection_method = selection_method
         radius = min(ceiling, radius * float(config.distance_growth))
 
     if last is None:
         raise RuntimeError("sparse HDBSCAN produced no successful distance trial")
     labels, membership, final_radius, pair_count, truncated_share, n_clusters, noise_share = last
     summary = {
+        "clustering_method": (
+            "network_hdbscan_leaf_fallback"
+            if last_eom_failure is not None else "network_hdbscan"
+        ),
+        "cluster_selection_method": last_selection_method,
+        "eom_failure": last_eom_failure,
         "n_points": int(len(snaps)),
         "n_positions": int(n_positions),
         "n_pairs": int(pair_count),
@@ -694,6 +734,21 @@ def cluster_by_type(
                     }
                 )
         labels, membership = run.labels, run.membership
+        if run.summary.get("clustering_method") == "network_hdbscan_leaf_fallback":
+            if events is not None:
+                events.append(
+                    {
+                        "stage": "clustering",
+                        "type": type_text,
+                        "cluster": None,
+                        "status": "recovered",
+                        "action": "fallback_network_hdbscan_leaf",
+                        "attempt": 2,
+                        "requested_resolution": None,
+                        "used_resolution": None,
+                        "error": str(run.summary.get("eom_failure")),
+                    }
+                )
 
         # Normalize selected labels by smallest member canonical_id so [type, cluster]
         # keys stay stable even if hierarchy-internal numeric labels change.
@@ -720,7 +775,9 @@ def cluster_by_type(
         summary_rows.append(summary)
         trace_rows.extend({"type": type_text, **row} for row in run.trace)
         if progress is not None:
-            if summary["clustering_method"] == "network_hdbscan":
+            if summary["clustering_method"] in {
+                "network_hdbscan", "network_hdbscan_leaf_fallback"
+            }:
                 progress(
                     f"clustering: type {type_text!r} complete: {len(clusters):,} clusters, "
                     f"{retained:,}/{len(index):,} retained; radius={float(run.summary['max_distance']):g}, "

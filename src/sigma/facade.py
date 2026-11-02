@@ -844,6 +844,37 @@ class Sigma:
             assert x is not None and centrality is not None
             return AnalysisArtifacts(x, centrality, score)
 
+    def refresh(self) -> SigmaResult:
+        """Recompute analytical stages from loaded places, not downloaded sources.
+
+        Preserve immutable artifact guards, load/classification handoff, source
+        snapshots, and expensive transport-road preparation. This is distinct
+        from run(force=True), which historically forces final scoring only.
+        """
+        with self._execution_scope():
+            if self._mode != "area":
+                raise ConfigurationError("refresh() requires a loaded area workspace")
+            self._require_loaded_places()
+            economic_graph_stage = self._economy_pipeline().analysis_graph_stage
+            stages = (
+                "spatial.points",
+                "spatial.clusters",
+                "spatial.centers",
+                "spatial.point_distances",
+                "spatial.partitions",
+                "economy.definition",
+                "economy.transactions.raw",
+                "economy.transactions.effective",
+                "economy.coefficients",
+                economic_graph_stage,
+                "analysis.x",
+                "analysis.centrality",
+                "analysis.scores",
+            )
+            for stage in stages:
+                self.ensure(stage, force=True)
+            return self.run()
+
     def run(self, *, force: bool = False) -> SigmaResult:
         with self._execution_scope():
             analysis = self.run_analysis(force=force)

@@ -41,7 +41,7 @@ def members(result):
 def test_candidates_inside_one_sector_are_assigned_there():
     e, h = source()
     p = places([("B", "F", "MAN", "B")] * 4 + [("", "F", "MAN", "D; M")])
-    r = build_hierarchical_economy(p, e, h, min_places=2)
+    r = build_hierarchical_economy(p, e, h, min_places=2, coarse_policy="contain")
     # B is its own sector; D, M, S form F-Other, which holds both candidates.
     assert r.places.economy_status.iloc[-1] == "IO80_CANDIDATES"
     assert set(members(r)[r.places.economy_code.iloc[-1]]) == {"D", "M", "S"}
@@ -50,7 +50,7 @@ def test_candidates_inside_one_sector_are_assigned_there():
 def test_straddling_minority_is_left_unassigned_not_guessed():
     e, h = source()
     p = places([("B", "F", "MAN", "B")] * 9 + [("", "F", "MAN", "B; D")])
-    r = build_hierarchical_economy(p, e, h, min_places=2)
+    r = build_hierarchical_economy(p, e, h, min_places=2, coarse_policy="contain")
     assert r.places.economy_code.iloc[-1] == ""
     assert r.places.economy_status.iloc[-1] == "UNASSIGNED_IO80_STRADDLES"
     assert r.diagnostics["straddling_unassigned_place_count"] == 1
@@ -60,7 +60,7 @@ def test_straddling_minority_is_left_unassigned_not_guessed():
 def test_parent_is_kept_whole_when_straddlers_exceed_the_share():
     e, h = source()
     p = places([("B", "F", "MAN", "B")] * 6 + [("", "F", "MAN", "B; D")] * 3)
-    r = build_hierarchical_economy(p, e, h, min_places=2, max_straddle_share=0.25)
+    r = build_hierarchical_economy(p, e, h, min_places=2, max_straddle_share=0.25, coarse_policy="contain")
     assert members(r)["80:F"] == ["B", "D", "M", "S"]
     assert set(r.places.economy_code) == {"80:F"}
     assert set(r.places.economy_status) == {"IO240_FOLDED", "IO80"}
@@ -69,7 +69,7 @@ def test_parent_is_kept_whole_when_straddlers_exceed_the_share():
         {"level": "io80", "code": "F", "straddling_places": 3, "exactly_assigned_places": 6}
     ]
     # With a higher share the split is kept and the straddlers are left unassigned.
-    split = build_hierarchical_economy(p, e, h, min_places=2, max_straddle_share=0.5)
+    split = build_hierarchical_economy(p, e, h, min_places=2, max_straddle_share=0.5, coarse_policy="contain")
     assert split.places.economy_status.tolist().count("UNASSIGNED_IO80_STRADDLES") == 3
 
 
@@ -78,7 +78,7 @@ def test_no_coarse_place_is_assigned_outside_its_candidates():
     rows = ([("B", "F", "MAN", "B")] * 5 + [("D", "F", "MAN", "D")] * 5
             + [("", "F", "MAN", "M; S")] * 2 + [("", "", "MAN", "C; L")] + [("", "T", "MAN", "")])
     for share in (0.0, 0.25, 0.5, 1.0):
-        r = build_hierarchical_economy(places(rows), e, h, min_places=2, max_straddle_share=share)
+        r = build_hierarchical_economy(places(rows), e, h, min_places=2, max_straddle_share=share, coarse_policy="contain")
         groups = r.membership.groupby("economy_code").io240_code.apply(set).to_dict()
         for (_, row), (_, src) in zip(r.places.iterrows(), places(rows).iterrows(), strict=True):
             if src.io240_code or not row.economy_code:
@@ -92,7 +92,7 @@ def test_no_coarse_place_is_assigned_outside_its_candidates():
 def test_missing_candidates_fall_back_to_the_tag_leaves():
     e, h = source()
     p = places([("B", "F", "MAN", "B")] * 3 + [("", "F", "MAN", "")])
-    r = build_hierarchical_economy(p, e, h, min_places=2)
+    r = build_hierarchical_economy(p, e, h, min_places=2, coarse_policy="contain")
     assert r.diagnostics["coarse_candidate_source_counts"]["tag_leaves"] == 1
     assert r.places.economy_status.iloc[-1] == "UNASSIGNED_IO80_STRADDLES"
 
@@ -104,8 +104,9 @@ def test_policy_and_share_are_validated_and_recorded():
         build_hierarchical_economy(p, e, h, coarse_policy="guess")
     with pytest.raises(ValueError, match="max_straddle_share"):
         build_hierarchical_economy(p, e, h, max_straddle_share=1.5)
-    r = build_hierarchical_economy(p, e, h)
+    r = build_hierarchical_economy(p, e, h, coarse_policy="contain")
     assert r.diagnostics["coarse_policy"] == "contain"
+    assert build_hierarchical_economy(p, e, h).diagnostics["coarse_policy"] == "residual"
     assert r.diagnostics["max_straddle_share"] == 0.25
     legacy = build_hierarchical_economy(p, e, h, coarse_policy="residual")
     assert legacy.diagnostics["max_straddle_share"] is None
@@ -115,13 +116,13 @@ def test_strict_coarse_rejects_straddlers():
     e, h = source()
     p = places([("B", "F", "MAN", "B")] * 9 + [("", "F", "MAN", "B; D")])
     with pytest.raises(EconomyValidationError, match="no single sector contains"):
-        build_hierarchical_economy(p, e, h, min_places=2, strict_coarse=True)
+        build_hierarchical_economy(p, e, h, min_places=2, strict_coarse=True, coarse_policy="contain")
 
 
 def test_totals_are_conserved_when_parents_are_kept_whole():
     e, h = source()
     p = places([("B", "F", "MAN", "B")] * 2 + [("", "", "MAN", "")] * 5)
-    r = build_hierarchical_economy(p, e, h, min_places=2)
+    r = build_hierarchical_economy(p, e, h, min_places=2, coarse_policy="contain")
     assert np.isclose(r.economy.Z_raw.to_numpy().sum(), e.Z_raw.to_numpy().sum())
     assert np.isclose(r.economy.x.sum(), e.x.sum())
     assert r.membership.io240_code.is_unique and len(r.membership) == len(LEAVES)
@@ -148,7 +149,7 @@ def test_profile_records_policy_and_old_profiles_default(tmp_path, monkeypatch):
 def test_disjoint_candidate_set_is_conflict_even_when_parent_whole():
     e, h = source()
     rows = [("B", "F", "MAN", "B")] * 3 + [("", "F", "MAN", "V")]
-    r = build_hierarchical_economy(places(rows), e, h, min_places=2)
+    r = build_hierarchical_economy(places(rows), e, h, min_places=2, coarse_policy="contain")
     assert r.places.economy_code.iloc[-1] == ""
     assert r.places.economy_status.iloc[-1] == "UNASSIGNED_CANDIDATE_CONFLICT"
     assert r.places.economy_candidate_source.iloc[-1] == "candidate_conflict"

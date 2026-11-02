@@ -313,3 +313,109 @@ def test_clustering_uses_row_positions_not_index_labels():
     assert actual_labels == expected_labels
     retained = retained_points(actual)
     assert retained["_sparse_source_pos"].tolist() == list(range(len(points)))
+
+# SIGMA_NETWORK_LEAF_FALLBACK_V1_BEGIN
+
+def _network_leaf_fallback_fixture():
+    import sigma.spatial.clustering as module
+
+    roads = gpd.GeoDataFrame(
+        geometry=[LineString([(0, 0), (100, 0)])], crs="EPSG:3857"
+    )
+    xs = [1, 2, 3, 4, 5, 95, 96, 97, 98, 99]
+    points = gpd.GeoDataFrame(
+        {"canonical_id": [f"p{i}" for i in range(len(xs))], "type": ["A"] * len(xs)},
+        geometry=[Point(x, 0) for x in xs], crs=roads.crs,
+    )
+    context = module.prepare_sparse_context(roads, points)
+    config = module.ClusteringConfig(
+        min_cluster_size=3,
+        min_samples=2,
+        max_distance=100.0,
+        distance_mode="fixed",
+    )
+    return module, points, context, config
+
+
+def test_network_eom_exception_retries_leaf_without_rebuilding_distances(monkeypatch):
+    module, points, context, config = _network_leaf_fallback_fixture()
+    original = module.hdbscan
+    neighbor_graph = module.neighbor_graph
+    calls, searches = [], []
+
+    def simulate_eom_failure(*args, **kwargs):
+        calls.append(kwargs["cluster_selection_method"])
+        if kwargs["cluster_selection_method"] == "eom":
+            raise RuntimeError("synthetic EOM failure")
+        return original(*args, **kwargs)
+
+    def count_neighbor_search(*args, **kwargs):
+        searches.append(True)
+        return neighbor_graph(*args, **kwargs)
+
+    monkeypatch.setattr(module, "hdbscan", simulate_eom_failure)
+    monkeypatch.setattr(module, "neighbor_graph", count_neighbor_search)
+    events = []
+    result = module.cluster_by_type(points, context, config, events=events)
+
+    assert calls == ["eom", "leaf"]
+    assert len(searches) == 1
+    assert (result["cluster"] >= 0).any()
+    summary = result.attrs["clustering_summary"][0]
+    assert summary["clustering_method"] == "network_hdbscan_leaf_fallback"
+    assert summary["cluster_selection_method"] == "leaf"
+    assert "synthetic EOM failure" in summary["eom_failure"]
+    assert any(e["action"] == "fallback_network_hdbscan_leaf" for e in events)
+    assert not any(e["action"] == "fallback_euclidean_hdbscan" for e in events)
+
+
+def test_successful_network_eom_does_not_try_leaf(monkeypatch):
+    module, points, context, config = _network_leaf_fallback_fixture()
+    original = module.hdbscan
+    calls = []
+
+    def spy(*args, **kwargs):
+        calls.append(kwargs["cluster_selection_method"])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(module, "hdbscan", spy)
+    result = module.cluster_by_type(points, context, config, events=[])
+    assert calls == ["eom"]
+    assert result.attrs["clustering_summary"][0]["clustering_method"] == "network_hdbscan"
+
+
+def test_network_leaf_failure_still_uses_euclidean_fallback(monkeypatch):
+    module, points, context, config = _network_leaf_fallback_fixture()
+    calls = []
+
+    def fail_both(*args, **kwargs):
+        calls.append(kwargs["cluster_selection_method"])
+        raise RuntimeError("synthetic " + kwargs["cluster_selection_method"] + " failure")
+
+    monkeypatch.setattr(module, "hdbscan", fail_both)
+    events = []
+    result = module.cluster_by_type(points, context, config, events=events)
+    assert calls == ["eom", "leaf"]
+    assert result.attrs["clustering_summary"][0]["clustering_method"] == "euclidean_hdbscan_fallback"
+    assert any(e["action"] == "fallback_euclidean_hdbscan" for e in events)
+    assert any("network EOM and network leaf both failed" in e["error"] for e in events)
+
+
+def test_distance_search_failure_skips_network_leaf_retry(monkeypatch):
+    module, points, context, config = _network_leaf_fallback_fixture()
+    calls = []
+
+    def fail_neighbor_search(*args, **kwargs):
+        raise RuntimeError("synthetic neighbor search failure")
+
+    def hdbscan_spy(*args, **kwargs):
+        calls.append(kwargs["cluster_selection_method"])
+        raise AssertionError("HDBSCAN must not run after failed network search")
+
+    monkeypatch.setattr(module, "neighbor_graph", fail_neighbor_search)
+    monkeypatch.setattr(module, "hdbscan", hdbscan_spy)
+    result = module.cluster_by_type(points, context, config, events=[])
+    assert calls == []
+    assert result.attrs["clustering_summary"][0]["clustering_method"] == "euclidean_hdbscan_fallback"
+
+# SIGMA_NETWORK_LEAF_FALLBACK_V1_END
