@@ -18,9 +18,12 @@ const unscoredSource = section('  const unscoredSectorIcons = new Map();', '  fu
 const helperSource = section('  function centerIconExpression() {', '  // Selected cluster:');
 const selectedSource = section('  function selectedCenterIconExpression() {', '  function addLayers(data) {');
 const layerSource = section('  function addLayers(data) {', '  function bindControls() {');
+// Keep the actual Katz helpers in the extracted layer-building code.
+const katzSource = section('  let katzCenterLimits = null;',
+  '  // Only image variants not used by the current network are eligible for eviction.');
 const emphasisSource = section('  // SIGMA Explorer depth-based map opacity v1', '  function updatePartitions() {');
 // Evaluate the real dynamic linked-triangle implementation; do not stub it.
-const triangleSource = section('  const sigmaTriangleImageCache = new Map();',
+const triangleSource = section('  let katzCenterLimits = null;',
   '  // SIGMA Explorer depth-based map opacity v1');
 const routeAnchorSource = section('  const routeAnchor = (a, b, ring) => {',
   '  async function showRoutes() {');
@@ -64,13 +67,16 @@ const meta = {score_range: [0, 1]};
 const isNum = v => typeof v === 'number' && Number.isFinite(v);
 const EMPTY = () => ({type: 'FeatureCollection', features: []});
 const sectorMatchPairs = () => [...sectors].flatMap(([key, value]) => [key, value.color]);
+// Distinct fixture centralities ensure the real size scaling is tested.
+const katzNodes = new Map([...sectors.keys()].map((code, i) =>
+  [`${code}:${i}`, {centrality: i + 1}]));
 const funcs = new Function('document', 'sectors', 'map', 'COLOR', 'centerIconByType',
   'linkedCenterIconByType', 'darkCenterIconByType', 'darkLinkedIconByType',
-  'selectedIconByType', 'meta', 'isNum', 'sectorMatchPairs', 'EMPTY',
-  `${unscoredSource}\n${helperSource}\n${selectedSource}\n${layerSource}\nreturn {addLayers};`)(
+  'selectedIconByType', 'meta', 'isNum', 'sectorMatchPairs', 'EMPTY', 'nodeIndex',
+  `${katzSource}\n${unscoredSource}\n${helperSource}\n${selectedSource}\n${layerSource}\ninitializeKatzCenterLimits();\nreturn {addLayers};`)(
   document, sectors, map, colors, centerIconByType, linkedCenterIconByType,
   darkCenterIconByType, darkLinkedIconByType, selectedIconByType,
-  meta, isNum, sectorMatchPairs, EMPTY);
+  meta, isNum, sectorMatchPairs, EMPTY, katzNodes);
 
 // Numeric codes are common in GeoJSON while metadata may carry strings.
 const data = {clusters: {type: 'FeatureCollection', features: []},
@@ -82,6 +88,10 @@ funcs.addLayers(data);
 const centers = sources.get('centers').data.features;
 const baseLayer = layers.get('centers');
 assert.deepEqual(baseLayer.layout['icon-image'], ['get', 'center_icon']);
+assert.equal(baseLayer.layout['icon-size'][0], 'interpolate', 'Katz size keeps zoom interpolation');
+const observedScales = centers.map(f => f.properties.katz_scale);
+assert(observedScales.every(Number.isFinite) && observedScales[0] < observedScales[observedScales.length - 1],
+  'Katz size increases with published centrality in the actual layer builder');
 assert.deepEqual(layers.get('selected-center').layout['icon-image'], ['get', 'icon']);
 for (const feature of centers) {
   const code = String(feature.properties.type);
