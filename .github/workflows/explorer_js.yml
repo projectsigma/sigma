@@ -27,49 +27,62 @@ jobs:
         run: |
           node --check src/sigma/web/static/network-model.js
           node --check src/sigma/web/static/app.js
-          node --check tests/test_explorer_network.js
+          for test in tests/test_explorer_*.js; do
+            node --check "$test"
+          done
 
-      - name: Run directed-network regression tests
-        run: node tests/test_explorer_network.js
-
-      - name: Test centroid sector palette and selection styling
-        run: node tests/test_explorer_centroid_palette.js
-
-      - name: Verify Explorer controls and offline map
-        run: node tests/test_explorer_ui_defaults.js
-
-      - name: Toolbar UI
-        run: node tests/test_explorer_toolbar_ui.js
-
-      - name: Refinement UI
-        run: node tests/test_explorer_refinement_ui.js
-
-      - name: Depth and defaults
-        run: node tests/test_explorer_final_ui.js
-
-      - name: Theme UI
-        run: node tests/test_explorer_theme_ui.js
-
-      - name: Visual polish
-        run: node tests/test_explorer_polish_ui.js
-
-      - name: Dark graph styling
-        run: node tests/test_explorer_dark_graph_ui.js
-
-      - name: Multi-step exact road routes
-        run: node tests/test_explorer_multistep_routes.js
-
-      - name: Three-color reciprocal multi-step routes
-        run: node tests/test_explorer_route_colors.js
-
-      - name: Graph legibility and focus controls
-        run: node tests/test_explorer_graph_legibility.js
-
-      - name: Establishment finder
-        run: node tests/test_explorer_finder.js
-
-      - name: Collapsible right panel
-        run: node tests/test_explorer_panel_collapse.js
-
-      - name: Map opacity by network depth
-        run: node tests/test_explorer_depth_opacity.js
+      - name: Run all Explorer JavaScript regressions
+        shell: bash
+        run: |
+          # Keep testing after each failure so one PR run reveals every failing test.
+          failures=0
+          echo "::group::Run directed-network regression tests"
+          node tests/test_explorer_network.js || { echo "::error file=tests/test_explorer_network.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Test centroid sector palette and selection styling"
+          node tests/test_explorer_centroid_palette.js || { echo "::error file=tests/test_explorer_centroid_palette.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Verify Explorer controls and offline map"
+          node tests/test_explorer_ui_defaults.js || { echo "::error file=tests/test_explorer_ui_defaults.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Toolbar UI"
+          node tests/test_explorer_toolbar_ui.js || { echo "::error file=tests/test_explorer_toolbar_ui.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Refinement UI"
+          node tests/test_explorer_refinement_ui.js || { echo "::error file=tests/test_explorer_refinement_ui.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Depth and defaults"
+          node tests/test_explorer_final_ui.js || { echo "::error file=tests/test_explorer_final_ui.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Theme UI"
+          node tests/test_explorer_theme_ui.js || { echo "::error file=tests/test_explorer_theme_ui.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Visual polish"
+          node tests/test_explorer_polish_ui.js || { echo "::error file=tests/test_explorer_polish_ui.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Dark graph styling"
+          node tests/test_explorer_dark_graph_ui.js || { echo "::error file=tests/test_explorer_dark_graph_ui.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Multi-step exact road routes"
+          node tests/test_explorer_multistep_routes.js || { echo "::error file=tests/test_explorer_multistep_routes.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Three-color reciprocal multi-step routes"
+          node tests/test_explorer_route_colors.js || { echo "::error file=tests/test_explorer_route_colors.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Graph legibility and focus controls"
+          node tests/test_explorer_graph_legibility.js || { echo "::error file=tests/test_explorer_graph_legibility.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Establishment finder"
+          node tests/test_explorer_finder.js || { echo "::error file=tests/test_explorer_finder.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Collapsible right panel"
+          node tests/test_explorer_panel_collapse.js || { echo "::error file=tests/test_explorer_panel_collapse.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Map opacity by network depth"
+          node tests/test_explorer_depth_opacity.js || { echo "::error file=tests/test_explorer_depth_opacity.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "::group::Interaction latency and route cancellation"
+          node tests/test_explorer_latency.js || { echo "::error file=tests/test_explorer_latency.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "Explorer JavaScript failures: $failures / 16"
+          if [ "$failures" -ne 0 ]; then exit 1; fi
