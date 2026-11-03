@@ -1,4 +1,4 @@
-"""Public or private ownership for education and health places, policy ownership-v3.
+"""Public or private ownership for education and health places, policy ownership-v4.
 
 PSA's IO tables split education (IO80 74 public / 75 private; IO240 229 / 230) and human
 health (IO80 76 / 77; IO240 231 / 232) by ownership. Most source categories ("school",
@@ -23,7 +23,7 @@ from typing import Any
 
 import pandas as pd
 
-OWNERSHIP_POLICY_VERSION = "ownership-v3"
+OWNERSHIP_POLICY_VERSION = "ownership-v4"
 
 # domain -> side -> (IO80 code, IO240 code)
 OWNERSHIP_CODES: dict[str, dict[str, tuple[str, str]]] = {
@@ -44,9 +44,6 @@ _EDUCATION_PUBLIC = (
     r"\b(?:city|municipal)\s+college\b",
     r"\bchild\s+development\s+cent(?:er|re)\b",
     r"\bday\s*care\s+cent(?:er|re)\b",
-    r"\bdeped\b",
-    r"\bdepartment\s+of\s+education\b",
-    r"\bschools?\s+division\s+office\b",
     r"\btesda\b",
     r"\bphilippine\s+(?:military|national\s+police|merchant\s+marine|public\s+safety)\s+"
     r"(?:academy|college)\b",
@@ -60,8 +57,6 @@ _EDUCATION_PRIVATE = (
     r"\b(?:christian|catholic|baptist|adventist|methodist|lutheran|evangelical|islamic)\s+"
     r"(?:school|academy|college|learning)\b",
     r"\b(?:inc|incorporated)\b",
-    r"\b(?:st|saint|holy|sacred|immaculate|blessed)\b\.?\s",
-    r"\bour\s+lady\b",
     r"\bdon\s+bosco\b",
     r"\bla\s+salle\b",
     r"\bateneo\b",
@@ -79,15 +74,14 @@ _HEALTH_PUBLIC = (
     r"\brhu\b",
     r"\bbarangay\s+health\s+(?:station|cent(?:er|re)|unit|office|post)\b",
     r"\bbhs\b",
-    r"\b(?:city|municipal|provincial)\s+health\s+(?:office|cent(?:er|re)|unit|department)\b",
+    r"\b(?:city|municipal|provincial)\s+health\s+(?:cent(?:er|re)|unit)\b",
+    r"\b(?:city|municipal|provincial)\s+health\s+office\s+clinic\b",
     r"\bsuper\s+health\s+cent(?:er|re)\b",
     r"\b(?:provincial|district|regional|municipal|city)\s+(?:general\s+)?hospital\b",
     r"\bmedicare\s+(?:community\s+)?hospital\b",
     r"\bregional\s+(?:medical|training\s+and\s+teaching)\s+cent(?:er|re)\b",
     r"\bregional\s+training\s+and\s+teaching\s+hospital\b",
     r"\bphilippine\s+general\s+hospital\b",
-    r"\bdepartment\s+of\s+health\b",
-    r"\bdoh\b",
 )
 _HEALTH_PRIVATE = (
     r"\bprivate\s+(?:medical\s+|dental\s+|health\s+)?(?:clinic|hospital|cent(?:er|re))\b",
@@ -102,8 +96,6 @@ _HEALTH_PRIVATE = (
     r"\beye\s+(?:cent(?:er|re)|clinic)\b",
     r"\bderma(?:tology)?\b",
     r"\bortho(?:dontic|dontics)?\b",
-    r"\b(?:st|saint|holy|sacred|immaculate|blessed)\b\.?\s",
-    r"\bour\s+lady\b",
 )
 # Only explicit education ownership categories qualify. Generic school and
 # university categories never establish public/private ownership.

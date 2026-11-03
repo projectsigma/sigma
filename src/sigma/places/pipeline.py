@@ -345,7 +345,7 @@ class PlacePipeline:
             llm_identity = {"base_url": base_url, "model": model}
         return ArtifactRecipe.build(
             "places.psic",
-            implementation_version="siphon-psic-classifier-v3-category-floor-precedence",
+            implementation_version="siphon-psic-classifier-v4-admin-function-v1",
             dependencies=deps,
             parameters={
                 "top_n": self.config.top_n,
@@ -368,7 +368,7 @@ class PlacePipeline:
         )
         refs = self._reference_obj()
         return ArtifactRecipe.build(
-            "places.classified", implementation_version="c8-economic-tagging-v3-institution-evidence", dependencies=deps,
+            "places.classified", implementation_version="c8-economic-tagging-v4-ownership-evidence", dependencies=deps,
             identities={
                 "economy_sector_fingerprint": self.economy.sector_fingerprint,
                 "tagging_references_fingerprint": refs.fingerprint,
@@ -544,6 +544,8 @@ class PlacePipeline:
         finally:
             if decision_cache is not None:
                 decision_cache.close()
+        from sigma.classification.administrative_activity import apply_administrative_activity
+        tagged = apply_administrative_activity(tagged, taxonomy=taxonomy)
         write_geoframe(tagged, write.output("places.json"))
         coded = int(tagged["psic_code"].astype("string").fillna("").str.strip().ne("").sum()) if len(tagged) else 0
         method_counts = tagged["psic_method"].fillna("").value_counts().to_dict() if len(tagged) else {}
