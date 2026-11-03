@@ -455,6 +455,36 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
       <div><b>Contain · optional</b><p>Assigns a coarse establishment only when a sector contains all its candidates. It may keep a parent whole if too many establishments would straddle a split; remaining straddlers stay unassigned.</p></div>
     </div>
     <p class="sigma-hier3a-foot">The resulting sectors form a mutually exclusive partition of all 240 reference industries. SIGMA aggregates transactions and total output to that partition before clustering establishments by their assigned local economic type.</p>
+<!-- sigma-docs-20261104-v1:begin -->
+<div class="sigma-hier3a-foot" role="note" aria-label="Post-clustering hierarchical roll-up">
+      <p><strong>After clustering: conditional zero-cluster roll-up.</strong>
+        This scene describes the initial <code>sigma load</code> hierarchy.
+        For a generated hierarchical economy, the normal <code>sigma run</code>
+        additionally checks each original sector's retained HDBSCAN clusters.
+        Only a sector with <strong>K = 0</strong> is eligible for an iterative,
+        residual-first coarsening, accepted under the positive net-retention
+        rule. Sectors that already have clusters are not automatically merged.
+        Use <code>sigma run AREA --no-iterative-rollup</code> to preserve the
+        original sector partition. No noise point is assigned to its nearest
+        Voronoi cluster by this method.</p>
+      <p><strong>Two sector identities.</strong> Each moved establishment
+        retains an original industry code for provenance. Its effective
+        rolled-up sector controls clustering, IO aggregation, network X and
+        SIGMA scores. The local Explorer lets you expand original children
+        and toggle their <em>point</em> visibility independently, retaining
+        their fixed industry colors. This is not a second scored X network.</p>
+      <p><strong>Fixed color scheme and map-only overlays.</strong> SIGMA uses
+        336 fixed industry colors (16/80/240); residuals inherit parent
+        colors. On selection, an opt-in overlay can display unclustered
+        establishments of matching effective sectors within the published
+        Voronoi partitions, with 0.96 focus and
+        0.90/&radic;<var>d</var> opacity at network step <var>d</var>.
+        Hovering a cluster-center triangle outlines its existing polygon
+        boundary in that sector's color. Neither view creates cluster
+        membership, new edges, or scores.</p>
+    </div>
+<!-- sigma-docs-20261104-v1:end -->
+
   </section>
 
   <!-- ======================= PART 2 ======================= -->
@@ -914,7 +944,7 @@ sigma view pasig</pre>
         <tr><td>Voronoi grid / max. cells</td><td class="n">500 m / 1 M</td></tr>
         <tr><td>Min. class score / margin</td><td class="n">0.45 / 0.12</td></tr>
         <tr><td>Road buffer, direction</td><td class="n">5 km, undirected</td></tr>
-        <tr><td>IO system, preprocessing</td><td class="n">IO80, none</td></tr>
+        <tr><td>IO system (new area), preprocessing</td><td class="n">Hierarchical + K=0 roll-up, none</td></tr>
         <tr><td>Katz α factor, β</td><td class="n">0.85, 1</td></tr>
         <tr><td>X distance-decay exponent λ<sub>X</sub></td><td class="n">1.0</td></tr>
 <tr><td>Distance tempering λ</td><td class="n">0.15</td></tr>

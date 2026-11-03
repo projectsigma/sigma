@@ -58,7 +58,7 @@ If your installed CLI reports `No such option: --fast`, apply this repository up
 
 ## Interface
 
-The initial network view uses **Direct links** with the **5 per cluster** strongest-link limit. Both can be changed from the toolbar. The optional OpenStreetMap raster background has been removed; the published SIGMA roads remain available.
+The initial network view uses **Direct links** with the **3 per cluster** strongest-link limit. Both can be changed from the toolbar. The optional OpenStreetMap raster background has been removed; the published SIGMA roads remain available.
 
 - MapLibre GL JS map: sector-colored establishments, partitions, centers, boundary and optional published roads. Click an establishment or cluster center to select the corresponding X node.
 - **Depth-based map opacity:** when a cluster is selected, its linked establishments, cluster-center triangles, and partition polygons fade according to **1/sqrt(network step)**. At step 1, linked establishments retain 90% opacity; at steps 2, 3, and 5 they retain about 63.6%, 52.0%, and 40.2%. Cluster triangles and polygon fills/outlines follow the same scaling relative to their own first-step opacity. The selected cluster and any selected establishment remain prominent. Colored road routes still use their existing depth-dependent width and opacity scaling; their paths, colors and the Cytoscape diagram are unchanged. The fade follows the current Links, Depth, Strongest, and sector filters.
@@ -71,6 +71,53 @@ The initial network view uses **Direct links** with the **5 per cluster** strong
 - **Network limits:** a maximum of 300 network nodes and 1,500 **directed** edges are visualized per selection; the interface marks truncated views. Graph weights and provenance remain available in the source CSV/GeoPackage.
 
 The network is **cluster-level**, not firm-to-firm. The presence of an X edge represents SIGMA's modeled input-output-spatial coupling with road-network reachability, **not a confirmed commercial transaction**. The graph direction represents modeled sector input supply, while road routing is computed on SIGMA's undirected road network. A numeric X `edge_weight` is `technical_coefficient * source_cluster_sector_share * target_cluster_sector_share / max(effective_road_distance_metres, 1) ** x_distance_decay_lambda` (exponent 1 by default), bounded by the coefficient; it is **not** a trade probability. The effective separation adds each cluster's mean establishment-to-median road distance to the actual center-to-center route length; published route geometry remains center-to-center. Existing exported Explorer bundles retain their previous weights until analysis is rerun and the browser bundle refreshed.
+
+<!-- sigma-docs-20261104-v1:begin -->
+## Fixed sector colors, rolled-up industries, and contextual polygons
+
+- **Fixed sector palette:** SIGMA uses the supplied 336-color specification:
+  16 IO16, 80 IO80, and 240 IO240 colors. A sector's color is stable across
+  areas and sector order, including canonical sparse and supported legacy
+  identifiers. An `o` residual inherits the nearest retained parent color.
+  Sector swatches, scored-point circles, cluster triangles, and polygon
+  boundaries use the effective sector's palette color except for points whose
+  original classification is intentionally shown separately.
+- **Rolled-up original industries:** In the local Explorer, an affected sector
+  has an expandable breakdown of original industry codes, labels and place
+  counts. Each child has a fixed-color swatch and an independent *point-layer*
+  checkbox. Child-specific points retain their original industry's fixed
+  color; their economic type for scoring remains the effective rolled-up
+  parent. Visibility does not split the parent's X nodes, cluster counts,
+  Voronoi surfaces or scores. Counts refer to classified establishments, not
+  only HDBSCAN-retained members.
+- **Two different opt-in unclustered views:** The existing unclustered toggle
+  shows classified-but-unscored points without a selected X network. With a
+  scored point or cluster selected, **Unclustered within highlighted partitions**
+  instead displays matching-effective-sector unclustered points spatially
+  inside published Voronoi polygons for the focused and linked X clusters.
+  Focus markers use opacity 0.96; a linked cluster at step `d` has opacity
+  `0.90 / sqrt(d)`. Points outside that context stay hidden. This is
+  geographic context, **not** inferred HDBSCAN membership, Voronoi-based
+  reassignment, a new X node, or an imputed SIGMA score. Different sectors'
+  partition polygons may overlap.
+- **Cluster-center hover boundary:** After selecting a scored establishment
+  or cluster, hovering a visible cluster-center triangle temporarily outlines
+  that center's already-exported Voronoi partition in the center's sector
+  color. This works even with the ordinary partitions setting off. The
+  overlay clears when the pointer leaves, the map moves, or the selection or
+  filters change. It never rewrites the partitions or alters the selected X
+  neighborhood.
+
+These are browser presentation rules. They do not change network HDBSCAN,
+1-medians, the road graph, national IO transactions, Leontief/technical
+coefficients, network X, centrality or establishment scores. The local
+point-level overlays are **not available** in public bundles. Newly built
+Explorer bundles can include per-establishment original-sector provenance;
+metadata-only migration of an existing local bundle can use its already
+validated rolled-up published inputs and a compact original-ID override. A
+static-only `sigma view AREA --fast` does not regenerate data, metadata, routes,
+or establishment tiles.
+<!-- sigma-docs-20261104-v1:end -->
 
 ## Inputs
 

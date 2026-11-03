@@ -235,14 +235,122 @@ def build_palette(workspace: str | Path, economy_id: str | None = None) -> dict[
             origins[code] = f'dominant_io80:{parent}'
         else:
             raise ValueError(f'unsupported hierarchical sector code {code}')
+    # SIGMA_FIXED_PALETTE_ORIGIN_VORONOI_V1: override heuristic colors only.
+    # Keep all existing audits, hierarchy validation and gross-output lineage.
+    from sigma.export.fixed_palette import fixed_color as _fixed_sector_color
+    for code in codes:
+        chosen = _fixed_sector_color(code)
+        if chosen is None:
+            raise ValueError(f'no fixed 336-sector palette entry for {code!r}')
+        colors[code] = chosen
+        origins[code] = 'fixed_sigma_sector_palette_336'
     return {'schema_version': 1, 'economy_id': actual_id, 'area_slug': workspace.name,
             'members_sha256': _sha(member_file), 'places_sha256': _sha(places_file),
             'crosswalk_sha256': _sha(xwalk), 'colors': colors,
             'color_origins': origins, 'dominant_io80': dominant}
 
 
+def _validated_rollup_sector_codes(root: Path, economy_id: str, base_id: str) -> list[str] | None:
+    """Read an immutable, hash-verified residual roll-up with this exact Economy ID.
+
+    No guessed palette or fallback-to-sorted-colors is permitted for an identified
+    roll-up. All surviving sector codes inherit their unchanged baseline colors.
+    """
+    if not re.fullmatch(re.escape(base_id) + r'-rollup-[0-9a-f]{16}', economy_id):
+        return None
+    import yaml
+    from sigma.economy.model import Economy
+
+    base_dir = root / 'hierarchical' / 'economy'
+    base = Economy.from_directory(base_dir)
+    if base.economy_id != base_id:
+        raise ValueError('roll-up palette base Economy identity changed')
+    rollup_dir = root / 'hierarchical' / 'iterative_rollup'
+    candidates: list[Path] = []
+    if rollup_dir.is_dir() and not rollup_dir.is_symlink():
+        for item in rollup_dir.iterdir():
+            if not item.is_dir() or item.is_symlink() or not re.fullmatch(r'[0-9a-f]{24}', item.name):
+                continue
+            specification = item / 'economy' / 'economy.yml'
+            if not specification.is_file() or specification.is_symlink():
+                continue
+            meta = yaml.safe_load(specification.read_text(encoding='utf-8')) or {}
+            if isinstance(meta, dict) and str(meta.get('id', '')).strip() == economy_id:
+                candidates.append(item)
+    if len(candidates) != 1:
+        raise ValueError(f'Expected one derived roll-up package for {economy_id}; found {len(candidates)}')
+    package = candidates[0]
+    manifest_path = package / 'rollup_manifest.json'
+    if not manifest_path.is_file() or manifest_path.is_symlink():
+        raise ValueError('derived roll-up palette requires its package manifest')
+    manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+    receipt = manifest.get('receipt')
+    hashes = manifest.get('file_hashes')
+    digest = manifest.get('recipe_sha256')
+    scheme = 'sigma-iterative-residual-rollup-v1'
+    if (manifest.get('scheme') != scheme or not isinstance(digest, str)
+            or not re.fullmatch(r'[0-9a-f]{64}', digest)
+            or package.name != digest[:24] or not isinstance(receipt, dict)
+            or not isinstance(hashes, dict) or not hashes):
+        raise ValueError('derived roll-up manifest identity is invalid')
+    mapping = receipt.get('rollup_map')
+    if (receipt.get('scheme') != scheme or
+            receipt.get('base_economy_fingerprint') != base.economy_fingerprint or
+            not isinstance(mapping, dict) or not mapping or
+            not all(isinstance(k, str) and isinstance(v, str) for k, v in mapping.items())):
+        raise ValueError('derived roll-up is not linked to the current baseline Economy')
+    required = {'economy/economy.yml', 'economy/sectors.csv',
+                'economy/membership.csv', 'places.parquet'}
+    if not required.issubset(hashes):
+        raise ValueError('derived roll-up manifest is missing required checksums')
+    # Verify every manifest-listed file; do not silently use altered packages.
+    for rel, expected in hashes.items():
+        if (not isinstance(rel, str) or not isinstance(expected, str)
+                or not re.fullmatch(r'[0-9a-f]{64}', expected)):
+            raise ValueError('derived roll-up has invalid file hash entries')
+        candidate = (package / rel).resolve()
+        if (not candidate.is_relative_to(package.resolve()) or
+                not candidate.is_file() or candidate.is_symlink() or _sha(candidate) != expected):
+            raise ValueError(f'derived roll-up file failed integrity check: {rel}')
+
+    derived_dir = package / 'economy'
+    spec = yaml.safe_load((derived_dir / 'economy.yml').read_text(encoding='utf-8')) or {}
+    provenance = spec.get('derivation', {})
+    if (not isinstance(provenance, dict) or
+            provenance.get('source_kind') != 'hierarchical_io240_iterative_rollup' or
+            provenance.get('base_economy_fingerprint') != base.economy_fingerprint or
+            provenance.get('rollup_map') != mapping or
+            provenance.get('rollup_scheme') != scheme or
+            provenance.get('recipe_sha256') != digest):
+        raise ValueError('derived roll-up economy provenance does not match its manifest')
+    derived = Economy.from_directory(derived_dir)
+    if derived.economy_id != economy_id:
+        raise ValueError('derived roll-up Economy ID does not match the published run')
+    original_codes = list(base.sectors.codes)
+    derived_codes = list(derived.sectors.codes)
+    if (any(k not in original_codes or v not in original_codes or k == v for k, v in mapping.items())
+            or any(v in mapping for v in mapping.values())
+            or derived_codes != [c for c in original_codes if c not in mapping]):
+        raise ValueError('roll-up sectors do not preserve the baseline sector partition')
+    old_members = pd.read_csv(base_dir / 'membership.csv', dtype=str, keep_default_na=False)
+    new_members = pd.read_csv(derived_dir / 'membership.csv', dtype=str, keep_default_na=False)
+    fields = {'economy_code', 'io240_code', 'io80_code', 'io16_code'}
+    if (not fields.issubset(old_members.columns) or not fields.issubset(new_members.columns)
+            or len(new_members) != len(old_members)
+            or old_members.io240_code.duplicated().any()
+            or new_members.io240_code.duplicated().any()):
+        raise ValueError('derived roll-up membership is incomplete')
+    old = old_members.set_index('io240_code')
+    new = new_members.set_index('io240_code').reindex(old.index)
+    if (new['economy_code'].isna().any() or
+            not old['economy_code'].replace(mapping).equals(new['economy_code']) or
+            any(not old[f].equals(new[f]) for f in ('io80_code', 'io16_code'))):
+        raise ValueError('derived membership does not equal the declared sector roll-up')
+    return derived_codes
+
+
 def load_sector_palette(workspace: str | Path, economy_id: str) -> dict[str, str]:
-    """Lazy computation so future builds and new local partitions are handled."""
+    """Keep hierarchical sector colors stable through exact residual roll-ups."""
     if '-hierarchical-' not in str(economy_id):
         return {}
     root = _workspace_from(workspace)
@@ -250,8 +358,17 @@ def load_sector_palette(workspace: str | Path, economy_id: str) -> dict[str, str
         return {}
     import yaml
     metadata = yaml.safe_load((root/'hierarchical'/'economy'/'economy.yml').read_text(encoding='utf-8')) or {}
-    if str(metadata.get('id')) != str(economy_id):
-        return {}  # e.g., inspecting an old published run, not current hierarchy
+    base_id = str(metadata.get('id', '')).strip()
+    if base_id != str(economy_id):
+        surviving = _validated_rollup_sector_codes(root, str(economy_id), base_id)
+        if surviving is None:
+            return {}  # A different, unrelated hierarchical Economy.
+        baseline = build_palette(root, base_id)
+        colors = baseline['colors']
+        if any(code not in colors for code in surviving):
+            raise ValueError('derived roll-up has a sector without a baseline color')
+        # Do not write/overwrite the baseline sector_palette.json for derived runs.
+        return {code: colors[code] for code in surviving}
     palette = build_palette(root, economy_id)
     # Keep this outside the strictly owned hierarchy package: v7 --replace
     # rejects any extra file inside hierarchical/economy.

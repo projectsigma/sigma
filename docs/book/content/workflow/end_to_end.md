@@ -79,6 +79,27 @@ spatial.point_distances ─┘
                   analysis.scores
 ```
 
+<!-- sigma-docs-20261104-v1:begin -->
+## Hierarchical economy derivation between tagging and X construction
+
+`places.classified` first obtains the baseline IO240/IO80/IO16 sparse
+sector assignments chosen at `sigma load`. In a generated hierarchical
+`SIGMA run`, HDBSCAN cluster counts reveal which sectors retain `K=0`.
+The optional (default-on) iterative residual-first roll-up changes the
+effective sector partition only when a valid candidate meets the positive
+net-retention criterion, then regenerates the affected downstream spatial
+and economic stages. The original tags persist as
+`original_economy_code`; the effective IDs are used for all `(type,cluster)`
+X nodes and for national IO sector aggregation. Turning off the roll-up
+preserves the loaded baseline classification.
+
+This is a **conditional dependency branch** of the analysis pipeline, not
+an added establishment-to-establishment edge or an automatic nearest-center
+assignment. Explorer's 336 colors, original-child toggles, contextual
+unclustered overlay, and hover outlines are strictly downstream
+presentation, never inputs to `analysis.x` or `analysis.scores`.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## Why this order matters
 
 The workflow separates four different kinds of inference:

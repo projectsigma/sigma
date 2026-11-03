@@ -10,6 +10,25 @@ selects a fixed national resolution; `--economy` chooses a custom system.
 `sigma run` honors the area's recorded load choice instead of silently
 migrating it. See [Hierarchical economy](../methods/hierarchical.md).
 
+<!-- sigma-docs-20261104-v1:begin -->
+## Hierarchical run and Explorer presentation defaults
+
+| Policy | Current behavior |
+|---|---|
+| Generated hierarchical economy at `sigma load` | Build baseline sparse IO240/IO80/IO16 classification; no spatial roll-up during load |
+| `sigma run AREA` on generated hierarchy | Iterative roll-up **on** by default, triggered only when a sector has `K=0` retained HDBSCAN clusters |
+| `sigma run AREA --no-iterative-rollup` | Preserve the original hierarchical economic partition |
+| Fixed IO16, IO80, IO240, custom/equivalent runs | No implicit iterative roll-up |
+| Built-in sector colors | Exact 336-color fixed lookup (16/80/240); nearest parent color for `o` residuals |
+| Explorer Strongest selector | 3 links per explored cluster |
+| Explorer original roll-up children | Collapsed initially; independently filter establishment points only |
+| Explorer contextual unclustered overlay | Off until opted into; focused 0.96, depth `d`: `0.90/sqrt(d)` |
+| Explorer hovered center outline | Display-only, in sector color, when a selection is active |
+
+This CLI default is an **economy/workspace-specific policy**. It is not a
+`SigmaConfig` constant and does not change HDBSCAN's `min_cluster_size=5`.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## Places
 
 | Parameter | Default |

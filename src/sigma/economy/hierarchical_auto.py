@@ -330,6 +330,35 @@ def selected_places(workspace: str | Path, economy: Economy) -> Path | None:
     fixed = fixed_selected_places(workspace, economy)
     if fixed is not None:
         return fixed
+    # SIGMA_ITERATIVE_RESIDUAL_ROLLUP_PLACES_V1: the Economy/places pair
+    # belongs to one immutable derived package, not the original hierarchy.
+    metadata = economy.provenance.get("metadata")
+    derivation = metadata.get("derivation") if isinstance(metadata, dict) else None
+    if (isinstance(derivation, dict)
+            and derivation.get("source_kind") == "hierarchical_io240_iterative_rollup"):
+        from sigma.spatial.iterative_rollup import sha256_file
+        workspace_root = Path(workspace).expanduser().resolve()
+        package_root = Path(str(economy.provenance.get("economy_yml", ""))).resolve().parent.parent
+        allowed = (workspace_root / "hierarchical" / "iterative_rollup").resolve()
+        if not package_root.is_relative_to(allowed):
+            raise EconomyValidationError("iterative roll-up Economy lies outside workspace package root")
+        place_file = package_root / "places.parquet"
+        base = workspace_root / "hierarchical" / "places.parquet"
+        manifest_file = package_root / "rollup_manifest.json"
+        if not place_file.is_file() or not base.is_file() or not manifest_file.is_file():
+            raise EconomyValidationError("iterative roll-up package or original hierarchy is incomplete")
+        manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+        audit_path = workspace_root / "hierarchical" / "economy" / "audit.json"
+        original = workspace_root / "places" / "places.parquet"
+        if not audit_path.is_file() or not original.is_file():
+            raise EconomyValidationError("original hierarchical source/audit is missing")
+        source_audit = json.loads(audit_path.read_text(encoding="utf-8"))
+        if (manifest.get("recipe_sha256") != derivation.get("recipe_sha256")
+                or sha256_file(base) != derivation.get("base_places_sha256")
+                or sha256_file(original) != source_audit.get("places_input", {}).get("sha256")
+                or sha256_file(place_file) != manifest.get("file_hashes", {}).get("places.parquet")):
+            raise EconomyValidationError("iterative roll-up package is stale or altered; regenerate explicitly")
+        return place_file
     root = Path(workspace).expanduser().resolve() / "hierarchical"
     model = root / "economy" / "economy.yml"
     preview = root / "places.parquet"

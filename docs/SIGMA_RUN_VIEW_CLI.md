@@ -49,6 +49,32 @@ There is also a deliberately hidden compatibility option `--source-store PATH`; 
 
 `--refresh` and `--force` are mutually exclusive with this patch, because they mean materially different things.
 
+<!-- sigma-docs-20261104-v1:begin -->
+## Hierarchical iterative roll-up controls
+
+`SIGMA load AREA` creates the baseline hierarchy. For a generated
+hierarchical economy only, normal `sigma run AREA` enables residual-first
+iterative roll-up on sectors with **zero retained HDBSCAN clusters** (`K=0`).
+No roll-up is triggered by a merely small positive cluster count. The
+default does not apply to fixed IO16, IO80, IO240, explicit custom or
+legacy-equivalent economies. Valid changes must satisfy the method's
+positive net-retention condition; no input is assigned to the nearest
+Voronoi center as part of this option.
+
+```powershell
+sigma run quezon_city                   # default hierarchical roll-up
+sigma run quezon_city --iterative-rollup # explicit on
+sigma run quezon_city --no-iterative-rollup # preserve baseline hierarchy
+```
+
+These commands are **analysis operations**, not Explorer toggles. The
+CLI switch determines which effective Economy and clustered network are
+published. Explorer's original-child checkboxes only change **point
+visibility** within the already-published roll-up, not model assignments.
+Use `sigma view AREA --fast` only for changes to static frontend assets, not
+as a way to select a different analytical run.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## `sigma view AREA` options
 
 | Option | Default / meaning |

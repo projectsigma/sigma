@@ -1003,3 +1003,34 @@ html[data-theme="dark"] .sector-panel .sector-list .sector-item.sector-item--uns
     grid-template-columns: 14px 10px minmax(0, 1fr) 55px 47px 41.6px !important;
   }
 }
+
+/* SIGMA_ROLLUP_DEFAULT_AND_ORIGINAL_TAGS_V2: compact provenance disclosure.
+   Keep the existing 6-column sector grid and all numeric columns unchanged. */
+.sigma-rollup-sector {position:relative; min-width:0;}
+.sigma-rollup-sector .sector-item > .sector-title {padding-left:14px; box-sizing:border-box;}
+.sigma-rollup-toggle {position:absolute; z-index:1; top:50%; left:34px; transform:translateY(-50%);
+  width:14px; height:22px; padding:0; line-height:20px; border:0; border-radius:3px;
+  background:transparent; color:var(--muted); font-size:12px; font-weight:700;}
+.sigma-rollup-toggle:hover,.sigma-rollup-toggle:focus-visible {
+  color:var(--text); background:var(--bg); outline-offset:1px;}
+.sigma-rollup-children {padding:3px 8px 7px 42px; border-bottom:1px solid var(--border);
+  background:color-mix(in srgb,var(--panel) 85%,var(--bg));}
+.sigma-rollup-child {display:grid; grid-template-columns:minmax(0,1fr) 58px 42px; gap:4px;
+  align-items:center; padding:3px 0; color:var(--muted); font-size:10px;}
+.sigma-rollup-child-name {min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.sigma-rollup-child--moved .sigma-rollup-child-name {color:var(--text); font-weight:500;}
+.sigma-rollup-child-code {text-align:right; font-size:9px; white-space:nowrap;}
+.sigma-rollup-child-count {text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap;}
+@media(max-width:900px) {.sigma-rollup-toggle {left:31px;}}
+
+/* SIGMA_FIXED_PALETTE_ORIGIN_VORONOI_V1: disclosure controls stay within
+   the existing compact, scrollable 6-column sector panel. */
+.sigma-rollup-child {grid-template-columns:14px 11px minmax(0,1fr) 58px 42px;
+  cursor:pointer; padding:4px 0; gap:3px;}
+.sigma-rollup-child > .swatch {width:10px;height:10px;margin:0;}
+.sigma-rollup-child-toggle {width:12px;height:12px;margin:0; accent-color:var(--green);}
+.sigma-linked-unscored-control {display:flex;align-items:center;gap:6px;
+  font-size:10.5px;color:var(--muted);padding:5px 12px 8px;cursor:pointer;
+  border-bottom:1px solid var(--border);}
+.sigma-linked-unscored-control input {margin:0;flex:none;}
+html[data-theme='dark'] .sigma-linked-unscored-control {color:var(--muted);}

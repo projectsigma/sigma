@@ -34,6 +34,45 @@ The browser opens at `http://127.0.0.1:8765/` by default. Use `sigma view pasig 
 
 **Interpretation:** Each X node represents an **economic-type cluster**, not one firm. An edge is a **modeled spatial-economic relationship**, not evidence that two establishments actually trade. The default Explorer bundle contains individual establishment locations and should remain private unless data rights, attribution, and publication risks have been reviewed. A reduced `--public` export omits establishment-level records but is **not a guarantee of anonymity**. The separate [SIGMA documentation website](https://projectsigma.github.io/sigma/) explains the methods; it does not automatically host your local Explorer data.
 
+<!-- sigma-docs-20261104-v1:begin -->
+### Hierarchical roll-up and visual exploration (November 2026)
+
+For areas loaded with the generated hierarchical PSA 2018 economy, `sigma run AREA`
+uses **zero-cluster iterative roll-up by default**. SIGMA first clusters the
+original exclusively assigned sectors. Only a sector with **zero retained
+HDBSCAN clusters** (`K=0`) is eligible for residual-first coarsening and
+reclustering; the implementation retains a candidate only under its specified
+positive net-retention rule. There is no arbitrary minimum number of clusters,
+and sectors that already have clusters are not automatically merged. Use
+`sigma run AREA --no-iterative-rollup` to preserve the original hierarchy, or
+`--iterative-rollup` explicitly. This is a run-stage option, not a change to
+`load`; fixed IO16/IO80/IO240 and custom economies do not opt in implicitly.
+
+**Colors are presentation, not economic data.** The canonical sector palette
+contains 16 IO16, 80 IO80 and 240 IO240 fixed colors. The hierarchy's sparse
+codes and legacy codes resolve to the same color. Residual sectors use the
+corresponding parent color. In Explorer, an expanded rolled-up sector can show
+its original sub-sectors with their fixed colors and independent **point-only**
+visibility controls; the parent remains the effective sector for clustering,
+Voronoi ownership, X nodes, centrality and scores.
+
+In the local Explorer, **Unclustered within highlighted partitions** is an
+opt-in display of unclustered establishments of matching effective sectors
+inside the displayed network's published Voronoi polygons. Focus opacity is
+0.96; network step `d` uses `0.90 / sqrt(d)`. Those establishments do **not**
+gain cluster membership or scores. Hover a visible cluster-center triangle
+while a selection is active to outline that cluster's published Voronoi
+partition in its sector color; this does not alter its geometry. The existing
+no-selection unclustered overlay remains separate. `sigma view AREA --fast`
+updates static UI files only, **not** analytical outputs or metadata.
+
+See [Hierarchical economy](docs/book/content/methods/hierarchical.md),
+[Explorer](docs/book/content/intro/explorer.md), [Explorer guide](SIGMA_EXPLORER.md),
+and [Under the Hood](src/sigma/web/static/tutorial.html). The published
+[Jupyter Book](https://projectsigma.github.io/sigma/) explains the methods;
+it does not publish your local establishment data.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## Objectives
 
 The main objective of SIGMA is to enable the design of **ecosystem-specific MSME acquisition strategies** by identifying spatially concentrated business systems, estimating how those systems are connected, and ranking influential businesses within them.

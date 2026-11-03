@@ -15,6 +15,31 @@ IO crosswalk, economic transaction, spatial clustering, or X network is changed.
 - **Public profile**: establishment-level locations and the local finder remain
   disabled. The augmentation applies to the local Explorer only.
 
+<!-- sigma-docs-20261104-v1:begin -->
+## Current Explorer interpretation (supersedes the historical patch snapshot below)
+
+- **Scored establishments** remain score-sized filled circles with actual
+  HDBSCAN/X-node membership.
+- **Unclustered establishments** appear in a *separate opt-in symbol layer*,
+  shown as hollow **upright triangles**. They retain an effective economic
+  sector but no HDBSCAN cluster ID or SIGMA score; the original tag may differ
+  from the effective roll-up parent. The sector list does not imply that
+  every establishment in a sector is clustered.
+- With a selected X node, the **Unclustered within highlighted partitions**
+  toggle shows only same-effective-sector unclustered points inside the
+  published Voronoi polygons of the focused or linked clusters; the selected
+  context uses `0.96` opacity and network step `d` uses `0.90/sqrt(d)`.
+- In expanded rolled-up sectors, original industries have independent
+  point-layer checkboxes and retain the canonical 336-color palette.
+- After a scored selection, hovering a cluster-center triangle outlines its
+  *already published* partition boundary in its sector color. Neither
+  geographic containment nor hover creates a cluster score.
+
+The original counts and install instructions below describe the historical
+snapshot of the earlier unclustered-visibility patch; they should not be
+used as current workspace counts or as required installation steps.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## Safety
 
 `pois.parquet` is used only if included in the current `sigma_manifest.json`

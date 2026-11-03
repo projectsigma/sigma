@@ -19,7 +19,12 @@ def _s(value: object) -> str:
 
 
 def matching_catalog_files(source: Path, run: dict) -> tuple[Path, Path] | None:
-    """Find an Economy catalog only in a workspace owning this exact output dir."""
+    """Resolve the *exact* published hierarchical Economy in its owning workspace.
+
+    Baseline models live at hierarchical/economy. Iterative roll-ups are immutable
+    alternatives at hierarchical/iterative_rollup/<recipe-prefix>/economy. Never
+    use the baseline catalog merely because it lives in the right workspace.
+    """
     economy_id = _s(run.get("economy_id"))
     if "-hierarchical-" not in economy_id:
         return None
@@ -31,9 +36,7 @@ def matching_catalog_files(source: Path, run: dict) -> tuple[Path, Path] | None:
         candidates.append(sigma_home() / "workspaces" / slug)
     for candidate in candidates:
         record = candidate / "workspace.json"
-        catalog = candidate / "hierarchical" / "economy" / "sectors.csv"
-        spec = catalog.with_name("economy.yml")
-        if not all(p.is_file() for p in (record, catalog, spec)):
+        if not record.is_file():
             continue
         workspace = json.loads(record.read_text(encoding="utf-8"))
         configured_output = Path(str(workspace.get("output_dir", ""))).expanduser()
@@ -41,10 +44,62 @@ def matching_catalog_files(source: Path, run: dict) -> tuple[Path, Path] | None:
             configured_output = candidate / configured_output
         if configured_output.resolve() != source:
             continue
-        model = yaml.safe_load(spec.read_text(encoding="utf-8")) or {}
-        if _s(model.get("id")) != economy_id:
-            raise ValueError("Explorer Economy ID disagrees with the owning workspace's catalog")
-        return catalog, spec
+
+        baseline = candidate / "hierarchical" / "economy"
+        catalog, spec = baseline / "sectors.csv", baseline / "economy.yml"
+        if catalog.is_file() and spec.is_file():
+            model = yaml.safe_load(spec.read_text(encoding="utf-8")) or {}
+            if _s(model.get("id")) == economy_id:
+                return catalog, spec
+
+        # SIGMA_ITERATIVE_ROLLUP_EXPLORER_CATALOG_V1: locate only a validated
+        # local derivation, never a guessed catalog from another workspace.
+        from hashlib import sha256
+
+        alternatives = candidate / "hierarchical" / "iterative_rollup"
+        matches: list[tuple[Path, Path]] = []
+        if alternatives.is_dir() and not alternatives.is_symlink():
+            for package in sorted(alternatives.iterdir()):
+                if not package.is_dir() or package.is_symlink():
+                    continue
+                derived = package / "economy"
+                if derived.is_symlink():
+                    continue
+                derived_catalog = derived / "sectors.csv"
+                derived_spec = derived / "economy.yml"
+                marker = package / "rollup_manifest.json"
+                if not all(path.is_file() and not path.is_symlink()
+                           for path in (derived_catalog, derived_spec, marker)):
+                    continue
+                model = yaml.safe_load(derived_spec.read_text(encoding="utf-8")) or {}
+                if _s(model.get("id")) != economy_id:
+                    continue
+                manifest = json.loads(marker.read_text(encoding="utf-8"))
+                derivation = model.get("derivation") or {}
+                recipe = manifest.get("recipe_sha256")
+                if (not isinstance(recipe, str) or len(recipe) != 64
+                        or package.name != recipe[:24]
+                        or derivation.get("source_kind") != "hierarchical_io240_iterative_rollup"
+                        or derivation.get("recipe_sha256") != recipe
+                        or manifest.get("receipt", {}).get("base_economy_fingerprint")
+                           != derivation.get("base_economy_fingerprint")):
+                    raise ValueError("Explorer roll-up Economy provenance is invalid")
+                hashes = manifest.get("file_hashes") or {}
+                for filename, path in (
+                    ("economy/sectors.csv", derived_catalog),
+                    ("economy/economy.yml", derived_spec),
+                ):
+                    expected = hashes.get(filename)
+                    if (not isinstance(expected, str)
+                            or sha256(path.read_bytes()).hexdigest() != expected):
+                        raise ValueError("Explorer roll-up Economy catalog checksum mismatch: " + filename)
+                matches.append((derived_catalog, derived_spec))
+        if len(matches) != 1:
+            if len(matches) > 1:
+                raise ValueError("Ambiguous derived Economy catalogs for published SIGMA run")
+            raise ValueError("Explorer Economy ID disagrees with the owning workspace's catalog; "
+                             "no matching validated iterative roll-up package found")
+        return matches[0]
     return None
 
 

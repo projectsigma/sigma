@@ -44,6 +44,28 @@ The default cell resolution is 500 m with a one-million-cell guard. If a coarse 
 The ownership decision attached to each cell is network-based, but the resulting polygon boundary is a finite-resolution **rendering**. It should not be described as an exact planar network Voronoi boundary.
 ```
 
+<!-- sigma-docs-20261104-v1:begin -->
+## Browser highlighting and unclustered contextual points
+
+The Explorer may temporarily outline the **published** polygon for a hovered
+cluster-center triangle once a cluster or scored establishment is selected.
+This is a MapLibre line layer filtered by the existing X-node ID and colored
+from the fixed sector palette; it does not alter 1-D network ownership or
+reconstruct polygons. The outline can be shown even while the ordinary
+partition-polygon display is off.
+
+The opt-in **Unclustered within highlighted partitions** layer uses the
+existing 2-D exported polygon as a spatial inclusion test, restricted to
+unclustered establishments whose **effective economic type matches the
+particular highlighted cluster**. Depth-dependent opacity visualizes the
+selected X neighborhood; it does **not** assign HDBSCAN cluster membership,
+modify a Voronoi owner, create X edges or infer an establishment SIGMA score.
+In cross-sector overlapping polygons, a point can be geographic context for
+more than one sector; the effective-sector match prevents cross-sector
+membership inference. The polygon is a finite-grid approximation, not an
+exact planar road-network boundary.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## Euclidean recovery fallback
 
 After network-Voronoi rendering attempts are exhausted, SIGMA may construct an ordinary planar Euclidean Voronoi surface from final cluster-center coordinates. If centers coincide, it first substitutes raw projected cluster centroids for only those coincident sites. This path is explicitly labeled `euclidean_voronoi_fallback`.
