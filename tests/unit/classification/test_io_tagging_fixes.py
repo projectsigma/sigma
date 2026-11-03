@@ -189,12 +189,15 @@ def test_direct_rules_with_disagreeing_tags_are_a_conflict():
 
 @pytest.mark.parametrize("domain, name, side", [
     ("education", "Bagong Silang National High School", "public"),
-    ("education", "Holy Spirit Academy", "private"),
-    ("education", "St. Joseph Elementary School", "private"),
+    ("education", "Holy Spirit Academy", ""),
+    ("education", "St. Joseph Elementary School", ""),
     ("education", "University of Santo Tomas", ""),
     ("health", "Rural Health Unit I", "public"),
     ("health", "Smile Dental Clinic", "private"),
     ("health", "City Health Office Clinic", "public"),
+    ("health", "City Health Office", ""),
+    ("health", "DOH NCR Regional Office", ""),
+    ("education", "Holy Spirit Elementary School", ""),
 ])
 def test_ownership_evidence_abstains_unless_one_sided(domain, name, side):
     assert ownership_evidence({"osm_name": name}, domain).side == side
