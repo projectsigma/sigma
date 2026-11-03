@@ -650,6 +650,7 @@ def _build_unstaged_bundle(
         for field in (
             "economy_status", "io_mapping_provisional", "economy_evidence",
             "economy_review_required", "economy_candidate_source",
+            "original_economy_code",  # SIGMA_ROLLUP_DEFAULT_AND_ORIGINAL_TAGS_V2
         ):
             if field in by_id:
                 points[field] = points["canonical_id"].map(by_id[field])
@@ -696,6 +697,7 @@ def _build_unstaged_bundle(
     ]
     evidence_text = _column(points, "economy_evidence")
     sources_text = _column(points, "sources", "source")
+    original_types = _column(points, "original_economy_code")
     tiles: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
     # Local-only name index: sector -> [name, tile key, position in tile, cluster].
     finder_rows: dict[str, list[list[Any]]] = defaultdict(list)
@@ -720,6 +722,7 @@ def _build_unstaged_bundle(
                 "unclustered": bool(points["unclustered"].iat[i]) if "unclustered" in points else False,
                 "psic": psic.iat[i], "sources": sources_text.iat[i], "basis": basis[i],
                 "evidence": evidence_text.iat[i],
+                "original_type": original_types.iat[i],
             },
             "geometry": {"type": "Point", "coordinates": [
                 round(float(lon[i]), COORDINATE_DIGITS), round(float(lat[i]), COORDINATE_DIGITS)
@@ -806,6 +809,12 @@ def _build_unstaged_bundle(
         label_hints.setdefault(code, label)
     codes = sorted({n["type"] for n in nodes} | set(types) | set(catalog), key=_sector_order)
     colors, labels = _sector_styles(codes, economy_id, label_hints)
+    # SIGMA_ROLLUP_DEFAULT_AND_ORIGINAL_TAGS_V2: light, read-only composition
+    # of the already published, validated classified POI handoff.
+    from .rollup_hierarchy import validated_breakdown_for_run
+    rollup_children = validated_breakdown_for_run(
+        source, run, classified_points if classified_path is not None else None, catalog
+    ) if profile == "local" else {}
     # SIGMA_HIERARCHICAL_SECTOR_PALETTE_V1_WEB: match QGIS colors for adaptive hierarchical sectors.
     from sigma.export.hierarchical_palette import discover_sector_palette as _sigma_area_colors
     _sigma_palette = _sigma_area_colors(source, economy_id)
@@ -816,12 +825,38 @@ def _build_unstaged_bundle(
     for _sigma_code, _sigma_color in _sigma_palette.items():
         if _sigma_code in colors:
             colors[_sigma_code] = _sigma_color
+    # SIGMA_FIXED_PALETTE_ORIGIN_VORONOI_V1: fixed colors override all
+    # formerly generated shades, including residuals and roll-up parents.
+    from sigma.export.fixed_palette import fixed_color as _fixed_sector_color
+    for _code in codes:
+        _fixed = _fixed_sector_color(_code, economy_id=economy_id)
+        if _fixed is not None:
+            colors[_code] = _fixed
     point_counts = types.value_counts().to_dict()
     cluster_counts = pd.Series([n["type"] for n in nodes], dtype=object).value_counts().to_dict()
     sectors = [{
         "code": code, "label": labels.get(code, code), "color": colors[code],
         "points": int(point_counts.get(code, 0)), "clusters": int(cluster_counts.get(code, 0)),
+        "rollup_children": [
+            {**child, "color": _fixed_sector_color(child["code"]) or colors[code]}
+            for child in rollup_children.get(code, [])
+        ],
     } for code in codes]
+    # Existing published tiles can be recolored with a small ID map; future
+    # bundles additionally carry original_type on each point feature.
+    _original_overrides = {}
+    if profile == "local" and classified_path is not None:
+        needed = {"canonical_id", "economy_code", "original_economy_code"}
+        if needed <= set(classified_points.columns):
+            for _cid, _eff, _orig in classified_points[
+                ["canonical_id", "economy_code", "original_economy_code"]
+            ].itertuples(index=False, name=None):
+                if pd.notna(_cid) and pd.notna(_orig) and pd.notna(_eff):
+                    _id, _o, _e = str(_cid).strip(), str(_orig).strip(), str(_eff).strip()
+                    if _id and _o and _e and _o != _e:
+                        if _id in _original_overrides and _original_overrides[_id] != _o:
+                            raise ValueError('conflicting original sector for one canonical ID')
+                        _original_overrides[_id] = _o
     finite = scores[np.isfinite(scores)]
     bounds = None
     for frame in (boundary, points, partitions):
@@ -854,6 +889,7 @@ def _build_unstaged_bundle(
             "partitions": len(partition_features), "roads": road_count,
         },
         "sectors": sectors,
+        "original_type_overrides": _original_overrides,  # SIGMA_FIXED_PALETTE_ORIGIN_VORONOI_V1
         "tile_zoom": TILE_ZOOM,
         "point_budget": POINT_BUDGET,
         "has_roads": bool(road_count),

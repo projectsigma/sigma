@@ -16,6 +16,11 @@ function section(start, end) {
 }
 const unscoredSource = section('  const unscoredSectorIcons = new Map();', '  function centerIconExpression() {');
 const helperSource = section('  function centerIconExpression() {', '  // Selected cluster:');
+// Evaluate real original-sector filter and color logic inside isolated tests.
+const originalFilterSource = section('  function sigmaOriginalFilter() {',
+  '  function sigmaEstablishmentColors() {');
+const paletteSource = section('  function sigmaEstablishmentColors() {',
+  '  const selectedIconByType = new Map();');
 const selectedSource = section('  function selectedCenterIconExpression() {', '  function addLayers(data) {');
 const layerSource = section('  function addLayers(data) {', '  function bindControls() {');
 // Keep the actual Katz helpers in the extracted layer-building code.
@@ -73,7 +78,7 @@ const katzNodes = new Map([...sectors.keys()].map((code, i) =>
 const funcs = new Function('document', 'sectors', 'map', 'COLOR', 'centerIconByType',
   'linkedCenterIconByType', 'darkCenterIconByType', 'darkLinkedIconByType',
   'selectedIconByType', 'meta', 'isNum', 'sectorMatchPairs', 'EMPTY', 'nodeIndex',
-  `${katzSource}\n${unscoredSource}\n${helperSource}\n${selectedSource}\n${layerSource}\ninitializeKatzCenterLimits();\nreturn {addLayers};`)(
+  `${paletteSource}\n${katzSource}\n${unscoredSource}\n${helperSource}\n${selectedSource}\n${layerSource}\ninitializeKatzCenterLimits();\nreturn {addLayers};`)(
   document, sectors, map, colors, centerIconByType, linkedCenterIconByType,
   darkCenterIconByType, darkLinkedIconByType, selectedIconByType,
   meta, isNum, sectorMatchPairs, EMPTY, katzNodes);
@@ -152,7 +157,7 @@ const sectorColor = code => sectors.get(String(code)).color;
 const getEmphasis = new Function('map','network','COLOR','notHidden','updatePartitions',
   'themeMode','updateCenterVisibility','applyTheme', 'document','nodeIndex',
   'sectorColor','isNum',
-  `function syncUnscoredOverlay() {}\n${routeAnchorSource}\n${triangleSource}\nsigmaTriangleStyleByNode = computeNetworkTriangleStyles();\n${emphasisSource}\nreturn applyEmphasis;`)(
+  `const sigmaHiddenOriginals = new Set();\n${originalFilterSource}\nfunction syncUnscoredOverlay() {}\n${routeAnchorSource}\n${triangleSource}\nsigmaTriangleStyleByNode = computeNetworkTriangleStyles();\n${emphasisSource}\nreturn applyEmphasis;`)(
     map, network, colors, () => true, () => {}, 'light', () => {}, () => {},
     document, nodeIndex, sectorColor, isNum);
 getEmphasis();

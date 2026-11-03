@@ -25,7 +25,7 @@ function section(start, end) {
   const wrapped = new Function('sigmaPerf', 'sigmaSyncSelectedTriangle', 'sigmaTriangleImageCache', 'SIGMA_TRIANGLE_IMAGE_LIMIT', 'pruneSigmaTriangleImages', 'selection', 'nodeIndex', 'buildNetwork',
     'computeNetworkTriangleStyles', 'renderSelection', 'ready', 'applyEmphasis', 'updateStatus',
     'renderSectors', 'drawGraph', 'renderConnections', 'showRoutes', 'setData', 'EMPTY',
-    'requestAnimationFrame', 'setTimeout', 'document',
+    'requestAnimationFrame', 'setTimeout', 'document', 'sigmaSetHoveredPartition',
     `let refreshEpoch=0, routeEpoch=0, hoverEpoch=0, pendingHoverEvent=null, sigmaTriangleStyleByNode=null, network=null;\n${script}\nreturn {refresh};`);
   const callbacks = ['renderSelection', 'applyEmphasis', 'updateStatus', 'renderSectors', 'drawGraph', 'renderConnections', 'showRoutes'];
   const cb = Object.fromEntries(callbacks.map(key => [key, () => work.push(`${key}:${lastSelectionId}`)]));
@@ -41,10 +41,14 @@ function section(start, end) {
     {querySelector: selector => {
       assert.equal(selector, '.graph-section .sidebar-disclosure');
       return graphDetails;
-    }});
+    }}, id => {
+      assert.equal(id, null, 'Refresh must clear the hovered partition');
+      work.push('hover:clear');
+    });
   handler.refresh();
   assert.equal(graphDetails.open, true, 'selected network should expand graph');
-  assert.deepEqual(work.slice(0,2), ['routes:clear','route-hover:clear']);
+  assert.deepEqual(work.slice(0,3), ['hover:clear','routes:clear','route-hover:clear'],
+    'Selection refresh must clear the hovered polygon before old routes');
   assert(work.includes('applyEmphasis:first'));
   assert(!work.some(x=>x.startsWith('drawGraph:')),'expensive work must be deferred');
   lastSelectionId='second';

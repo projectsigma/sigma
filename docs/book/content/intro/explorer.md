@@ -56,6 +56,44 @@ sourcing relationship. The routing graph itself is undirected. See
 
 For large views, Explorer can switch to density shading rather than loading more than 150,000 establishments at once. The network view is capped at 300 nodes and 1,500 directed edges per selection and marks truncated displays. Neither cap modifies the original SIGMA outputs.
 
+<!-- sigma-docs-20261104-v1:begin -->
+## Fixed industry colors, rolled-up sectors, and contextual inspection
+
+SIGMA now uses a **fixed 336-sector color specification** (16 broad, 80
+intermediate, 240 detailed industries). `X:Y:Z`, `X:Y`, and `X` use their
+specified canonical colors, also available by legacy source-sector codes;
+residual `o` sectors inherit the corresponding parent color. Palette changes
+are visual only and cannot change an X weight or a SIGMA score.
+
+For generated hierarchical economies, the normal run performs **post-clustering
+zero-cluster roll-up** by default. Expanding an affected sector in the local
+Explorer shows original sector tags, counts, and separate point-visibility
+checkboxes. A moved establishment can retain the fixed color of its *original*
+industry, but the effective rolled-up sector remains its analytical X type.
+Expanding or hiding children does **not** create child clusters or recompute
+network scores. See [Hierarchical economy](../methods/hierarchical.md).
+
+There are two distinct opt-in unclustered displays. Outside a selected network,
+the existing classified/unscored overlay can show establishments with no X
+membership. When a scored cluster or place is selected, **Unclustered within
+highlighted partitions** shows only unclustered establishments with a matching
+effective sector lying inside the *published* Voronoi partition of the focus
+or one of the linked clusters. Focus opacity is `0.96`; depth `d` opacity is
+`0.90 / sqrt(d)`. This is spatial context, **not** a membership or score
+assignment. The public-profile Explorer does not expose establishment points.
+
+Hovering a visible cluster-center triangle while a selection is active
+transiently outlines just that cluster's existing Voronoi polygon in its
+sector's color, including if the ordinary partitions layer is switched off.
+The outline disappears on hover exit, selection changes, and map movements.
+
+The **Strongest** toolbar starts at **3 per cluster**, with 1, 5, 10, and
+Custom alternatives. `sigma view AREA --fast` updates UI assets only; when
+new analytical output, catalog, or per-point original-tag data are needed,
+use a validated normal/full Explorer refresh instead. Updating one existing
+bundle's small metadata file does not automatically update tiles or analytics.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## Export a browser bundle
 
 ```powershell

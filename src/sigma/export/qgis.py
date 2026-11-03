@@ -176,6 +176,12 @@ def build_sector_styles(catalog: SectorCatalog) -> dict[str, SectorStyle]:
             color, label = _IO80_PRESENTATION[numeric_code]
         else:
             color, label = _fallback_color(index), str(sector.label).strip()
+        # SIGMA_FIXED_PALETTE_ORIGIN_VORONOI_V1: fixed official IO palettes.
+        from sigma.export.fixed_palette import fixed_color
+        _level = f'io{len(catalog)}' if len(catalog) in (16, 80, 240) else None
+        _fixed = fixed_color(code, level=_level) if _level or ':' in code else None
+        if _fixed is not None:
+            color = _fixed
         display = f"{_pad_code(code)} - {label}"
         styles[code] = SectorStyle(
             code=code,

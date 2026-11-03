@@ -14,6 +14,28 @@ When `sigma augment` has been used, inspect `aug_<source>__<column>` fields in t
 These source attributes are retained for future analyses but are not automatically included in clustering or SIGMA scores. See [Augment user-provided places](../methods/augmentation.md).
 <!-- sigma-augment-docs-v1:end:outputs -->
 
+<!-- sigma-docs-20261104-v1:begin -->
+## Baseline and rolled-up sector provenance
+
+For an iterative hierarchical roll-up, distinguish the **original sector
+code** (`original_economy_code`) from the **effective sector code**
+(`economy_code`, exported as `type` for X membership). The first records the
+original classified industry; the second is the coarse sector actually used
+for HDBSCAN, IO aggregation, X connectivity, centrality, and scoring. The
+roll-up's Economy ID identifies the derived catalog rather than silently
+reusing the baseline catalog. One parent X sector may contain multiple
+original industries; there are no child-level X nodes or child SIGMA scores.
+
+In the local Explorer, sector metadata can include `rollup_children`, with
+original code, label and classified establishment count. Per-point
+`original_type` (or a validated compact `original_type_overrides` metadata
+map for existing tiles) controls independent child-point visibility and the
+fixed child color. Effective `type` remains unchanged. Public bundles do not
+include per-establishment records. UI-only and metadata-only updates to an
+existing Explorer do not recompute or rewrite analytical outputs, although
+they do not automatically replace all older tile data.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## Clusters
 
 Key audit fields include:

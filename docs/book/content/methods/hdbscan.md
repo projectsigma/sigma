@@ -72,6 +72,25 @@ A hard default guard of 20,000,000 unordered neighbor pairs protects memory. If 
 Core distance, mutual reachability, hierarchy, stability, and EOM/leaf extraction are HDBSCAN* concepts. Sparse bounded network-neighbor construction, the adaptive radius stopping diagnostic, deterministic tie handling, pair caps, and the Euclidean recovery path are SIGMA implementation choices around that model.
 ```
 
+<!-- sigma-docs-20261104-v1:begin -->
+## Consequence of zero retained clusters in a hierarchical run
+
+A successful HDBSCAN execution can produce **zero retained clusters** for a
+sector; that is a legitimate extraction result, not a Python exception and
+not evidence that Euclidean fallback ran. The network EOM → network leaf →
+Euclidean fallback rules below are recovery paths for eligible **failures**;
+they do not turn a successful zero-cluster output into a successful sector.
+
+For a generated hierarchical economy, SIGMA may subsequently run a separate,
+**default-on iterative residual-first roll-up** *when `K=0`*. That pass
+changes the effective economic partition and reruns clustering as required.
+It is distinct from HDBSCAN's leaf/EOM extraction and from assigning every
+point to a cluster. `--no-iterative-rollup` preserves the baseline results.
+Sectors with nonzero retained clusters are not rolled up merely because a
+large proportion of their establishments are HDBSCAN noise. See
+[Hierarchical economy](hierarchical.md).
+<!-- sigma-docs-20261104-v1:end -->
+
 ## Fallback
 
 The default extraction is **network HDBSCAN EOM**. If the HDBSCAN call raises

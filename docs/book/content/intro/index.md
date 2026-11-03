@@ -38,6 +38,23 @@ The default is deliberately conservative: deterministic place classification, no
 A node of the final graph is not an individual establishment. It is a **spatial cluster of establishments of one economic type**, identified by `(type, cluster)`. Establishments receive their final score from the centrality of that cluster, tempered by their road distance from the cluster center.
 ```
 
+<!-- sigma-docs-20261104-v1:begin -->
+**Current hierarchical run behavior:** `sigma load AREA` creates the
+baseline IO240/IO80/IO16 partition. A normal `sigma run AREA` on that
+generated hierarchy can perform residual-first **zero-cluster** (`K=0`)
+iterative roll-up after the baseline HDBSCAN evaluation. The baseline is
+available using `sigma run AREA --no-iterative-rollup`; no clusters are
+fabricated for individual noise points. The resulting effective economic
+sectors determine X and scoring, while each establishment's original sector
+code is retained separately for provenance and Explorer point presentation.
+
+The local Explorer uses a fixed 336-color hierarchical palette and can
+reveal rolled-up original industries, unclustered points within the selected
+network's published Voronoi polygons, and a sector-colored hover outline
+for an individual cluster's partition. These are **display operations**, not
+additional cluster assignments or supplier relationships.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## Reading the book
 
 If you want to run SIGMA first, start with [Quickstart](quickstart.md). If you want the model specification, read [End-to-end workflow](../workflow/end_to_end.md) and then the method chapters in order. The [Method lineage](../reference/method_lineage.md) page distinguishes published algorithms from SIGMA-specific implementation rules; the [References](../reference/references.md) page consolidates the published literature supporting the methods used by SIGMA.

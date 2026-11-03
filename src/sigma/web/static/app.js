@@ -33,6 +33,29 @@
   const nodeIndex = new Map();   // node id -> X node
   const pairIndex = new Map();   // node id -> Map(other id -> {other, out, in})
   const sectors = new Map();     // sector code -> {code, label, color, points, clusters}
+  // SIGMA_FIXED_PALETTE_ORIGIN_VORONOI_V1: original-sector visibility
+  // only filters establishments; X nodes remain effective roll-up parents.
+  const sigmaHiddenOriginals = new Set();
+  let sigmaVoronoiFeatures = [];
+  const sigmaVoronoiBounds = new WeakMap();
+  function sigmaOriginalType(p) {
+    const id = String(p.id || '');
+    return String(meta?.original_type_overrides?.[id] || p.original_type || p.type || '');
+  }
+  function sigmaOriginalAllowed(p) { return !sigmaHiddenOriginals.has(sigmaOriginalType(p)); }
+  function sigmaOriginalFilter() {
+    return ['!', ['in', ['coalesce', ['get', 'original_type'], ['get', 'type']],
+      ['literal', [...sigmaHiddenOriginals]]]];
+  }
+  function sigmaEstablishmentColors() {
+    const pairs = new Map([...sectors.values()].map(s => [String(s.code), String(s.color)]));
+    for (const sector of sectors.values()) for (const child of (sector.rollup_children || []))
+      pairs.set(String(child.code), String(child.color || sector.color));
+    const result = [];
+    for (const [code, color] of pairs) result.push(code, color);
+    return ['match', ['coalesce', ['get', 'original_type'], ['get', 'type']],
+      ...(result.length ? result : ['__none__', '#657f78']), '#657f78'];
+  }
   const selectedIconByType = new Map(); // explicit sector => filled triangle icon
   const centerIconByType = new Map(); // normal white-face icons
   const linkedCenterIconByType = new Map(); // sector-filled, blue-outlined icons
@@ -437,9 +460,10 @@
       const scoredFeatures = [];
       const classifiedOnly = [];
       for (const group of groups) for (const feature of (group.features || [])) {
+        if (feature.properties) feature.properties.original_type = sigmaOriginalType(feature.properties);
         if (feature.properties && feature.properties.unclustered === true) {
           // Only classified-but-unscored point rows may enter the optional source.
-          feature.properties.unscored_icon = unscoredSectorIcons.get(String(feature.properties.type)) ||
+          feature.properties.unscored_icon = unscoredSectorIcons.get(String(feature.properties.original_type)) ||
             'sigma-unscored-triangle-default';
           classifiedOnly.push(feature);
         } else scoredFeatures.push(feature);
@@ -681,24 +705,109 @@
   // currently enabled sector AND no selected scored X network are required.
   // Fail-closed, data-level opt-in. The unscored GeoJSON source is EMPTY
   // until the user explicitly checks the box. Styling cannot leak these places.
+  // SIGMA_FIXED_PALETTE_ORIGIN_VORONOI_V1: spatial-only context for
+  // unclustered establishments. No synthetic X membership is created.
+  function sigmaInRing(point, ring) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[i], b = ring[j];
+      if (!Array.isArray(a) || !Array.isArray(b)) continue;
+      // Include points precisely on partition boundaries.
+      const dx = b[0]-a[0], dy = b[1]-a[1];
+      const cross = (point[0]-a[0])*dy - (point[1]-a[1])*dx;
+      if (Math.abs(cross) < 1e-11 && point[0] >= Math.min(a[0], b[0])-1e-11 &&
+          point[0] <= Math.max(a[0], b[0])+1e-11 &&
+          point[1] >= Math.min(a[1], b[1])-1e-11 && point[1] <= Math.max(a[1], b[1])+1e-11) return true;
+      if ((a[1] > point[1]) !== (b[1] > point[1]) &&
+          point[0] < dx*(point[1]-a[1])/dy+a[0]) inside = !inside;
+    }
+    return inside;
+  }
+  function sigmaInsidePolygon(point, polygon) {
+    return Array.isArray(polygon) && polygon.length > 0 && sigmaInRing(point, polygon[0]) &&
+      !polygon.slice(1).some(hole => sigmaInRing(point, hole));
+  }
+  function sigmaInsideGeometry(point, geometry) {
+    if (!geometry || !Array.isArray(point) || point.length !== 2) return false;
+    if (geometry.type === 'Polygon') return sigmaInsidePolygon(point, geometry.coordinates);
+    if (geometry.type === 'MultiPolygon') return (geometry.coordinates || [])
+      .some(polygon => sigmaInsidePolygon(point, polygon));
+    return false;
+  }
+  function sigmaBounds(geometry) {
+    if (sigmaVoronoiBounds.has(geometry)) return sigmaVoronoiBounds.get(geometry);
+    const bounds = [Infinity, Infinity, -Infinity, -Infinity];
+    const visit = values => {
+      if (!Array.isArray(values)) return;
+      if (values.length >= 2 && typeof values[0] === 'number' && typeof values[1] === 'number') {
+        bounds[0] = Math.min(bounds[0], values[0]); bounds[1] = Math.min(bounds[1], values[1]);
+        bounds[2] = Math.max(bounds[2], values[0]); bounds[3] = Math.max(bounds[3], values[1]);
+      } else for (const child of values) visit(child);
+    };
+    visit(geometry.coordinates);
+    sigmaVoronoiBounds.set(geometry, bounds);
+    return bounds;
+  }
+  function sigmaHighlightedPartitions() {
+    if (!network) return new Map();
+    const bySector = new Map();
+    for (const feature of sigmaVoronoiFeatures) {
+      const p = feature.properties || {};
+      const depth = network.ring.get(String(p.node_id));
+      if (depth === undefined || !feature.geometry) continue;
+      const type = String(p.type);
+      if (!bySector.has(type)) bySector.set(type, []);
+      bySector.get(type).push({id: String(p.node_id), depth, geometry: feature.geometry,
+        bbox: sigmaBounds(feature.geometry)});
+    }
+    for (const values of bySector.values()) values.sort((a, b) => a.depth-b.depth);
+    return bySector;
+  }
+  function sigmaVoronoiForUnscored(feature, bySector) {
+    const p = feature.properties || {};
+    const point = feature.geometry?.coordinates;
+    if (!Array.isArray(point) || point.length !== 2) return null;
+    for (const candidate of bySector.get(String(p.type)) || []) {
+      const b = candidate.bbox;
+      if (point[0] < b[0] || point[0] > b[2] || point[1] < b[1] || point[1] > b[3]) continue;
+      if (sigmaInsideGeometry(point, candidate.geometry)) return candidate;
+    }
+    return null;
+  }
   function syncUnscoredOverlay() {
     if (!map || !map.getLayer || !map.getLayer('unclustered-establishments')) return;
     const control = $('show-unscored');
-    const enabled = Boolean(control && control.checked && !control.disabled && !network);
-    const sectorKey = [...hidden].sort().join('|');
-    const sourceKey = enabled ? `${lastRenderedTileSignature || ''}|${sectorKey}` : null;
+    const linked = $('sigma-show-linked-unscored');
+    const context = Boolean(network && linked && linked.checked && !linked.disabled);
+    const general = Boolean(!network && control && control.checked && !control.disabled);
+    const enabled = general || context;
+    const sectorKey = [...hidden].sort().join('|') + '/' + [...sigmaHiddenOriginals].sort().join('|');
+    const ringKey = context ? JSON.stringify([...network.ring]) : '';
+    const sourceKey = enabled ? `${lastRenderedTileSignature || ''}|${sectorKey}|${ringKey}|${context}` : null;
     if (unscoredRenderedKey !== sourceKey) {
-      const locations = enabled ? unscoredCandidates.filter(f =>
-        f.properties && !hidden.has(String(f.properties.type))) : [];
+      const partitions = context ? sigmaHighlightedPartitions() : null;
+      const locations = [];
+      if (enabled) for (const f of unscoredCandidates) {
+        const p = f.properties;
+        if (!p || hidden.has(String(p.type)) || !sigmaOriginalAllowed(p)) continue;
+        if (context) {
+          const containing = sigmaVoronoiForUnscored(f, partitions);
+          if (!containing) continue;
+          p.voronoi_node_id = containing.id;
+          p.voronoi_depth = containing.depth;
+        }
+        locations.push(f);
+      }
       setData('unscored-points', {type: 'FeatureCollection', features: locations});
       unscoredRenderedKey = sourceKey;
     }
-    // Two independent gates: no data if off, AND layer visibility none.
+    map.setPaintProperty('unclustered-establishments', 'icon-opacity', context ?
+      networkDepthOpacity('voronoi_node_id', 0.96,
+        step => fadeByStep(0.90, step), 0) : 0.84);
     visibility('unclustered-establishments', enabled);
     const key = $('unclustered-key');
     if (key) key.hidden = !enabled;
   }
-
   function applyEmphasis() {
     const ids = network ? [...network.ring.keys()] : null;
     const focus = network ? network.focus : '';
@@ -722,7 +831,8 @@
       sigmaLinkedCenterIconExpression() : ['get', baseIcon]);
     map.setPaintProperty('centers', 'icon-opacity', ids ?
       networkDepthOpacity('id', 0, step => fadeByStep(1, step), 0.16) : 1);
-    map.setFilter('establishments', ['all', ['!=', ['get', 'unclustered'], true], notHidden()]);
+    map.setFilter('establishments', ['all', ['!=', ['get', 'unclustered'], true],
+      notHidden(), sigmaOriginalFilter()]);
     // Unscored overlay is opt-in. A selected X cluster (or scored place)
     // hides it completely; clearing selection restores the user's choice.
     syncUnscoredOverlay();
@@ -932,7 +1042,8 @@
       $('stats').replaceChildren(
         stat('SIGMA score', 'N/A'), stat('Cluster centrality', 'N/A'),
         stat('Linked clusters', 'N/A'), stat('PSIC', p.psic || '—'),
-        stat('Sector basis', p.basis || '—'));
+        stat('Sector basis', p.basis || '—'),
+        ...(rollupOriginText(p) ? [stat('Original industry', rollupOriginText(p))] : []));
       return;
     }
     $('selected-code').textContent = `${sectorCode(n.type)} · Cluster ${n.cluster}`;
@@ -947,7 +1058,16 @@
       stat('X edges in / out', `${fmtNum(n.in_degree, 0)} / ${fmtNum(n.out_degree, 0)}`),
       stat('PSIC', p && p.psic ? String(p.psic) : '—'),
       stat('Sector basis', p && p.basis ? String(p.basis) : '—'),
+      ...(rollupOriginText(p) ? [stat('Original industry', rollupOriginText(p))] : []),
     );
+  }
+
+  function rollupOriginText(point) {
+    if (!point || !point.original_type || point.original_type === point.type) return null;
+    const entry = (sectors.get(point.type)?.rollup_children || [])
+      .find(child => child.code === point.original_type);
+    const name = entry ? sectorPresentation({code: entry.code, label: entry.label}).name : 'Original industry';
+    return `${name} · ${sectorCode(point.original_type)}`;
   }
 
   function renderConnections() {
@@ -1269,6 +1389,7 @@
   }
   function refresh() {
     // Invalidate in-flight route/hover work BEFORE any synchronous render work.
+    sigmaSetHoveredPartition(null);  // Clear stale outline on focus/filter changes.
     const epoch = ++refreshEpoch;
     ++routeEpoch;
     ++hoverEpoch;
@@ -1512,6 +1633,9 @@
     const x = io240Rank(a), y = io240Rank(b);
     return (x[0]-y[0]) || (x[1]-y[1]) || String(a.code).localeCompare(String(b.code),undefined,{numeric:true});
   }
+  // SIGMA_ROLLUP_DEFAULT_AND_ORIGINAL_TAGS_V2: persist expanded subgroups
+  // through every sector list rerender; they are provenance, not X nodes.
+  const expandedRollups = new Set();
   function renderSectors() {
     const list = $('sector-list');
     list.replaceChildren();
@@ -1525,7 +1649,8 @@
       s.clusters > 0 || (includeUnscored && s.points > 0));
     const ordered = eligible.filter(s => {
       const p = sectorPresentation(s);
-      return !needle || (p.name + ' ' + p.code + ' ' + p.kind + ' ' + s.label).toLocaleLowerCase().includes(needle);
+      const childTerms = (s.rollup_children || []).map(c => c.code + ' ' + c.label).join(' ');
+      return !needle || (p.name + ' ' + p.code + ' ' + p.kind + ' ' + s.label + ' ' + childTerms).toLocaleLowerCase().includes(needle);
     }).sort((a,b) => {
       let n;
       if (sectorSortState.key === 'name') n = nameOf(a).localeCompare(nameOf(b));
@@ -1554,7 +1679,48 @@
           title:`${s.points.toLocaleString()} establishments`}),
         el('span',{className:'sector-cluster-count',textContent:s.clusters.toLocaleString(),
           title:`${s.clusters.toLocaleString()} X clusters`}));
-      list.append(label);
+      const children = Array.isArray(s.rollup_children) ? s.rollup_children : [];
+      if (!children.length) { list.append(label); continue; }
+      const wrapper = el('div', {className: 'sigma-rollup-sector'});
+      wrapper.append(label);
+      const expanded = expandedRollups.has(s.code);
+      const arrow = el('button', {type: 'button', className: 'sigma-rollup-toggle',
+        textContent: expanded ? '▾' : '▸',
+        title: expanded ? 'Hide original sector classifications' : 'Show original sector classifications'});
+      arrow.setAttribute('aria-expanded', String(expanded));
+      arrow.setAttribute('aria-label', `${expanded ? 'Collapse' : 'Expand'} original industries under ${p.name}`);
+      arrow.addEventListener('click', event => {
+        event.preventDefault(); event.stopPropagation();
+        if (expandedRollups.has(s.code)) expandedRollups.delete(s.code);
+        else expandedRollups.add(s.code);
+        renderSectors();
+      });
+      wrapper.append(arrow);
+      list.append(wrapper);
+      if (expanded) {
+        const detail = el('div', {className: 'sigma-rollup-children',
+          'aria-label': `Original sectors within ${p.name}`});
+        for (const child of children) {
+          const name = sectorPresentation({code: child.code, label: child.label}).name;
+          const childToggle = el('input', {type: 'checkbox', className: 'sigma-rollup-child-toggle',
+            checked: !sigmaHiddenOriginals.has(String(child.code)),
+            title: `Toggle establishments originally classified as ${name}`});
+          childToggle.addEventListener('change', () => {
+            if (childToggle.checked) sigmaHiddenOriginals.delete(String(child.code));
+            else sigmaHiddenOriginals.add(String(child.code));
+            // Effective sector / X cluster visibility and scores are unchanged.
+            if (ready) applyEmphasis();
+          });
+          detail.append(el('label', {className: 'sigma-rollup-child' + (child.rolled_up ? ' sigma-rollup-child--moved' : ''),
+            title: `${name} · ${child.code} · ${child.places} original establishments`},
+            childToggle,
+            el('i', {className: 'swatch', style: {background: child.color || sectorColor(s.code)}}),
+            el('span', {className: 'sigma-rollup-child-name', textContent: (child.rolled_up ? '↳ ' : '· ') + name}),
+            el('span', {className: 'sigma-rollup-child-code', textContent: child.code}),
+            el('span', {className: 'sigma-rollup-child-count', textContent: Number(child.places).toLocaleString()})));
+        }
+        list.append(detail);
+      }
     }
     const visibleEnabled = eligible.filter(s => !hidden.has(s.code)).length;
     $('sector-count').textContent = needle ?
@@ -1630,13 +1796,50 @@
     }).sort((a, b) => b.strength - a.strength);
   }
 
+  // SIGMA_CENTER_VORONOI_HOVER_20261104_V1: draw a single existing polygon
+  // boundary on hover. It never changes the selected X network or partition data.
+  let sigmaHoveredPartitionId = null;
+  function sigmaSetHoveredPartition(id) {
+    const layer = 'sigma-hover-cluster-voronoi-outline';
+    if (!ready || !map || !map.getLayer(layer)) {
+      sigmaHoveredPartitionId = null;
+      return;
+    }
+    const candidate = id == null ? null : String(id);
+    const node = candidate === null ? null : nodeIndex.get(candidate);
+    const next = (selection && node && !hidden.has(String(node.type))) ? candidate : null;
+    if (next === sigmaHoveredPartitionId) return;
+    sigmaHoveredPartitionId = next;
+    if (next === null) {
+      map.setLayoutProperty(layer, 'visibility', 'none');
+      return;
+    }
+    // Cluster ID selects its own exported Voronoi boundary, not a new shape.
+    map.setFilter(layer, ['==', ['get', 'node_id'], next]);
+    map.setLayoutProperty(layer, 'visibility', 'visible');
+  }
+
   const POPUP_BLOCKS = 3;
   function onHover(event) {
     // Cheap feature query first. Routes are only queried if no point is selectable.
-    const placeLayers = ['centers', 'establishments', 'unclustered-establishments'].filter(l =>
+    const placeLayers = ['selected-center', 'centers', 'establishments', 'unclustered-establishments'].filter(l =>
       map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
     const places = map.queryRenderedFeatures(event.point, {layers: placeLayers});
-    const scopedPlaces = places.filter(selectableMapFeature);
+    // Only triangles activate a boundary. The enlarged selected triangle has
+    // no `id` property, so use the already-selected X node for that symbol.
+    const center = selection ? places.find(feature => {
+      const layer = feature.layer?.id;
+      const id = layer === 'selected-center' ? selection.id :
+        layer === 'centers' ? feature.properties?.id : null;
+      const node = id == null ? null : nodeIndex.get(String(id));
+      return node && !hidden.has(String(node.type));
+    }) : null;
+    sigmaSetHoveredPartition(center ? (center.layer.id === 'selected-center' ?
+      selection.id : center.properties.id) : null);
+    // Keep the previous popup interaction: the selected-center overlay is a
+    // display symbol, not an extra selectable or hover-popup feature.
+    const scopedPlaces = places.filter(feature =>
+      feature.layer.id !== 'selected-center' && selectableMapFeature(feature));
     map.getCanvas().style.cursor = scopedPlaces.length ? 'pointer' : '';
     let content = null;
     if (scopedPlaces.length) {
@@ -1722,6 +1925,12 @@
       const name = `sigma-unscored-triangle-${index++}`;
       add(name, sector.color || '#b11116');
       unscoredSectorIcons.set(String(code), name);
+    }
+    for (const sector of sectors.values()) for (const child of (sector.rollup_children || [])) {
+      if (unscoredSectorIcons.has(String(child.code))) continue;
+      const name = `sigma-unscored-origin-${index++}`;
+      add(name, child.color || sector.color || '#b11116');
+      unscoredSectorIcons.set(String(child.code), name);
     }
     add('sigma-unscored-triangle-default', '#b11116');
   }
@@ -1827,11 +2036,13 @@
     const scoreRadius = (small, large) => ['sqrt', ['+', small * small,
       ['*', large * large - small * small, normalizedScore]]];
     const sectorColorExpr = ['match', ['get', 'type'], ...sectorMatchPairs(), '#657f78'];
+    const sigmaPointColorExpr = sigmaEstablishmentColors();
     if (data.boundary) {
       map.addSource('boundary', {type: 'geojson', data: data.boundary});
       map.addLayer({id: 'boundary-fill', type: 'fill', source: 'boundary', paint: {'fill-color': '#ffffff', 'fill-opacity': 1}});
       map.addLayer({id: 'boundary-line', type: 'line', source: 'boundary', paint: {'line-color': '#71847b', 'line-width': 0.8, 'line-opacity': 0.75}});
     }
+    sigmaVoronoiFeatures = data.clusters?.features || [];  // SIGMA_FIXED_PALETTE_ORIGIN_VORONOI_V1
     map.addSource('clusters', {type: 'geojson', data: data.clusters});
     map.addLayer({id: 'partition-fill', type: 'fill', source: 'clusters', layout: {visibility: 'none'}, paint: {'fill-color': sectorColorExpr, 'fill-opacity': 0.1}});
     // Quiet geographic context: thin, opaque gray, above translucent polygons.
@@ -1899,6 +2110,14 @@
     map.addSource('route-hover', {type: 'geojson', data: EMPTY()});
     map.addLayer({id: 'route-hover', type: 'line', source: 'route-hover', layout: {'line-join': 'round', 'line-cap': 'round'},
       paint: {'line-color': '#d99d2c', 'line-width': 3.2, 'line-opacity': 0.92}});
+    // SIGMA_CENTER_VORONOI_HOVER_20261104_V1: topmost boundary, under POIs.
+    // Use the existing polygon GeoJSON and the same sector color expression
+    // as the cluster-center triangles and partition layers.
+    map.addLayer({id: 'sigma-hover-cluster-voronoi-outline', type: 'line', source: 'clusters',
+      filter: ['==', ['get', 'node_id'], '__no_hover__'],
+      layout: {visibility: 'none', 'line-join': 'round', 'line-cap': 'round'},
+      paint: {'line-color': sectorColorExpr, 'line-opacity': 0.96,
+        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.4, 14, 2.2, 18, 3.0]}});
     const overview = data.overview || EMPTY();
     const busiest = overview.features.reduce((m, f) => Math.max(m, f.properties.count || 0), 1);
     map.addSource('overview', {type: 'geojson', data: overview});
@@ -1923,7 +2142,7 @@
       paint: {'icon-opacity': 0.84}});
     map.addLayer({id: 'establishments', type: 'circle', source: 'points',
       filter: ['!=', ['get', 'unclustered'], true], paint: {
-      'circle-color': sectorColorExpr,
+      'circle-color': sigmaPointColorExpr,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, scoreRadius(1.4, 5.7), 14, scoreRadius(2.0, 10.5), 17, scoreRadius(3.2, 16.5)],
       'circle-opacity': 0.82, 'circle-stroke-width': 0.35, 'circle-stroke-color': '#ffffff'}});
     // Assign browser-only icon identifiers by normalized sector code. This
@@ -2085,6 +2304,17 @@
       if (control.disabled) control.closest('.sector-overlay-control').title =
         'No classified-but-unscored locations are available in this Explorer.';
     }
+    // SIGMA_FIXED_PALETTE_ORIGIN_VORONOI_V1: opt-in when a scored node
+    // is selected. Does not change the existing no-selection unscored toggle.
+    if (control && !document.getElementById('sigma-show-linked-unscored')) {
+      const linkedBox = el('input', {id: 'sigma-show-linked-unscored', type: 'checkbox'});
+      linkedBox.checked = false;
+      linkedBox.disabled = meta.profile !== 'local' || !meta.counts?.classified_unclustered_points;
+      const holder = el('label', {className: 'sigma-linked-unscored-control'},
+        linkedBox, el('span', {textContent: 'Unclustered within highlighted partitions'}));
+      control.closest('.sector-overlay-control')?.after(holder);
+      linkedBox.addEventListener('change', syncUnscoredOverlay);
+    }
     if (meta.schema_version !== 3) throw new Error('This Explorer bundle was built by another version. Run "sigma view <area> --refresh".');
     for (const s of meta.sectors) sectors.set(s.code, s);
     for (const n of graph.nodes) { nodeIndex.set(n.id, n); pairIndex.set(n.id, new Map()); }
@@ -2164,8 +2394,10 @@
         applyTheme(themeMode);
         ready = true;
         map.on('mousemove', scheduleHover);
+        map.on('movestart', () => sigmaSetHoveredPartition(null));
         map.on('mouseout', () => {
           pendingHoverEvent = null;
+          sigmaSetHoveredPartition(null);
           popup.remove();
           map.getCanvas().style.cursor = '';
         });

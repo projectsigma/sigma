@@ -42,6 +42,56 @@ exact sector key with a spatial cluster index. Sector keys are assigned when
 an area's partition is built and may change if that area's support or policy
 changes; the manifest and audit record `sector_code_scheme=sparse-v1`.
 
+<!-- sigma-docs-20261104-v1:begin -->
+### Post-clustering iterative roll-up (run-stage default)
+
+The preceding partition is the **baseline classification** produced by
+`sigma load`; it is still available unchanged using
+`sigma run AREA --no-iterative-rollup`. Since no spatial clustering happens
+at load time, a sector's cluster count is not known until `sigma run`.
+For a generated area-specific hierarchical economy, the default `sigma run`
+uses a residual-first iterative roll-up pass after evaluating the original
+HDBSCAN sectors. A sector is eligible as a **source** only if it produced zero retained
+clusters (`K=0`). The method tests a valid ancestor/residual coarsening,
+reclusters affected sector assignments, and accepts an eligible change only
+under the implemented positive net-retention criterion. It does **not** apply
+an arbitrary *few clusters* threshold, split successful HDBSCAN sectors, or
+assign noise observations to their nearest Voronoi owner. The process may
+leave zero-cluster sectors unresolved when no admissible improvement exists.
+
+The derived economy has its own identity and provenance; an original source
+classification remains available as `original_economy_code`. The effective
+sector after roll-up governs HDBSCAN, all X nodes `(type, cluster)`, network
+Voronoi, IO aggregation, centrality and SIGMA scores. The original tag is
+retained for audit and display, **not** as a parallel scored network sector.
+These are modeling/engineering choices around established clustering and
+IO aggregation, not an observed economic merger of the industries.
+
+Use `sigma run AREA --iterative-rollup` to opt in explicitly or
+`--no-iterative-rollup` to preserve the baseline. This default applies to
+generated hierarchical areas, not fixed `--io-level 16|80|240`, explicit
+custom economies or equivalent mode. Switching the CLI option changes the
+*next analysis*, not the already-published Explorer data. To display a
+different run, publish its corresponding outputs and rebuild/check Explorer.
+
+### Fixed hierarchical palette and original-child inspection
+
+The canonical color lookup contains exactly **16 + 80 + 240 = 336 fixed
+colors**. A sparse IO240 (`X:Y:Z`) uses its IO240 color; a whole IO80
+(`X:Y`) uses its IO80 color; a whole IO16 (`X`) uses its IO16 color. An
+`X:Y:o` residual inherits `X:Y`, and an `X:o` residual inherits `X`.
+Legacy source code formats map to the same fixed entries. No area-based
+palette generation or sector-order hash is required for these built-in tags.
+
+In Explorer, a parent receiving formerly separate sectors can expand to
+show each original label, code and classified-place count. Original-child
+point visibility and color are browser-only; they do not create new HDBSCAN
+clusters, recalculate cluster shares, or split the parent economy. Local
+per-establishment original tags are part of the derived classified provenance;
+a compact metadata override may serve older local Explorer tiles without
+rewriting large tiles. Public bundles omit establishment-level records.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## 3. Assigning a place to one sector
 
 A place with an exact IO240 tag joins the sector that holds that industry.

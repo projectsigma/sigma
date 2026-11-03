@@ -194,6 +194,12 @@
     const nodeLabel = node => node ? `${sectorLabel(node.type)} · cluster ${node.cluster}` : 'No cluster available';
     const edgeInfo = node => (adjacent.get(idStr(node && node.id)) || []).slice().sort((x,y) =>
       (Number(y.coefficient) || 0) - (Number(x.coefficient) || 0));
+    // SIGMA_DOCS_20261104_LIVE_ROLLUP: metadata-backed, never guessed from examples.
+    const rollupParentCount = meta.sectors.filter(s => Array.isArray(s.rollup_children) &&
+      s.rollup_children.some(c => c.rolled_up === true)).length;
+    const rollupRunNote = rollupParentCount
+      ? ` Derived roll-up breakdowns are published for ${rollupParentCount} effective sector${rollupParentCount === 1 ? '' : 's'}; original tags are for provenance and point presentation only.`
+      : '';
     const topSectors = [...meta.sectors].sort((x, y) => (y.points || 0) - (x.points || 0))
       .slice(0, 3).map(s => `${sectorDisplay(s).name}: ${number(s.points)} places`).join(' · ');
     $('live-title').textContent = `${area} · ${economyName}`;
@@ -297,7 +303,7 @@
       if (section === 'centers') return note(node ? `The published center of ${nodeLabel(node)} is at latitude ${fmt(node.lat, 6)}, longitude ${fmt(node.lon, 6)}, with ${number(node.members)} member establishments.` : 'No published center selected.', 'Center method and fallback diagnostics are not contained in the browser graph');
       if (section === 'voronoi') return note(`${c('partitions')} cluster polygon features are included in the bundle. These are derived area renderings; view the selected network partitions in Explorer.`, 'A partition need not contain establishments everywhere in its area');
       if (section === 'economy') {
-        if (idx === 0) return note(`Current economic specification: ${economyName}, with ${number(meta.sectors.length)} types visible in this area. Explorer publishes derived X links, not the full national transactions matrix Z.`, 'Do not infer transaction amounts from coefficients');
+        if (idx === 0) return note(`Current economic specification: ${economyName}, with ${number(meta.sectors.length)} types visible in this area.${rollupRunNote} Explorer publishes derived X links, not the full national transactions matrix Z.`, 'Do not infer transaction amounts from coefficients');
         if (idx === 1) return note(example ? `For a published local X link, the input–output coefficient a is ${frac(example.coefficient)} from ${sectorLabel(nodeMap.get(idStr(example.from))?.type)} to ${sectorLabel(nodeMap.get(idStr(example.to))?.type)}.` : `No local X edge is available to illustrate coefficients.`, 'Observed in model output; not evidence of direct firm-to-firm trade');
         return note(`The economic specification is ${economyName}. Explorer does not publish the full coefficient matrix or distinguish optional preprocessing parameters here.`, 'Consult the source economic artifacts for the full table');
       }

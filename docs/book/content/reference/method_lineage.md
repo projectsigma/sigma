@@ -16,6 +16,24 @@ This page summarizes the methodological foundations of the analytical workflow a
 | Establishment scoring | Distance-based score tempering | Cluster-level 90th-percentile distance reference and bounded linear distance tempering. |
 | Place reconciliation | Geographic and name-based record-linkage methods | Matching thresholds, candidate-evidence weighting, and deterministic greedy matching. |
 
+<!-- sigma-docs-20261104-v1:begin -->
+## Conditional hierarchical roll-up and fixed visualization palette
+
+**Zero-cluster iterative roll-up** is a SIGMA-specific methodological
+adjustment, not a standard additional HDBSCAN extraction mode. It acts only
+after identifying generated-hierarchy sectors with `K=0`, tests a
+residual-first valid ancestor/coarsening candidate, and retains a candidate
+only under the implementation's positive net-retention criterion. It does
+not apply an arbitrary minimum cluster count to already successful sectors
+and does not use Voronoi proximity to impute noise membership.
+
+The fixed palette (16 + 80 + 240 sector colors), original child-point
+visibility, contextual unclustered markers, and the hovered Voronoi outline
+are **browser/QGIS representation choices**. They must not be confused with
+network HDBSCAN membership, Voronoi ownership, national IO coefficients, or
+observed economic relationships.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## Implementation notes
 
 The table is a concise reference to the methods and computational settings used in the workflow. Detailed method pages and canonical defaults describe the applicable conventions and parameter settings. Computational adjustments can be reviewed or revised according to data characteristics and analytical requirements.

@@ -56,6 +56,26 @@ legacy IO80 workspaces are not silently converted to hierarchy**. See
 [Hierarchical economy](../methods/hierarchical.md) and the
 [load selection guide](https://github.com/projectsigma/sigma/blob/main/docs/SIGMA_LOAD_PORTABILITY.md).
 
+<!-- sigma-docs-20261104-v1:begin -->
+### Default zero-cluster roll-up at `sigma run`
+
+For a newly generated **hierarchical** area, `sigma run pasig` now attempts
+residual-first iterative roll-up only for economic sectors with **zero
+retained HDBSCAN clusters**, accepting valid coarsening under its positive
+net-retention rule. This is distinct from the `sigma load` hierarchy's
+`min_places=5` support rule. To keep precisely the baseline hierarchy:
+
+```bash
+sigma run pasig --no-iterative-rollup
+```
+
+To request the same default explicitly, use
+`sigma run pasig --iterative-rollup`. Fixed `--io-level 16`, `80`, `240`
+and custom economies are not rolled up implicitly. Re-running can change
+analytical results, so use these switches intentionally; displaying an
+already-published run does not trigger clustering.
+<!-- sigma-docs-20261104-v1:end -->
+
 The ordinary selected-economy run uses:
 
 - `transaction_preprocessing=none` and the full positive directed technical-coefficient graph;

@@ -16,6 +16,26 @@ A recipe records:
 
 The recipe is canonicalized to JSON and hashed with SHA-256. Output files are themselves hashed. The resulting artifact identity therefore binds requested computation to both the recipe and the actual produced files.
 
+<!-- sigma-docs-20261104-v1:begin -->
+## Roll-up and Explorer presentation provenance
+
+A generated hierarchical analysis can retain a baseline catalog and a
+separately identified, provenance-checked **iterative roll-up derived
+Economy**. The resulting run's declared Economy ID, classified POIs, X
+nodes, polygon partition ownership and published outputs must agree before
+its Explorer data are considered current. The original sector tag is kept
+separately from the effective sector used by the model.
+
+Presentation-only changes—fixed colors, child-point checkboxes, contextual
+unclustered overlays, and hovered partition outlines—do not invalidate
+spatial or scoring artifacts. `sigma view AREA --fast` copies only frontend
+assets into an already-owned Explorer; it does **not** refresh sector
+metadata or tile contents. A separately guarded, local metadata-only
+migration can update small provenance/color metadata for an existing verified
+bundle without regenerating route geometries. A full `sigma view` refresh is
+needed when genuinely changed underlying published data must be reflected.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## Selective invalidation
 
 Suppose only the Katz attenuation parameter changes. Area, source, places, roads, clusters, centers, partitions, economy, and X can remain reusable because their recipes do not depend on that parameter. `analysis.centrality` changes, and `analysis.scores` changes because it depends on centrality.

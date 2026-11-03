@@ -16,6 +16,24 @@ custom code/label/transaction systems remain supported with `--economy`.
 respects. These are **different defaults for different entry points**, not
 interchangeable descriptions of the same area run.
 
+<!-- sigma-docs-20261104-v1:begin -->
+## Derived hierarchical economies and colors
+
+`SIGMA load` records a **baseline** hierarchical partition. For a generated
+hierarchy, `sigma run AREA` may produce an **iteratively rolled-up derived
+Economy** if a baseline sector yields no retained HDBSCAN clusters. A
+`--no-iterative-rollup` run instead preserves the original baseline. The
+effective Economy ID governs how national transactions and outputs are
+aggregated; X edges and scores must correspond to that exact catalog. The
+original sector code remains auditable but is not an additional row/column
+in the effective IO matrix.
+
+The supplied 336-color palette is a stable mapping of official IO16, IO80
+and IO240 identifiers (and their sparse/legacy forms) to display colors.
+Residuals use their parent color. This palette is **not** an economic
+coefficient matrix and never changes the IO calculation.
+<!-- sigma-docs-20261104-v1:end -->
+
 ## Technical coefficients
 
 With total output $x_j$ for user sector $j$, SIGMA uses the preserved input-output convention

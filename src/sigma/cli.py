@@ -485,6 +485,11 @@ def run_command(
         help="Exponent of inverse road-distance attenuation on X edges (default 1.0).",
     ),
     distance_tempering: float = typer.Option(0.15, "--distance-tempering"),
+    iterative_rollup: bool | None = typer.Option(
+        None, "--iterative-rollup/--no-iterative-rollup",
+        help="Default for generated hierarchical IO: roll up zero-cluster sectors into valid residuals; "
+             "--no-iterative-rollup preserves the original partition.",
+    ),
     refresh: bool = typer.Option(
         False, "--refresh",
         help="Recompute analytical stages from loaded places; reuse sources and prepared roads.",
@@ -529,6 +534,56 @@ def run_command(
             output_dir=output_dir, source_store=shared_store, economy=economy,
             areas_file=areas_file, config=config, progress=progress,
         )
+        # SIGMA_ITERATIVE_RESIDUAL_ROLLUP_CLI_V1: derive an alternative full
+        # economic partition from baseline clustering BEFORE building network X.
+        rollup_package = None
+        # SIGMA_ROLLUP_DEFAULT_AND_ORIGINAL_TAGS_V2: detect only a generated
+        # BASELINE hierarchical Economy; never auto-enable for explicit/custom,
+        # fixed IO16/80/240, or legacy equivalent profiles. Explicit --no wins.
+        metadata = job.economy.provenance.get("metadata")
+        derivation = metadata.get("derivation") if isinstance(metadata, dict) else None
+        is_baseline_hierarchy = (
+            economy is None and not equivalent and config.spatial.classification is None
+            and isinstance(derivation, dict)
+            and derivation.get("source_kind") == "hierarchical_io240_residual"
+        )
+        should_rollup = (
+            iterative_rollup is True or (iterative_rollup is None and is_baseline_hierarchy)
+        )
+        if should_rollup:
+            if economy is not None or equivalent or config.spatial.classification is not None:
+                raise ValueError("--iterative-rollup requires the generated hierarchical economy; "
+                                 "do not combine it with --economy or --equivalent")
+            if not (workspace / "hierarchical" / "economy" / "membership.csv").is_file():
+                raise ValueError("--iterative-rollup requires an existing generated hierarchical "
+                                 "economy with membership.csv; run sigma load AREA first")
+            from .spatial.iterative_rollup import prepare_iterative_rollup
+            original_places = job._require_loaded_places()
+            baseline = job.ensure("spatial.clusters")
+            rollup_package = prepare_iterative_rollup(
+                workspace=workspace, base_economy=job.economy,
+                base_places=original_places, cluster_ref=baseline, progress=progress,
+            )
+            if rollup_package is not None:
+                job = _job(
+                    area=area, workspace=workspace, roads=road_source, roads_layer=roads_layer,
+                    output_dir=output_dir, source_store=shared_store,
+                    economy=str(rollup_package / "economy"),
+                    areas_file=areas_file, config=config, progress=progress,
+                )
+                # Validate the counterfactual clustering BEFORE routing, X or export.
+                import json as _rollup_preflight_json
+                expected_clusters = _rollup_preflight_json.loads(
+                    (rollup_package / "economy" / "rollup_audit.json").read_text(encoding="utf-8")
+                )["predicted_cluster_count"]
+                job.ensure("spatial.clusters")
+                effective_cluster_manifest = job.workspace.manifest("spatial.clusters")
+                if (effective_cluster_manifest is None
+                        or effective_cluster_manifest.metadata.get("cluster_count") != expected_clusters):
+                    raise RuntimeError(
+                        f"iterative roll-up clusters do not match verified prediction "
+                        f"({expected_clusters}); refusing to build X or publish exports"
+                    )
         if progress is not None:
             # Keep the public CLI compatible with jobs that expose places_path
             # without the private resolver (including CLI integration fakes).
@@ -537,11 +592,23 @@ def run_command(
             progress(f"analysis input: {input_path}")
             progress("starting spatial, economic, X, centrality, scoring, and export stages")
         result = job.refresh() if refresh else job.run(force=force)
+        if rollup_package is not None:
+            import json as _rollup_json
+            prediction = _rollup_json.loads(
+                (rollup_package / "economy" / "rollup_audit.json").read_text(encoding="utf-8")
+            )["predicted_cluster_count"]
+            actual = job.workspace.manifest("spatial.clusters")
+            if actual is None or actual.metadata.get("cluster_count") != prediction:
+                raise RuntimeError(
+                    f"iterative roll-up final clusters differ from verified preview "
+                    f"(expected {prediction}, got {None if actual is None else actual.metadata.get('cluster_count')}); "
+                    "review package before using downstream outputs"
+                )
         payload = {"run_manifest": str(result.run_manifest) if result.run_manifest else None,
                    "places_input": str(job.places_path),
                    "outputs": {k: str(v) for k, v in result.outputs.items()}}
         _echo_json(payload) if json_output else typer.echo(str(result.run_manifest or "run complete"))
-    except (SigmaError, OSError, ValueError, KeyError) as exc:
+    except (SigmaError, OSError, ValueError, KeyError, RuntimeError) as exc:
         _handle_error(exc)
 
 
