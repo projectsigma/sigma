@@ -23,6 +23,25 @@ A place first receives a PSIC Rev. 5 code (see the places page). The PSIC code i
 
 An IO240 industry is kept as its own sector when at least `min_places` places carry it as an exact tag. Inside an IO80 parent with kept children, the other children form `IO80 · Other`; an IO80 parent without kept children is kept whole when its places reach `min_places`; the remaining industries of an IO16 parent form `IO16 · Other` (or the whole IO16 parent). Every IO240 industry belongs to exactly one sector, and transactions and gross output are aggregated as $M Z M^\top$ and $M x$, so national totals are conserved.
 
+### Sparse sector identities
+
+For the validated PSA hierarchy, the current `sparse-v1` codes express each
+sector's ancestry rather than prefacing it with a resolution number:
+
+| Form | Meaning |
+|---|---|
+| `X:Y:Z` | Exact IO240 industry `Z` within IO80 `Y` and IO16 `X` |
+| `X:Y:o` | Residual unretained IO240 industries within IO80 `Y` |
+| `X:Y` | Whole IO80 industry `Y` within IO16 `X` |
+| `X:o` | Residual portion of IO16 `X` |
+| `X` | Whole IO16 industry `X` |
+
+`o` is a lower-case residual marker. These are **economic sector keys**,
+not cluster IDs or PSIC codes. Hierarchical network nodes still pair an
+exact sector key with a spatial cluster index. Sector keys are assigned when
+an area's partition is built and may change if that area's support or policy
+changes; the manifest and audit record `sector_code_scheme=sparse-v1`.
+
 ## 3. Assigning a place to one sector
 
 A place with an exact IO240 tag joins the sector that holds that industry.
@@ -56,3 +75,11 @@ The Explorer shows a short "Sector basis" text for each establishment, built fro
 :class: important
 The refinement rows, the IO240 parents chosen by sector name, the ownership patterns and the straddle threshold are SIGMA rules, not published PSA concordances. They are versioned, fingerprinted and reported in provenance so that results can be reproduced or recomputed under a different choice.
 ```
+
+<!-- sigma-augment-docs-v1:begin:hierarchy -->
+## 5. Explicit IO tags supplied during augmentation
+
+A post-load CSV/Parquet supplied to `sigma augment` may carry independent `io16`, `io80`, and `io240` columns. All are optional. The finest supplied level determines the ancestor codes: an IO240 tag establishes its IO80/IO16 parents; an IO80 tag establishes its IO16 parent; an IO16-only tag remains coarse. **No finer child code is guessed from a coarser parent.** When multiple levels are present, their actual parent-child links must agree; a mismatch blocks augmentation and identifies the source row. A conflicting automatic/inferred tag is reported as a warning, while the user-supplied tag is authoritative.
+
+Users enter **national** IO codes, not dynamic local `:o` residual sector identifiers. After augmentation, the hierarchical build assigns the tagged places to the current area-specific partition, including residuals where applicable. See [Augment user-provided places](augmentation.md) and [its input specification](https://github.com/projectsigma/sigma/blob/main/docs/SIGMA_AUGMENT.md).
+<!-- sigma-augment-docs-v1:end:hierarchy -->

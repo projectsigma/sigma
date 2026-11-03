@@ -41,7 +41,18 @@ sigma view quezon_city --fast
 3. Inspect incoming, outgoing, or combined connections, and increase the neighborhood depth from direct connections to two steps or the reachable neighborhood. Direction choices govern **neighborhood discovery**; the diagram retains the directed relationships among the displayed nodes.
 4. Use theater view and fit-to-graph when a network is too crowded. Inspect edge attributes and highlight computed X-edge road paths in the map. Incoming routes are dashed blue and outgoing routes solid red.
 
-**Interpretation matters:** A directed X edge represents a *modeled spatial-economic link* grounded in IO technical coefficients, overlapping cluster partitions, and routable road-network separation. It is **not verified trade between two specific establishments**. The displayed X edge weight is `technical_coefficient / max(road_distance_in_metres, 1) ** x_distance_decay_lambda`, not a probability. Routes use SIGMA's published shortest-path geometries; the routing graph itself is undirected.
+**Interpretation matters:** A directed X edge represents a *modeled spatial-economic link* grounded in IO technical coefficients, overlapping cluster partitions, and routable road-network separation. It is **not verified trade between two specific establishments**. The displayed X edge weight is **not** just the coefficient divided by the
+center-to-center road distance. It is
+`technical_coefficient * source_cluster_sector_share * target_cluster_sector_share / max(effective_road_distance_metres, 1) ** x_distance_decay_lambda`.
+Here `effective_road_distance` equals the center-to-center shortest-road
+distance **plus the two clusters' mean establishment-to-1-median road
+distances**; each share counts that cluster's establishments relative to all
+retained clustered establishments of the same exact economic type. The
+published route geometry and `road_distance` still describe the actual
+**center-to-center** shortest road route, not the effective hub-mediated
+quantity. Neither edge weight nor direction proves a transaction or local
+sourcing relationship. The routing graph itself is undirected. See
+[The X graph](../methods/x_graph.md) for the exact equation and limitations.
 
 For large views, Explorer can switch to density shading rather than loading more than 150,000 establishments at once. The network view is capped at 300 nodes and 1,500 directed edges per selection and marks truncated displays. Neither cap modifies the original SIGMA outputs.
 

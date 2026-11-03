@@ -1253,6 +1253,20 @@
   }
 
   // ------------------------------------------------------------------ selection
+  // sigma-explorer-cluster-network-auto-collapse-v1
+  // Auto-close only for a missing X-network; preserve manual collapse while selected.
+  let graphAutoClosed = true;
+  function syncGraphDisclosure() {
+    const details = document.querySelector('.graph-section .sidebar-disclosure');
+    if (!details) return;
+    if (!network) {
+      if (details.open) details.open = false;
+      graphAutoClosed = true;
+    } else if (graphAutoClosed) {
+      if (!details.open) details.open = true;
+      graphAutoClosed = false;
+    }
+  }
   function refresh() {
     // Invalidate in-flight route/hover work BEFORE any synchronous render work.
     const epoch = ++refreshEpoch;
@@ -1265,6 +1279,7 @@
     }
     network = selection && nodeIndex.has(selection.id) ?
       sigmaPerf('buildNetwork', () => buildNetwork(selection.id)) : null;
+    syncGraphDisclosure();
     sigmaTriangleStyleByNode = sigmaPerf('triangleStyles', computeNetworkTriangleStyles);
     renderSelection();
     if (ready) {

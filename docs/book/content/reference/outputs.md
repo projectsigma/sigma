@@ -6,6 +6,14 @@ The exact file layout is stage-managed, but the following fields are especially 
 
 Look for stable identifiers, canonical/source names, source IDs, matching diagnostics, PSIC fields, economy code, and provenance/license columns.
 
+<!-- sigma-augment-docs-v1:begin:outputs -->
+## Attributes from augmented sources
+
+When `sigma augment` has been used, inspect `aug_<source>__<column>` fields in the loaded GeoParquet for original user attributes (for example, `aug_company_registry__employees`, `aug_company_registry__io240`). Matching retains the existing `canonical_id` and OSM/Overture provenance; unmatched source rows receive deterministic identifiers. `augment_io_code` and `augment_tag_source` identify additional manual classification evidence. `places/augmentations.json` records which source inputs have been applied and their hashes.
+
+These source attributes are retained for future analyses but are not automatically included in clustering or SIGMA scores. See [Augment user-provided places](../methods/augmentation.md).
+<!-- sigma-augment-docs-v1:end:outputs -->
+
 ## Clusters
 
 Key audit fields include:
@@ -34,13 +42,23 @@ Each positive directed edge should be interpretable as a technical coefficient f
 
 An X edge carries:
 
-- source/target cluster node;
-- `technical_coefficient`;
-- `road_distance`;
-- shortest `road_path`; and
-- `weight = technical_coefficient / max(road_distance_in_metres, 1) ** x_distance_decay_lambda` (default exponent 1).
+- source/target economic type and spatial cluster;
+- `technical_coefficient` from the positive directed economic graph;
+- `road_distance`, the actual shortest road separation of the two 1-medians;
+- `effective_road_distance`, the center distance plus each cluster's **mean** member-to-median road distance;
+- shortest `road_path` geometry between the centers; and
+- `edge_weight = technical_coefficient * source_cluster_sector_share * target_cluster_sector_share / max(effective_road_distance_metres, 1) ** x_distance_decay_lambda` (default exponent 1).
 
-Disconnected spatial candidates are logged separately.
+The sector-share denominator counts only retained **clustered** establishments
+of the same exact sector, not all classified establishments. Neither Voronoi
+overlap area nor total establishment count is directly multiplied into the
+edge weight. Disconnected spatial candidates are logged separately.
+
+For an X weight-only recomputation, `analysis.x` may reuse immutable route
+geometry via `x_paths.parquet` plus an overlay. Its **current numerical
+attributes** are in `x_edges.csv`, and the supported `load_x()` reader
+applies them. Do not treat numerical columns in a reused raw GeoParquet as
+authoritative; see [The X graph](../methods/x_graph.md).
 
 ## Centrality
 

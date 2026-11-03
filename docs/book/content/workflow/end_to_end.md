@@ -65,7 +65,7 @@ economy.transactions.effective + economy.coefficients
 ### Spatial-economic analysis
 
 ```text
-spatial clusters + centers + partitions + economy.graph
+spatial clusters + centers + partitions + point_distances + economy.graph
                          │
                          ▼
                      analysis.x
@@ -86,9 +86,15 @@ The workflow separates four different kinds of inference:
 1. **identity inference** — deciding which source records refer to one place and which economic activity a place represents;
 2. **spatial structure inference** — deciding which establishments form local road-network clusters and how territory is assigned;
 3. **economic structure** — translating transactions into directed technical requirements; and
-4. **spatial-economic influence** — instantiating economic relations only where spatial cluster territories overlap, then measuring directed centrality.
+4. **spatial-economic influence** — instantiating positive directed sector relationships only where spatial cluster territories overlap and the 1-medians are road-connected; weighting each X edge by direct technical coefficients, clustered-sector shares, and mean hub-mediated road distance; then measuring directed centrality. These modeled edges are not verified local trades.
 
 A downstream score therefore cannot be interpreted independently of the upstream choices. A centrality value summarizes a graph whose nodes already encode classification, clustering, center, and partition decisions.
+
+<!-- sigma-augment-docs-v1:begin:workflow -->
+## Optional post-load augmentation
+
+The editable `places/places.parquet` handoff can also be augmented *after* `sigma load` using `sigma augment AREA INPUT --source SOURCE`. The augmentation is not a new upstream OSM/Overture acquisition stage: it reconciles additional observations against loaded canonical places, enriches provenance, and validates any manual IO tags. Running `sigma augment ... --check` performs a read-only preview; the subsequent `sigma run AREA` consumes the augmented handoff and refreshes stale derived hierarchy/analysis outputs. See [Augment user-provided places](../methods/augmentation.md).
+<!-- sigma-augment-docs-v1:end:workflow -->
 
 ## Human review boundary
 

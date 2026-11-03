@@ -10,6 +10,9 @@ parts:
   - caption: Geospatial ecosystem construction
     chapters:
       - file: content/methods/places
+      # sigma-augment-docs-v1:begin:toc
+      - file: content/methods/augmentation
+      # sigma-augment-docs-v1:end:toc
       - file: content/methods/roads
       - file: content/methods/hdbscan
       - file: content/methods/centers

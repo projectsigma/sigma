@@ -1,10 +1,13 @@
 """Economic tagging that composes a PSIC taxonomy, explicit references, and an Economy."""
 from __future__ import annotations
+from pathlib import Path
 import pandas as pd
 from sigma.economy import Economy
 from sigma.errors import TaxonomyValidationError
 from .hybrid_io import apply_hybrid_io
 from .io_mapping import enrich_frame_with_io
+from .io_mapping_compat import load_catalog
+from .ownership_promotion import promote_institutions
 from .reference import PsicTaxonomy
 from .references import TaggingReferences
 
@@ -13,12 +16,20 @@ class EconomicTagger:
         references.validate_for(taxonomy,economy)
         self.taxonomy=taxonomy; self.economy=economy; self.references=references
 
-    def tag(self, frame: pd.DataFrame, *, compatibility: bool = True) -> pd.DataFrame:
+    def tag(self, frame: pd.DataFrame, *, compatibility: bool = True,
+            promote_registry_evidence: bool = False, area_slug: str = "",
+            workspace_root: Path | None = None) -> pd.DataFrame:
         if "psic_code" not in frame.columns:
             raise ValueError("economic tagging requires a psic_code column")
         if self.references.profile == "builtin-rev5-psa2018":
             out=enrich_frame_with_io(frame,taxonomy=self.taxonomy,mapping=self.references.legacy_io_mapping)
             out=apply_hybrid_io(out,catalog=dict(self.references.direct_catalog or {}),rules=list(self.references.direct_rules))
+            if promote_registry_evidence:
+                out=promote_institutions(
+                    out, taxonomy=self.taxonomy, io_mapping=self.references.legacy_io_mapping,
+                    catalog=dict(self.references.direct_catalog or load_catalog()),
+                    area_slug=area_slug, workspace_root=workspace_root,
+                )
             r=self.references.economy_resolution
             out["economy_code"]=out[f"{r}_code"].astype("string")
             # Canonical labels are owned by the selected Economy, not concordance text.

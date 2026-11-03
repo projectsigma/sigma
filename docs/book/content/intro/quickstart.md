@@ -24,26 +24,69 @@ sigma init
 
 Initialization creates SIGMA's shared data directory and prepares the national Geofabrik Philippines PBF used by both OSM place extraction and managed roads.
 
-## 3. Run an area
+## 3. Load, then run an area
 
-For example:
+Load places before running analysis. For example:
 
 ```bash
+sigma load pasig
 sigma run pasig
 ```
 
-The default run uses:
+`sigma load` acquires and reconciles OSM/Overture establishments, classifies them,
+and writes the editable `places/places.parquet` handoff. Without `--io-level` or
+`--economy`, it also builds a **per-area hierarchical PSA 2018 economy** from
+the packaged IO240 reference: exact IO240 sectors where supported, with IO80,
+IO16, and residual groups elsewhere. New hierarchical profiles use
+`coarse_policy=residual` and `min_places=5`; they are recorded under the SIGMA
+data directory and the area selection is recorded in `economy-selection.json`.
+To choose a fixed national resolution instead, use one of:
 
-- PSA 2018 IO80;
-- `transaction_preprocessing=none`;
-- deterministic PSIC classification;
+```bash
+sigma load pasig --io-level 16
+sigma load pasig --io-level 80
+sigma load pasig --io-level 240
+```
+
+These are alternatives to, not additional steps after, the default load.
+Fixed IO240 retains only exact IO240 tags as assigned establishments. A custom
+`--economy` is also supported and is mutually exclusive with `--io-level`.
+`sigma run` follows the selection made by `sigma load`; **existing unselected
+legacy IO80 workspaces are not silently converted to hierarchy**. See
+[Hierarchical economy](../methods/hierarchical.md) and the
+[load selection guide](https://github.com/projectsigma/sigma/blob/main/docs/SIGMA_LOAD_PORTABILITY.md).
+
+The ordinary selected-economy run uses:
+
+- `transaction_preprocessing=none` and the full positive directed technical-coefficient graph;
+- deterministic PSIC classification at `load` (not again at `run`);
 - managed Geofabrik roads;
 - type-wise road-network HDBSCAN*;
 - network-node 1-median cluster centers;
 - network-Voronoi surface partitions;
-- the full directed technical-coefficient economy;
+- X weights based on technical coefficients, both clustered-sector shares, and mean hub-mediated road distance;
 - balanced sender-receiver weighted Katz; and
-- distance tempering `lambda = 0.15`.
+- establishment distance tempering `lambda = 0.15`.
+
+Use `sigma run pasig --refresh` to recompute downstream analysis from loaded
+places without deliberately reloading sources or reclassifying establishments.
+Use `sigma view pasig --refresh` to rebuild only the browser bundle. These are
+different operations.
+
+<!-- sigma-augment-docs-v1:begin:quickstart -->
+### Optional: add user-supplied places after `sigma load`
+
+To combine an existing loaded area with a registry or another CSV/Parquet source, run `sigma augment` **after** `sigma load` and **before** `sigma run`:
+
+```bash
+sigma load quezon_city
+sigma augment quezon_city path/to/registry.csv --source company_registry --check
+sigma augment quezon_city path/to/registry.csv --source company_registry
+sigma run quezon_city
+```
+
+`--check` validates the input and previews matches without writing. Required columns are `source_id`, `name`, `lon`, `lat`; optional `io16`, `io80`, and `io240` columns allow explicit hierarchical IO classification, and arbitrary extra fields are preserved for later use. See [Augment user-provided places](../methods/augmentation.md) for the complete contract and conflict handling.
+<!-- sigma-augment-docs-v1:end:quickstart -->
 
 ## 4. Inspect the published results
 

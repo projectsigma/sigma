@@ -362,7 +362,7 @@ By default, `sigma load` also builds this area's hierarchical IO240/IO80/IO16 ec
 Useful variants:
 
 ```powershell
-# Built-in IO16 economy instead of the default IO80
+# Explicit built-in IO16 instead of the default per-area hierarchy
 sigma load pasig --economy builtin:io16
 
 # Refresh only Overture for this area
@@ -400,6 +400,24 @@ sigma load pasig --io-level 240
 The choice is recorded in `<workspace>\economy-selection.json`, and `sigma run AREA` follows it. Legacy areas with no recorded selection or prior hierarchy remain IO80 until explicitly reloaded. In fixed IO240 mode only places with an exact IO240 code are used, and `sigma load` reports how many. `--io-level` cannot be combined with `--economy`. If the hierarchical settings change after an area was loaded, `sigma run` stops and asks you to refresh or reload the area instead of rebuilding it with different settings. Details: [`docs/SIGMA_LOAD_PORTABILITY.md`](docs/SIGMA_LOAD_PORTABILITY.md).
 
 ---
+
+<!-- sigma-augment-docs-v1:begin:readme -->
+### Optional: augment loaded places from CSV or Parquet
+
+After `sigma load`, `sigma augment` can reconcile additional observations from a user-supplied CSV or Parquet against the existing canonical places. It uses SIGMA's existing name-and-distance matching policy; matching records retain their canonical identity and unmatched records are added. No additional OSM/Overture acquisition occurs.
+
+```powershell
+sigma augment quezon_city "C:\data\registry.csv" --source company_registry --check
+sigma augment quezon_city "C:\data\registry.csv" --source company_registry
+sigma run quezon_city
+```
+
+Four input fields are required: `source_id`, `name`, `lon`, and `lat` (WGS84 longitude/latitude). Optional `category`, `psic_code`, `io16`, `io80`, and `io240` columns supply classification evidence. **The finest provided IO code determines missing ancestors, not descendants.** Contradictory supplied IO relationships are reported per row and block application; conflicts with existing *inferred* classifications are reported as warnings. Unspecified IO fields may be blank. Do **not** use the superseded single `io_code` input column.
+
+Arbitrary further attributes are retained under source-qualified names (for example, `aug_company_registry__employees`) for future analysis; they do not alter the present SIGMA score. `--check` does not write. Augmentation records provenance, preserves OSM/Overture identities and the existing acquisition policy, and leaves network/scoring recomputation to the subsequent `sigma run`. This applies to an **already loaded** workspace: it is an optional step, not a replacement for `sigma load`.
+
+See the [Augment specification](docs/SIGMA_AUGMENT.md) and the [GitHub Pages augmentation chapter](docs/book/content/methods/augmentation.md) for the full schema, matching thresholds, explicit-tag precedence, safety checks, and refresh behavior.
+<!-- sigma-augment-docs-v1:end:readme -->
 
 ## Step 4 — Optionally review the place handoff
 
@@ -687,6 +705,7 @@ sigma run metro_manila
 | Filter cities/municipalities/composites | `sigma areas list --kind city` |
 | Inspect one area | `sigma areas show pasig` |
 | Build editable place handoff | `sigma load pasig` |
+| Augment loaded places (optional) | `sigma augment pasig path/to/places.csv --source user_registry` |
 | Run full analysis/export | `sigma run pasig` |
 | Explore results in a local browser | `sigma view pasig` |
 | Rebuild Explorer from latest exports | `sigma view pasig --refresh` |
@@ -760,7 +779,11 @@ places.canonical
 
 ### 1.4 PSIC classification and economic tagging
 
-Canonical places are classified against the Philippine Standard Industrial Classification (PSIC), then mapped into the selected economic sector system. The default economy is PSA 2018 IO80; built-in IO16 and custom economies are also supported.
+Canonical places are classified against the Philippine Standard Industrial Classification (PSIC), then mapped into the selected economic sector system. The ordinary `sigma load AREA` default is now an area-specific hierarchical
+PSA 2018 IO240/IO80/IO16 economy. Fixed IO16, IO80, and IO240 resolutions can
+instead be selected with `--io-level`; custom economies use `--economy`.
+`Economy.default()` and legacy areas without an explicit recorded selection
+remain IO80 for compatibility.
 
 Relevant stages:
 
@@ -1121,7 +1144,7 @@ sigma run quezon_city
 sigma status quezon_city
 ```
 
-Default analysis behavior is PSA 2018 IO80, `transaction_preprocessing=none`, the full directed IO graph, managed Geofabrik roads, network-first spatial methods with graceful fallbacks, deterministic PSIC classification during `load`, balanced directed Katz centrality, and no LLM requirement.
+For a **newly loaded area**, the default economic selection is hierarchical PSA 2018 IO240/IO80/IO16 (legacy unselected areas remain IO80). The other defaults are `transaction_preprocessing=none`, the full positive directed technical-coefficient graph, managed Geofabrik roads, network-first spatial methods with documented fallbacks, deterministic PSIC classification during `load`, balanced directed Katz centrality, and no LLM requirement. Network X further uses both clustered-sector shares and mean hub-mediated road separation before Katz centrality.
 
 ---
 

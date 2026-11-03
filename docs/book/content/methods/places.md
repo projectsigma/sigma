@@ -11,6 +11,14 @@ The current implementation directly uses:
 
 It does not directly ingest Foursquare, and the current Overture policy excludes Foursquare-attributed records.
 
+<!-- sigma-augment-docs-v1:begin:places -->
+## Additional observations after loading
+
+After the OSM/Overture load, `sigma augment` accepts user-supplied CSV/Parquet establishments in the **editable loaded-place handoff**. It reuses SIGMA's existing spatial/name reconciliation thresholds and canonical identities rather than performing a second OSM/Overture acquisition. New source attributes are retained with `aug_<source>__` prefixes. Optional explicit PSIC and IO16/IO80/IO240 tags remain auditable; contradictory input tags block modification.
+
+See [Augment user-provided places](augmentation.md). This pathway does **not** change the policy excluding Foursquare-attributed Overture observations.
+<!-- sigma-augment-docs-v1:end:places -->
+
 ## Candidate matching
 
 An OSM observation and an Overture observation are considered only when their Haversine separation is at most 120 m. For longitude-latitude pairs $(\lambda_1,\phi_1)$ and $(\lambda_2,\phi_2)$ in radians,
