@@ -13,7 +13,7 @@ function section(start, end) {
 
 // A new selection must synchronously clear old routes and cancel stale deferred render jobs.
 {
-  const script = section('  function refresh() {', '  function selectUnclustered(');
+  const script = section('  let graphAutoClosed = true;', '  function selectUnclustered(');
   const work = [], frames = [], timers = [];
   let lastSelectionId = 'first';
   const nodeIndex = new Map([['first', {}], ['second', {}]]);
@@ -25,10 +25,11 @@ function section(start, end) {
   const wrapped = new Function('sigmaPerf', 'sigmaSyncSelectedTriangle', 'sigmaTriangleImageCache', 'SIGMA_TRIANGLE_IMAGE_LIMIT', 'pruneSigmaTriangleImages', 'selection', 'nodeIndex', 'buildNetwork',
     'computeNetworkTriangleStyles', 'renderSelection', 'ready', 'applyEmphasis', 'updateStatus',
     'renderSectors', 'drawGraph', 'renderConnections', 'showRoutes', 'setData', 'EMPTY',
-    'requestAnimationFrame', 'setTimeout',
+    'requestAnimationFrame', 'setTimeout', 'document',
     `let refreshEpoch=0, routeEpoch=0, hoverEpoch=0, pendingHoverEvent=null, sigmaTriangleStyleByNode=null, network=null;\n${script}\nreturn {refresh};`);
   const callbacks = ['renderSelection', 'applyEmphasis', 'updateStatus', 'renderSectors', 'drawGraph', 'renderConnections', 'showRoutes'];
   const cb = Object.fromEntries(callbacks.map(key => [key, () => work.push(`${key}:${lastSelectionId}`)]));
+  const graphDetails = {open: false};
   const handler = wrapped((_label, fn) => fn(), () => {}, new Map(), 640, () => {}, sharedSelection, nodeIndex, id => ({focus:id}), () => new Map(),
     cb.renderSelection, true, cb.applyEmphasis, cb.updateStatus, cb.renderSectors, cb.drawGraph,
     cb.renderConnections, cb.showRoutes, (name, data) => {
@@ -36,8 +37,13 @@ function section(start, end) {
         assert.deepEqual(data.features, [], 'Old routes must disappear immediately');
         work.push(`${name}:clear`);
       }
-    }, () => ({type:'FeatureCollection',features:[]}), fn => frames.push(fn), fn => timers.push(fn));
+    }, () => ({type:'FeatureCollection',features:[]}), fn => frames.push(fn), fn => timers.push(fn),
+    {querySelector: selector => {
+      assert.equal(selector, '.graph-section .sidebar-disclosure');
+      return graphDetails;
+    }});
   handler.refresh();
+  assert.equal(graphDetails.open, true, 'selected network should expand graph');
   assert.deepEqual(work.slice(0,2), ['routes:clear','route-hover:clear']);
   assert(work.includes('applyEmphasis:first'));
   assert(!work.some(x=>x.startsWith('drawGraph:')),'expensive work must be deferred');
@@ -49,6 +55,17 @@ function section(start, end) {
   assert.equal(work.filter(x=>x==='drawGraph:first').length,0,'superseded graph render must be canceled');
   assert.equal(work.filter(x=>x==='showRoutes:second').length,1);
   assert.equal(work.filter(x=>x==='showRoutes:first').length,0);
+  // Preserve manual collapse while a network remains selected.
+  graphDetails.open = false;
+  handler.refresh();
+  assert.equal(graphDetails.open, false, 'manual collapse should persist');
+  // No selected X-network closes the disclosure; a new one reopens it.
+  lastSelectionId = 'missing';
+  handler.refresh();
+  assert.equal(graphDetails.open, false, 'missing network should collapse graph');
+  lastSelectionId = 'first';
+  handler.refresh();
+  assert.equal(graphDetails.open, true, 'new network should reopen graph');
 }
 
 // Hover is coalesced, and a newer pointer event wins within a frame.
