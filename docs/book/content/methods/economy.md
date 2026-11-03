@@ -6,7 +6,15 @@ SIGMA separates the economic data definition from the graph used in spatial-econ
 
 Let $Z=(z_{ij})$ be the intermediate transaction matrix. Row $i$ is the supplying sector and column $j$ is the purchasing/user sector. Values must be finite and nonnegative with aligned sector axes.
 
-The default built-in economy is PSA 2018 IO80. IO16 and custom code/label/transaction systems are supported.
+The built-in `Economy.default()` and unselected legacy workspaces use PSA
+2018 IO80. However, the ordinary **new area CLI workflow** uses `sigma load
+AREA`, whose default selection is a per-area hierarchical IO240/IO80/IO16
+economy derived from the validated packaged PSA 2018 IO240 table. Explicit
+`--io-level 16`, `80`, or `240` selects a fixed national resolution instead;
+custom code/label/transaction systems remain supported with `--economy`.
+`economy-selection.json` records the choice, which `sigma run` subsequently
+respects. These are **different defaults for different entry points**, not
+interchangeable descriptions of the same area run.
 
 ## Technical coefficients
 
@@ -19,6 +27,13 @@ $$
 Thus $a_{ij}$ is the amount of input from supplying sector $i$ required per unit of total output of sector $j$.
 
 Every positive effective coefficient generates a directed economic edge $i\to j$. Positive diagonal terms are retained: sector self-use remains legitimate economic structure. Reciprocal edges and directed cycles are also retained by default.
+
+These entries encode national input requirements, **not verified suppliers,
+local purchases, or flows between the study area's establishments**. The
+current X graph uses the direct coefficient matrix $A$; it does **not** yet
+substitute the Leontief inverse $(I-A)^{-1}$ or provide an A-versus-Leontief
+analysis toggle. See [The X graph](x_graph.md) for its additional spatial and
+cluster-share assumptions.
 
 ## Default: no preprocessing
 

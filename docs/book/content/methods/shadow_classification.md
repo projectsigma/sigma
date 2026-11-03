@@ -1,8 +1,8 @@
 # Institution ownership: registry-backed shadow v3
 
-**Status:** opt-in, **not** integrated with `sigma run` or `sigma view`. Policy `shadow-evidence-v3`.
+**Status:** opt-in shadow diagnostics, **not** integrated with `sigma run` or `sigma view`. A distinct conservative subset is applied in `sigma load` (see `docs/SIGMA_INSTITUTION_TAGGING_LOAD.md`). Policy `shadow-evidence-v3`.
 
-This changes only diagnostic files. It does **not** modify existing PSIC/IO tags, economic-sector assignments, cluster geometries, network edges, centrality, or acquisition scores. Run `scripts/sigma_shadow_qc.py` explicitly to evaluate it against an existing place workspace. The v2 baseline is retained by the reversible installer.
+Running the shadow QC script changes only diagnostic files. It does **not** modify existing PSIC/IO tags, economic-sector assignments, cluster geometries, network edges, centrality, or acquisition scores. Run `scripts/sigma_shadow_qc.py` explicitly to evaluate it against an existing place workspace. The v2 baseline is retained by the reversible installer.
 
 ## Why registry evidence?
 

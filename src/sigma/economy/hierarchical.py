@@ -705,6 +705,10 @@ def build_hierarchical_economy(
         review_flags, index=tagged.index, dtype=bool
     )
     tagged["economy_source"] = "hierarchical_io240_io80_io16"
+    # sigma-user-augment-v2: manual tags remain auditable after a hierarchy rebuild.
+    if "augment_io_code" in classified_places.columns:
+        is_manual = classified_places["augment_io_code"].astype("string").fillna("").str.strip().ne("")
+        tagged.loc[is_manual, "economy_source"] = "user_supplied_io|hierarchical_partition"
     members = pd.DataFrame([
         {"economy_code": key, "economy_label": label, "io240_code": leaf,
          "io80_code": up80[leaf], "io16_code": up16[leaf]}

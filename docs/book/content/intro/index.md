@@ -31,7 +31,7 @@ IO transactions ─ technical coefficients ─ directed economic graph
                                       distance-tempered point scores
 ```
 
-The default is deliberately conservative: deterministic place classification, no LLM requirement, no transaction preprocessing, the full directed economic graph, road-network-first spatial methods, and a balanced directed Katz score.
+The default is deliberately conservative: deterministic place classification, no LLM requirement, no transaction preprocessing, the full directed economic graph, road-network-first spatial methods, and a balanced directed Katz score. New areas loaded with `sigma load AREA` use a per-area hierarchical PSA 2018 IO240/IO80/IO16 economy; legacy unselected IO80 workspaces retain IO80 until explicitly reloaded. The X graph does not identify observed suppliers: its directed links combine input-output coefficients, positive-area spatial partition overlap, connected 1-medians, clustered-sector shares, and mean hub-mediated road-distance attenuation.
 
 ```{admonition} What is a SIGMA node?
 :class: note

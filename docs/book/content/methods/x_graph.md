@@ -120,6 +120,11 @@ The exponent, Katz centrality, and point-score tempering are unchanged.
 The mean hub-mediated distance is not an observed commercial trip length or
 an estimate of actual trade. It can overstate direct travel when dispersed
 clusters intermix or when routes through medians require large detours.
+The sector direction denotes a national input-output requirement, not evidence
+that the source cluster supplies the target cluster. External sourcing,
+including imported and out-of-city inputs, is not identified by X. The
+**implemented coefficient is $a_{ij}$**, not the Leontief inverse; an
+A-versus-Leontief option is a proposed change, not a deployed feature.
 ```
 
 ## Self-use

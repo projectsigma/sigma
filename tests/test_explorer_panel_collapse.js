@@ -11,7 +11,7 @@ const ci = fs.readFileSync(path.join(__dirname, '../.github/workflows/explorer_j
 const specs = [
   ['finder-section', false, 'Find an establishment', 'finder-query'],
   ['selection', true, 'Selected location', 'place-name'],
-  ['graph-section', true, 'Cluster network', 'network'],
+  ['graph-section', false, 'Cluster network', 'network'],
   ['connections-section', true, 'Linked clusters', 'connections'],
   ['central-section', true, 'Most central clusters', 'central'],
 ];
@@ -37,4 +37,4 @@ assert.match(js, /querySelector\('\.graph-section \.sidebar-disclosure'\)\.addEv
 assert.match(js, /cy\.resize\(\);\s*if \(network\) cy\.fit/);
 assert.match(js, /finderPanel\.open = false;/);
 assert.match(ci, /node tests\/test_explorer_panel_collapse\.js/);
-console.log('PASS: finder starts collapsed; four other sections collapse independently; graph expands by default and resizes on reopening.');
+console.log('PASS: finder and graph start collapsed; other sections remain independently collapsible; graph resizes when opened.');

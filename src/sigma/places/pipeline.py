@@ -363,12 +363,17 @@ class PlacePipeline:
         )
 
     def _recipe_classified(self, planner, deps):
+        from sigma.classification.ownership_promotion import (
+            reference_fingerprint, verified_links_fingerprint,
+        )
         refs = self._reference_obj()
         return ArtifactRecipe.build(
-            "places.classified", implementation_version="c8-economic-tagging-v2", dependencies=deps,
+            "places.classified", implementation_version="c8-economic-tagging-v3-institution-evidence", dependencies=deps,
             identities={
                 "economy_sector_fingerprint": self.economy.sector_fingerprint,
                 "tagging_references_fingerprint": refs.fingerprint,
+                "institution_reference_fingerprint": reference_fingerprint(),
+                "institution_links_fingerprint": verified_links_fingerprint(self.workspace.root),
             },
         )
 
@@ -553,12 +558,17 @@ class PlacePipeline:
     def _exec_classified(self, planner, recipe, deps, write):
         frame = read_geoframe(deps["places.psic"].path / "places.json")
         tagger = EconomicTagger(taxonomy=self._taxonomy_obj(), economy=self.economy, references=self._reference_obj())
-        tagged = tagger.tag(frame, compatibility=True)
+        tagged = tagger.tag(
+            frame, compatibility=True, promote_registry_evidence=True,
+            area_slug=self.area.slug, workspace_root=self.workspace.root,
+        )
         write_geoframe(tagged, write.output("places.json"))
         coverage = hybrid_io_coverage_summary(tagged) if self._reference_obj().profile == "builtin-rev5-psa2018" else None
         metadata = {"rows": len(tagged), "economy_id": self.economy.economy_id}
         if coverage is not None:
+            from sigma.classification.ownership_promotion import summary
             metadata["io_coverage"] = coverage
+            metadata["institution_promotion"] = summary(tagged)
         return metadata, {}
 
     # ---- public component API ---------------------------------------

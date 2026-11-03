@@ -1,6 +1,14 @@
 # Canonical defaults
 
 These are the main current defaults exposed by `SigmaConfig`.
+**Economy-resolution selection is a CLI/workspace policy, not a field of
+`SigmaConfig`:** `sigma load AREA` defaults to a per-area hierarchical
+IO240/IO80/IO16 economy (packaged IO240 reference, `min_places=5`,
+`coarse_policy=residual` for new profiles). Explicit `--io-level 16|80|240`
+selects a fixed national resolution; `--economy` chooses a custom system.
+`Economy.default()` and unselected legacy areas continue to use IO80.
+`sigma run` honors the area's recorded load choice instead of silently
+migrating it. See [Hierarchical economy](../methods/hierarchical.md).
 
 ## Places
 

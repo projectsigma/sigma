@@ -657,6 +657,44 @@ def load(
         _handle_error(exc)
 
 
+
+# sigma-user-augment-v2: user-supplied observations are reconciled after sigma load.
+@app.command("augment")
+def augment_command(
+    area: str,
+    input_file: Path = typer.Argument(..., exists=True, dir_okay=False,
+                                     help="CSV or Parquet with source_id,name,lon,lat"),
+    source: str = typer.Option(..., "--source", help="Stable namespace for this input dataset"),
+    workspace: Path | None = typer.Option(None, "--workspace", file_okay=False),
+    check: bool = typer.Option(False, "--check", help="Validate and match without writing"),
+    clip: bool = typer.Option(True, "--clip/--no-clip", help="Apply the loaded area's spatial boundary"),
+    areas_file: Path | None = typer.Option(None, "--areas-file", exists=True, dir_okay=False),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Augment loaded places from user CSV/Parquet, retaining extra columns."""
+    try:
+        from .places.augment import augment_workspace
+        area_def = AreaCatalog(areas_file).resolve(area)
+        root = _workspace_for(area, workspace, areas_file)
+        workspace_info = json.loads((Path(root) / "workspace.json").read_text(encoding="utf-8"))
+        if (workspace_info.get("area") or {}).get("slug") != area_def.slug:
+            raise ValueError("the selected workspace was not loaded for area " + area_def.slug)
+        boundary = None
+        if clip:
+            from .area.boundary import load_boundary
+            boundary = load_boundary(area_def)
+        report = augment_workspace(root, input_file, source=source,
+                                   check=check, boundary=boundary)
+        if json_output:
+            _echo_json(report)
+        else:
+            typer.echo(json.dumps(report, indent=2, ensure_ascii=False))
+            if report["status"] == "applied":
+                typer.echo("Next: sigma run " + area + " (rebuilds derived hierarchy/analysis)")
+    except (SigmaError, OSError, ValueError, KeyError, RuntimeError) as exc:
+        _handle_error(exc)
+
+
 @network_app.command("prepare")
 def network_prepare(
     area: str,
