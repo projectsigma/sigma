@@ -372,7 +372,7 @@ class PlacePipeline:
             identities={
                 "economy_sector_fingerprint": self.economy.sector_fingerprint,
                 "tagging_references_fingerprint": refs.fingerprint,
-                "institution_reference_fingerprint": reference_fingerprint(),
+                "institution_reference_fingerprint": reference_fingerprint(self.workspace.root),
                 "institution_links_fingerprint": verified_links_fingerprint(self.workspace.root),
             },
         )
@@ -570,7 +570,7 @@ class PlacePipeline:
         if coverage is not None:
             from sigma.classification.ownership_promotion import summary
             metadata["io_coverage"] = coverage
-            metadata["institution_promotion"] = summary(tagged)
+            metadata["institution_promotion"] = summary(tagged, workspace_root=self.workspace.root)
         return metadata, {}
 
     # ---- public component API ---------------------------------------

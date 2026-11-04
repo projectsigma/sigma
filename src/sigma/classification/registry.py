@@ -18,10 +18,10 @@ from urllib.parse import urlparse
 OFFICIAL_HOSTS = frozenset({
     "nhfr.doh.gov.ph", "hfsrb.doh.gov.ph", "ncroffice.doh.gov.ph",
     "deped.gov.ph", "www.deped.gov.ph", "depedncr.com.ph", "www.depedncr.com.ph",
-    "heida.ched.gov.ph", "ched.gov.ph", "www.ched.gov.ph", "legacy.ched.gov.ph",
+    "ched.gov.ph", "www.ched.gov.ph", "legacy.ched.gov.ph",
     "philhealth.gov.ph", "www.philhealth.gov.ph", "quezoncity.gov.ph",
 })
-KNOWN_SOURCES = frozenset({"doh_nhfr", "deped_public", "deped_masterlist", "ched_hei", "ched_cmo", "philhealth_hospitals", "qc_government"})
+KNOWN_SOURCES = frozenset({"doh_nhfr", "deped_public", "deped_masterlist", "ched_cmo", "philhealth_hospitals", "qc_government"})
 
 
 def _str(v: object) -> str:
@@ -112,7 +112,6 @@ def records_from_csv(path: Path) -> list[Institution]:
             (src == "doh_nhfr" and host in {"nhfr.doh.gov.ph", "hfsrb.doh.gov.ph"}) or
             (src == "deped_public" and host in {"depedncr.com.ph", "www.depedncr.com.ph"} and rec.ownership == "public") or
             (src == "deped_masterlist" and host in {"deped.gov.ph", "www.deped.gov.ph", "depedncr.com.ph", "www.depedncr.com.ph"}) or
-            (src == "ched_hei" and host in {"heida.ched.gov.ph", "ched.gov.ph", "www.ched.gov.ph"}) or
             (src == "ched_cmo" and host in {"ched.gov.ph", "www.ched.gov.ph", "legacy.ched.gov.ph"} and rec.ownership == "private") or
             (src == "philhealth_hospitals" and host in {"philhealth.gov.ph", "www.philhealth.gov.ph"} and rec.domain == "health") or
             (src == "qc_government" and host == "quezoncity.gov.ph" and rec.ownership == "public")
@@ -120,8 +119,8 @@ def records_from_csv(path: Path) -> list[Institution]:
             raise ValueError(f"registry row {n} source/URL/ownership mismatch")
         if src == "doh_nhfr" and rec.id_kind != "official_code":
             raise ValueError(f"registry row {n} NHFR requires an official facility code")
-        if src in {"deped_public", "deped_masterlist", "ched_hei"} and rec.id_kind != "official_code":
-            raise ValueError(f"registry row {n} requires official school/HEI code")
+        if src in {"deped_public", "deped_masterlist"} and rec.id_kind != "official_code":
+            raise ValueError(f"registry row {n} requires official school code")
         unique = (rec.source, rec.source_id)
         if unique in seen:
             raise ValueError(f"duplicate registry source/id: {unique}")
@@ -156,19 +155,18 @@ def import_export(path: Path, source: str, *, as_of: str, source_url: str) -> li
     Supported formats:
       DOH NHFR: Facility Code/Name, Ownership Major Classification, Type, City
       DepEd: School ID, School Name, Sector/Classification, Division/City
-      CHED: HEI Code, Name, Institutional Type, Address/City
 
     The caller must supply a source URL describing the downloaded official export.
-    Generic DepEd/CHED entries without an ownership field are NEVER guessed.
+    Generic DepEd entries without an ownership field are NEVER guessed.
     """
-    if source not in {"doh_nhfr", "deped_masterlist", "ched_hei"}:
+    if source not in {"doh_nhfr", "deped_masterlist"}:
         raise ValueError("unsupported official export type")
     if not valid_url(source_url):
         raise ValueError("export source URL must be the official HTTPS registry")
     host = urlparse(source_url).hostname.lower()
     allowed_hosts = {"doh_nhfr": {"nhfr.doh.gov.ph", "hfsrb.doh.gov.ph"},
                      "deped_masterlist": {"deped.gov.ph", "www.deped.gov.ph", "depedncr.com.ph", "www.depedncr.com.ph"},
-                     "ched_hei": {"heida.ched.gov.ph", "ched.gov.ph", "www.ched.gov.ph"}}
+    }
     if host not in allowed_hosts[source]:
         raise ValueError("the official export URL is not from the selected registry")
     records = []
@@ -194,23 +192,6 @@ def import_export(path: Path, source: str, *, as_of: str, source_url: str) -> li
             address = _field(row, "Address", "School Address")
             domain = "education"
             ownership = "public" if label == "public" else "private" if label == "private" else ""
-        else:
-            identifier = _field(row, "HEI Code", "Institution Code", "HEI ID")
-            name = _field(row, "HEI Name", "Institution Name", "Name")
-            if not identifier or not name:
-                # CHED public web table combines name and HEI code in one cell.
-                combined = _field(row, "HEI Name & Code", "HEI Name and Code")
-                found = re.fullmatch(r"(.+?)\s+((?:\d{4,6}|N_\d{3,7}))", combined)
-                if found:
-                    name, identifier = found.groups()
-            label = key(_field(row, "Type", "Institutional Type", "Sector", "Classification"))
-            city = _field(row, "City", "City/Municipality")
-            address = _field(row, "Address", "Institutional Address")
-            if not city and "quezon city" in key(address):
-                city = "Quezon City"
-            domain = "education"
-            ownership = ("private" if label.startswith("private ") or label == "private" else
-                         "public" if label in {"suc", "suc main", "suc satellite", "luc", "local university and college", "state university and college"} else "")
         if not identifier or not name or not ownership or not city_is_qc(city):
             continue
         if identifier in ids:
@@ -245,7 +226,7 @@ class RegistryIndex:
         id_fields = {"deped_masterlist": ("deped_school_id",),
                      "deped_public": ("deped_school_id",),
                      "doh_nhfr": ("nhfr_code", "doh_facility_code"),
-                     "ched_hei": ("ched_hei_code", "hei_code")}
+        }
         id_matches: list[Institution] = []
         # Only a source's *actual external code* can qualify as exact ID.
         for src, cols in id_fields.items():
@@ -256,7 +237,7 @@ class RegistryIndex:
         # OSM refs may be kept in the source category or in a named column.
         tags = " | ".join(_str(row.get(c)) for c in ("osm_category", "overture_category"))
         for src, tag in (("deped_public", "ref:deped"), ("deped_masterlist", "ref:deped"),
-                         ("doh_nhfr", "ref:nhfr"), ("ched_hei", "ref:ched")):
+                         ("doh_nhfr", "ref:nhfr")):
             m = re.search(r"(?:^|\|)\s*" + re.escape(tag) + r"\s*=\s*([^|]+)", tags, flags=re.I)
             if m:
                 id_matches.extend(self.by_code.get((src, m.group(1).strip().casefold()), []))

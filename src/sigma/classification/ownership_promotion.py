@@ -19,9 +19,14 @@ import pandas as pd
 
 from .hybrid_io import _candidate_label
 from .registry import RegistryIndex, records_from_csv
+from .beis_registry import BEISIndex, LayeredInstitutionIndex, packaged_beis
+from .unifast_registry import UniFASTIndex, packaged_unifast
+from .national_registry import (
+    NationalRegistryIndex, load_national_registry, national_fingerprint, national_registry_path,
+)
 from .shadow import ShadowResolver, clean, domain_of, load_registry_links
 
-POLICY = "institution-ownership-load-v1"
+POLICY = "institution-ownership-load-v4-national-beis-unifast"
 PROMOTABLE_BASES = frozenset({
     "explicit_source_attribute",
     "verified_canonical_registry_link",
@@ -40,11 +45,34 @@ def _bundled_registry():
     return resources.files("sigma.resources.classification").joinpath("institution_registry.csv")
 
 
-def reference_fingerprint() -> str:
-    """Reference fingerprint is part of places.classified's cache recipe."""
+def reference_fingerprint(workspace_root: Path | None = None) -> str:
+    """Fingerprint the national snapshot when installed, otherwise legacy QC.
+
+    The legacy bundled reference is retained for fallback and remains included
+    in the digest; corrupted national snapshots must stop the tagging stage.
+    """
     with resources.as_file(_bundled_registry()) as path:
-        data = Path(path).read_bytes()  # missing package data must fail, not silently degrade
-    return hashlib.sha256(POLICY.encode() + b"\0" + data).hexdigest()
+        data = Path(path).read_bytes()
+    national = national_fingerprint(workspace_root) if workspace_root is not None else None
+    with resources.as_file(resources.files("sigma.resources.classification").joinpath(
+            "beis_schools_national.csv.gz")) as path:
+        beis_bytes = Path(path).read_bytes()
+    with resources.as_file(resources.files("sigma.resources.classification").joinpath(
+            "unifast_hei_ra10931.csv.gz")) as path:
+        unifast_bytes = Path(path).read_bytes()
+    return hashlib.sha256(POLICY.encode() + b"\0" + data + b"\0" +
+                          beis_bytes + b"\0" + unifast_bytes + b"\0" +
+                          (national or "national-not-installed").encode()).hexdigest()
+
+
+@lru_cache(maxsize=1)
+def _beis_index() -> BEISIndex:
+    return BEISIndex(packaged_beis())
+
+
+@lru_cache(maxsize=1)
+def _unifast_index() -> UniFASTIndex:
+    return UniFASTIndex(packaged_unifast())
 
 
 @lru_cache(maxsize=1)
@@ -95,9 +123,18 @@ def promote_institutions(
         out[column] = ""
     if frame.empty or "io80_codes" not in frame or "io240_codes" not in frame:
         return out
-    registry = registry_index if registry_index is not None else (
-        _qc_registry() if area_slug == "quezon_city" else None
-    )
+    if registry_index is not None:
+        registry = registry_index
+    elif workspace_root is not None and national_registry_path(workspace_root).is_file():
+        # National snapshot supersedes the smaller bundled QC-only registry.
+        # Both still require the same strict external-ID / verified-link checks.
+        registry = NationalRegistryIndex(load_national_registry(national_registry_path(workspace_root)))
+    else:
+        registry = _qc_registry() if area_slug == "quezon_city" else None
+    if registry_index is None:
+        registry = LayeredInstitutionIndex(
+            LayeredInstitutionIndex(registry, _beis_index()), _unifast_index()
+        )
     links = registry_links if registry_links is not None else _verified_links(workspace_root)
     resolver = ShadowResolver(taxonomy, io_mapping, registry_links=links, registry_index=registry)
     # Avoid expensive row-wise registry lookups for all noninstitution places.
@@ -161,8 +198,8 @@ def promote_institutions(
     return out
 
 
-def summary(frame: pd.DataFrame) -> dict:
+def summary(frame: pd.DataFrame, workspace_root: Path | None = None) -> dict:
     return {"policy": POLICY,
-            "reference_fingerprint": reference_fingerprint(),
+            "reference_fingerprint": reference_fingerprint(workspace_root),
             "status_counts": dict(sorted(Counter(frame["institution_promotion_status"].loc[
                 frame["institution_promotion_status"].ne("")]).items()))}

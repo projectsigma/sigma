@@ -333,7 +333,12 @@ class ShadowResolver:
             evidences = [why for _, why in explicit] + ([f"official_match:{regmatch.source_ids}"] if regmatch.side else [])
         elif regmatch.side:
             side = regmatch.side
-            basis = "official_registry_name_city_provisional"
+            # A matching official code is not identity proof for a different
+            # registered site. Keep such evidence provisional, distinct from
+            # a plain name-and-city match and outside PROMOTABLE_BASES.
+            basis = ("official_registry_id_locality_provisional"
+                     if regmatch.status == "EXTERNAL_ID_LOCALITY_REVIEW"
+                     else "official_registry_name_city_provisional")
             evidences = [f"official_registry:{regmatch.source_ids}"]
         elif operator:
             side = "public"

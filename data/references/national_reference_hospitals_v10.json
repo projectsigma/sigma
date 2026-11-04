@@ -1,0 +1,13 @@
+{
+  "schema": "sigma-hospital-only-v10",
+  "hospital_count": 125,
+  "public": 63,
+  "private": 62,
+  "official_source": "philhealth_hospitals",
+  "publication_date": "2026-09-30",
+  "hospital_csv_sha256": "4f4427dfe4bb40f428f7d143fafc2167c8b194e767a6022c54505ce4dda2b0c8",
+  "philhealth_source_csv_sha256": "65fc98dd42431e76082bbab3daee3af289c0ad4253e3613c4cfd0f2feb77b350",
+  "hospital_source_url": "https://www.philhealth.gov.ph/partners/providers/facilities/accredited/HOSP_093026.pdf",
+  "publication_row_is_not_official_facility_id": true,
+  "school_index": "separate BEIS compact school index; user supplied, original publication and redistribution rights not verified"
+}

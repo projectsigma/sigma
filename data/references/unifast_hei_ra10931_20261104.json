@@ -1,0 +1,23 @@
+{
+  "schema": "sigma-unifast-ra10931-source-v12",
+  "source": "https://unifast.gov.ph/hei-list.html",
+  "scope": "RA 10931 participating HEIs only, not all operating HEIs",
+  "source_publication_date": "not stated",
+  "capture_dom_sha256": "8b68fdb464c26c0abe46aa6d7a65e8cde2362ffd7ec836f2b3ae40cec2ce986e",
+  "capture_csv_sha256": "9399d34ab6467bc271c21e7c96f20ec91e371057b273c6ad45f526fcdb5b2c63",
+  "packaged_csv_sha256": "9399d34ab6467bc271c21e7c96f20ec91e371057b273c6ad45f526fcdb5b2c63",
+  "packaged_gzip_sha256": "b9e1c1654154e73fc9c51087c9f550d90de6810e8b3813da70bcdf2c2dffcfa6",
+  "captured_rows": 1955,
+  "types": {
+    "Private HEI": 1329,
+    "SUC": 533,
+    "LUC": 91,
+    "CHED Supervised Inst.": 2
+  },
+  "public": 624,
+  "private": 1329,
+  "review": 2,
+  "identifier": "local region+name digest, NOT official HEI code",
+  "location": "region only; no city/PSGC/address inferred",
+  "ownership_promotion": "provisional name/region matching only; verified canonical link required"
+}
