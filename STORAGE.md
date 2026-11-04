@@ -3,8 +3,31 @@
 Large libosmium node-location indexes are removed automatically after road and POI
 extraction finishes, whether extraction succeeds or raises an exception. A Windows
 file-lock failure yields a warning; it must not mask the extraction result.
-Pre-existing indexes left behind by earlier versions are **not** retroactively cleaned
-without a new extraction.
+Each road and national POI scan now has a unique per-scan node-location index.
+The owning scan tries to remove its own file when it finishes. Normal SIGMA jobs
+never sweep indexes left by other scans.
+
+Old, locked or interrupted indexes can be managed through explicit maintenance:
+
+```powershell
+sigma storage report --node-indexes
+sigma storage prune --node-indexes
+sigma storage prune --node-indexes --older-than-days 1 --apply
+```
+
+These source-only commands do not remove workspace artifacts, current PBF files,
+prepared POI tables or Explorer files. Inspection/pruning defaults to 30 days;
+`--older-than-days 1` is an explicit reduction. A deletion requires `--apply`.
+Stop *all* SIGMA extraction processes before pruning: concurrent scans cannot
+be safely detected across all supported operating systems. Candidates are checked
+again before deletion; locked, changed and too-recent files are skipped or reported.
+
+Internal stage tables (places, roads, points, clusters, centers, point distances,
+partitions, scores) are stored as Parquet. Artifacts written as JSON by earlier
+versions remain readable; the first run after upgrading rebuilds those stages once
+under new recipe versions, and the old JSON artifacts can then be removed with
+`sigma storage prune --obsolete --apply` (see below).
+
 SIGMA's reusable stage artifacts are **not** disposable scratch: they may be
 needed to resume expensive processing or explain a published result.
 

@@ -103,6 +103,78 @@ def test_distances_to_targets_and_shortest_path_geometry_are_exact():
         assert abs(float(geometry.length) - float(distance)) < 1e-9
 
 
+def _grid_network():
+    lines = []
+    for i in range(5):
+        stops = [0, 5, 10, 17, 20, 30, 40]
+        lines.append(LineString([(x, 10 * i) for x in stops]))
+        lines.append(LineString([(10 * i, y) for y in stops]))
+    lines.append(LineString([(60, 60), (70, 60)]))  # separate road component
+    roads = gpd.GeoDataFrame(geometry=lines, crs="EPSG:3857")
+    points = gpd.GeoDataFrame(
+        geometry=[Point(3, 0), Point(37, 40), Point(20, 17), Point(3, 0), Point(40, 3), Point(65, 60)],
+        crs=roads.crs,
+    )
+    base = RoadNetwork.from_geodataframe(roads)
+    return base.augment(base.snap(points))
+
+
+def test_route_lines_equal_path_geometry_of_each_path():
+    aug = _grid_network()
+    assert aug._edges_are_node_chords
+    source = int(aug.point_node[0])
+    targets = np.asarray([*aug.point_node, aug.point_node[1]], dtype=np.int64)
+    distances, routes = aug.shortest_route_nodes_to_targets(source, targets)
+    path_distances, paths = aug.shortest_paths_to_targets(source, targets)
+    assert distances.tolist() == path_distances.tolist()
+    assert routes[-2] is None and paths[-2] is None  # other road component
+    assert list(routes[0]) == [source] and paths[0] == (source,)
+    found = [r for r in routes if r is not None]
+    lines = aug.route_geoseries(found)
+    for line, path in zip(lines, [p for p in paths if p is not None], strict=True):
+        assert line.wkb == aug.path_geometry(path).wkb
+    wgs = aug.route_geoseries(found, "EPSG:4326")
+    expected = gpd.GeoSeries([aug.path_geometry(p) for p in paths if p is not None],
+                             crs=aug.crs).to_crs("EPSG:4326")
+    assert [g.wkb for g in wgs] == [g.wkb for g in expected]
+
+
+def test_route_lines_fall_back_to_edge_geometry_lookup():
+    aug = _grid_network()
+    edges = aug.edges.copy()
+    first = edges.geometry.iloc[0]
+    (x0, y0), (x1, y1) = first.coords
+    edges.loc[0, "geometry"] = LineString([(x0, y0), ((x0 + x1) / 2, (y0 + y1) / 2), (x1, y1)])
+    bent = type(aug)(aug.crs, aug.nodes, edges, aug.point_node)
+    assert not bent._edges_are_node_chords
+    source = int(aug.point_node[0])
+    targets = np.asarray(aug.point_node, dtype=np.int64)
+    _, routes = bent.shortest_route_nodes_to_targets(source, targets)
+    _, paths = bent.shortest_paths_to_targets(source, targets)
+    lines = bent.route_geoseries([r for r in routes if r is not None])
+    for line, path in zip(lines, [p for p in paths if p is not None], strict=True):
+        assert line.wkb == bent.path_geometry(path).wkb
+
+
+def test_ragged_route_reconstruction_on_a_branching_tree():
+    from sigma.transport.network import _route_nodes
+
+    # 0 <- 1 <- 2 <- 3 <- 4, and 0 <- 5 <- 6
+    predecessors = np.asarray([-9999, 0, 1, 2, 3, 0, 5], dtype=np.int64)
+    routes = _route_nodes(predecessors, 0, np.asarray([4, 1, 6, 0, 4]))
+    assert [r.tolist() for r in routes] == [[0, 1, 2, 3, 4], [0, 1], [0, 5, 6], [0], [0, 1, 2, 3, 4]]
+    assert all(r.dtype == np.int32 for r in routes)
+    with pytest.raises(RuntimeError):
+        _route_nodes(np.asarray([-9999, 0, -9999]), 0, np.asarray([2]))
+
+
+def test_networkx_view_is_built_on_demand():
+    aug = _grid_network()
+    assert "graph" not in aug.__dict__
+    assert aug.graph.number_of_edges() == len(aug.edges)
+    assert aug.graph.number_of_nodes() == len(aug.nodes)
+
+
 def test_legacy_builder_uses_significant_vertex_digits_like_sparse_builder():
     roads = gpd.GeoDataFrame(
         geometry=[

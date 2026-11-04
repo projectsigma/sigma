@@ -336,3 +336,30 @@ def test_euclidean_voronoi_failure_is_only_then_skipped(monkeypatch):
         and e["action"] == "skip_type_after_euclidean_voronoi_failure"
         for e in events
     )
+
+
+def test_partition_cache_is_scoped_and_bounded(monkeypatch):
+    from sigma.spatial import voronoi as module
+
+    roads = gpd.GeoDataFrame(
+        geometry=[LineString([(0, 0), (40, 0)]), LineString([(0, 0), (0, 40)])], crs="EPSG:3857"
+    )
+    base = RoadNetwork.from_geodataframe(roads)
+    seeds = gpd.GeoDataFrame(geometry=[Point(5, 0), Point(35, 0), Point(0, 30)], crs=roads.crs)
+    network = base.augment(base.snap(seeds))
+    points = gpd.GeoDataFrame(
+        {"type": ["A"] * 3, "cluster": [0, 1, 2], "network_node": network.point_node},
+        geometry=seeds.geometry, crs=roads.crs,
+    )
+    boundary = gpd.GeoDataFrame(geometry=[box(-5, -5, 45, 45)], crs=roads.crs)
+    other_boundary = gpd.GeoDataFrame(geometry=[box(-5, -5, 45, 45)], crs=roads.crs)
+
+    cache: dict = {}
+    first = module.surface_partition_for_type(network, points, boundary, 5.0, cache=cache)
+    assert first.equals(module.surface_partition_for_type(network, points, boundary, 5.0))
+    for resolution in (10.0, 2.5, 1.25):  # 25, 400 and 1,600 cells
+        module.surface_partition_for_type(network, points, boundary, resolution, 1700, cache=cache)
+    # Older grids are dropped once all kept cells would exceed max_cells.
+    assert list(cache["grids"]) == [(1.25, 1700)]
+    module.surface_partition_for_type(network, points, other_boundary, 5.0, cache=cache)
+    assert cache["owners"][1] is other_boundary and list(cache["grids"]) == [(5.0, 1_000_000)]

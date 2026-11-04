@@ -32,7 +32,7 @@ from sigma.sources import SourceRef, SourceStore
 from sigma.stages import StageSpec
 from sigma.workspace import SigmaWorkspace
 
-from .frame_io import read_geoframe, write_geoframe
+from .frame_io import MANAGED_TABLES_VERSION, read_geoframe, write_geoframe
 from .reconcile import reconcile
 
 ProgressCallback = Callable[[str], None]
@@ -279,14 +279,14 @@ class PlacePipeline:
     def _recipe_osm_national(self, planner, deps):
         gf = self._read_source_ref(planner, deps["source.geofabrik_pbf"])
         return ArtifactRecipe.build(
-            "source.osm_national_pois", implementation_version="c8-osm-national-recipe-v2-provisional-fallback",
+            "source.osm_national_pois", implementation_version="c8-osm-national-recipe-v2-provisional-fallback" + MANAGED_TABLES_VERSION,
             dependencies=deps, sources={"geofabrik": gf, **self._area_source_refs},
             parameters={"preparer": "sigma.sources.osm_prepare"},
         )
 
     def _recipe_osm_index(self, planner, deps):
         return ArtifactRecipe.build(
-            "source.osm_area_index", implementation_version="c8-osm-area-index-v1",
+            "source.osm_area_index", implementation_version="c8-osm-area-index-v1" + MANAGED_TABLES_VERSION,
             dependencies=deps, parameters={"area_slug": self.area.slug},
             identities={"area": self.workspace.area_identity or ""},
         )
@@ -300,19 +300,19 @@ class PlacePipeline:
 
     def _recipe_osm_area(self, planner, deps):
         return ArtifactRecipe.build(
-            "places.osm_area", implementation_version="c8-osm-area-v1", dependencies=deps,
+            "places.osm_area", implementation_version="c8-osm-area-v1" + MANAGED_TABLES_VERSION, dependencies=deps,
             parameters={"clip": self.config.clip},
         )
 
     def _recipe_overture_area(self, planner, deps):
         return ArtifactRecipe.build(
-            "places.overture_area", implementation_version="c8-overture-area-v1", dependencies=deps,
+            "places.overture_area", implementation_version="c8-overture-area-v1" + MANAGED_TABLES_VERSION, dependencies=deps,
             parameters={"clip": self.config.clip},
         )
 
     def _recipe_canonical(self, planner, deps):
         return ArtifactRecipe.build(
-            "places.canonical", implementation_version="siphon-reconcile-v1", dependencies=deps,
+            "places.canonical", implementation_version="siphon-reconcile-v1" + MANAGED_TABLES_VERSION, dependencies=deps,
             parameters={"clip": self.config.clip},
         )
 
@@ -345,7 +345,7 @@ class PlacePipeline:
             llm_identity = {"base_url": base_url, "model": model}
         return ArtifactRecipe.build(
             "places.psic",
-            implementation_version="siphon-psic-classifier-v4-admin-function-v1",
+            implementation_version="siphon-psic-classifier-v4-admin-function-v1" + MANAGED_TABLES_VERSION,
             dependencies=deps,
             parameters={
                 "top_n": self.config.top_n,
@@ -368,7 +368,7 @@ class PlacePipeline:
         )
         refs = self._reference_obj()
         return ArtifactRecipe.build(
-            "places.classified", implementation_version="c8-economic-tagging-v4-ownership-evidence", dependencies=deps,
+            "places.classified", implementation_version="c8-economic-tagging-v4-ownership-evidence" + MANAGED_TABLES_VERSION, dependencies=deps,
             identities={
                 "economy_sector_fingerprint": self.economy.sector_fingerprint,
                 "tagging_references_fingerprint": refs.fingerprint,
@@ -429,7 +429,7 @@ class PlacePipeline:
                 cache_base=cache_base, pbf_file=gf.path, area_slug=self.area.slug,
                 areas_file=self.areas_file, progress=self.progress,
             )
-        write_geoframe(frame, write.output("osm-area.json"))
+        write_geoframe(frame, write.output("osm-area.parquet"))
         _write_json(write.output("preparation.json"), {
             "cache_base": str(cache_base), "preparation_policy": preparation_policy,
             "geofabrik_source_id": gf.source_id, "prepared_source_version": version,
@@ -447,8 +447,8 @@ class PlacePipeline:
     def _exec_osm_index(self, planner, recipe, deps, write):
         national = deps["source.osm_national_pois"]
         prep = _read_json(national.path / "preparation.json")
-        frame = read_geoframe(national.path / "osm-area.json")
-        write_geoframe(frame, write.output("osm-area.json"))
+        frame = read_geoframe(national.path / "osm-area.parquet")
+        write_geoframe(frame, write.output("osm-area.parquet"))
         _write_json(write.output("index.json"), {
             "area_slug": self.area.slug,
             "prepared_source_version": prep.get("prepared_source_version"),
@@ -461,10 +461,10 @@ class PlacePipeline:
         }, {}
 
     def _exec_osm_area(self, planner, recipe, deps, write):
-        frame = read_geoframe(deps["source.osm_area_index"].path / "osm-area.json")
+        frame = read_geoframe(deps["source.osm_area_index"].path / "osm-area.parquet")
         if self.config.clip:
             frame = clip_points(frame, self._read_boundary(deps["area.boundary"]))
-        write_geoframe(frame, write.output("places.json"))
+        write_geoframe(frame, write.output("places.parquet"))
         return {"rows": len(frame), "clip": self.config.clip}, {}
 
     def _exec_overture_area(self, planner, recipe, deps, write):
@@ -475,19 +475,19 @@ class PlacePipeline:
             frame = gpd.read_parquet(source.path)
         if self.config.clip:
             frame = clip_points(frame, self._read_boundary(deps["area.boundary"]))
-        write_geoframe(frame, write.output("places.json"))
+        write_geoframe(frame, write.output("places.parquet"))
         return {"rows": len(frame), "clip": self.config.clip}, {}
 
     def _exec_canonical(self, planner, recipe, deps, write):
-        osm = read_geoframe(deps["places.osm_area"].path / "places.json")
-        overture = read_geoframe(deps["places.overture_area"].path / "places.json")
+        osm = read_geoframe(deps["places.osm_area"].path / "places.parquet")
+        overture = read_geoframe(deps["places.overture_area"].path / "places.parquet")
         boundary = self._read_boundary(deps["area.boundary"]) if self.config.clip else None
         frame = reconcile(osm, overture, boundary=boundary)
         if boundary is not None and len(frame):
             inside = frame.geometry.covered_by(boundary)
             if not bool(inside.all()):
                 raise RuntimeError("canonical output contains coordinates outside the configured boundary")
-        write_geoframe(frame, write.output("places.json"))
+        write_geoframe(frame, write.output("places.parquet"))
         matched = int((frame["source_count"] == 2).sum()) if len(frame) else 0
         return {"rows": len(frame), "matched_two_source": matched}, {}
 
@@ -510,7 +510,7 @@ class PlacePipeline:
         return {"fingerprint": refs.fingerprint, "profile": refs.profile}, {}
 
     def _exec_psic(self, planner, recipe, deps, write):
-        canonical = read_geoframe(deps["places.canonical"].path / "places.json")
+        canonical = read_geoframe(deps["places.canonical"].path / "places.parquet")
         taxonomy = self._taxonomy_obj()
         refs = self._reference_obj()
         decision_cache = None
@@ -546,7 +546,7 @@ class PlacePipeline:
                 decision_cache.close()
         from sigma.classification.administrative_activity import apply_administrative_activity
         tagged = apply_administrative_activity(tagged, taxonomy=taxonomy)
-        write_geoframe(tagged, write.output("places.json"))
+        write_geoframe(tagged, write.output("places.parquet"))
         coded = int(tagged["psic_code"].astype("string").fillna("").str.strip().ne("").sum()) if len(tagged) else 0
         method_counts = tagged["psic_method"].fillna("").value_counts().to_dict() if len(tagged) else {}
         status_counts = tagged["psic_status"].fillna("").value_counts().to_dict() if len(tagged) else {}
@@ -558,13 +558,13 @@ class PlacePipeline:
         }, {}
 
     def _exec_classified(self, planner, recipe, deps, write):
-        frame = read_geoframe(deps["places.psic"].path / "places.json")
+        frame = read_geoframe(deps["places.psic"].path / "places.parquet")
         tagger = EconomicTagger(taxonomy=self._taxonomy_obj(), economy=self.economy, references=self._reference_obj())
         tagged = tagger.tag(
             frame, compatibility=True, promote_registry_evidence=True,
             area_slug=self.area.slug, workspace_root=self.workspace.root,
         )
-        write_geoframe(tagged, write.output("places.json"))
+        write_geoframe(tagged, write.output("places.parquet"))
         coverage = hybrid_io_coverage_summary(tagged) if self._reference_obj().profile == "builtin-rev5-psa2018" else None
         metadata = {"rows": len(tagged), "economy_id": self.economy.economy_id}
         if coverage is not None:
@@ -581,7 +581,7 @@ class PlacePipeline:
         ref = ref or self.workspace.artifact("places.classified")
         if ref is None:
             raise RuntimeError("places.classified has not been prepared")
-        return read_geoframe(ref.path / "places.json")
+        return read_geoframe(ref.path / "places.parquet")
 
     def publish_compatibility(self, ref: ArtifactRef | None = None) -> tuple[Path, dict[str, object]]:
         ref = ref or self.load()
@@ -622,7 +622,7 @@ class PlacePipeline:
             "counts": {
                 "osm": int(self.workspace.manifest("places.osm_area").metadata.get("rows", 0)),
                 "overture": int(self.workspace.manifest("places.overture_area").metadata.get("rows", 0)),
-                "canonical": len(read_geoframe(self.workspace.artifact("places.canonical").path / "places.json")),
+                "canonical": len(read_geoframe(self.workspace.artifact("places.canonical").path / "places.parquet")),
                 "matched_two_source": matched, "psic_coded": psic_coded,
                 "io16_coded": io16, "io80_coded": io80, "io240_coded": io240,
                 "tagged": io80, "unresolved": len(tagged) - io80,

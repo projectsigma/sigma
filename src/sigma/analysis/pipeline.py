@@ -13,10 +13,10 @@ import pandas as pd
 
 from sigma.artifacts import ArtifactRecipe, ArtifactRef, ArtifactWrite
 from sigma.execution import ExecutionPlanner
-from sigma.places.frame_io import read_geoframe, write_geoframe
+from sigma.places.frame_io import MANAGED_TABLES_VERSION, read_geoframe, write_geoframe
 from sigma.progress_detail import detail_phase  # SIGMA_DETAILED_PROGRESS_V1
 from sigma.stages import StageSpec
-from sigma.savepoints import StageSavepoints, CheckpointedRoad  # SIGMA_RESUMABLE_SAVEPOINTS_V2
+from sigma.savepoints import StageSavepoints  # SIGMA_RESUMABLE_SAVEPOINTS_V2
 from sigma.workspace import SigmaWorkspace
 
 from .centrality import CentralityResult, compute_centrality
@@ -227,9 +227,9 @@ class AnalysisPipeline:
         nodes = self._node_table(graph)
         with detail_phase(
             self.progress,
-            f"network X: constructing shortest-road-path geometries for {graph.number_of_edges():,} edges",
+            f"network X: assembling {graph.number_of_edges():,} edges and their road routes",
         ):
-            edges, paths = self._edge_outputs(graph, CheckpointedRoad(road, graph, savepoints, progress=self.progress), progress=self.progress)
+            edges, paths = self._edge_outputs(graph, road)
         disconnected_out = self._disconnected_output(disconnected)
         if self.progress is not None:
             self.progress(
@@ -255,7 +255,7 @@ class AnalysisPipeline:
             "distance_floor_metres": 1.0,
             "road_distance_crs": str(road.crs),
         }
-        del graph  # release all embedded road_path arrays before path serialization
+        del graph  # release the X graph (and its route references) before serialization
         nodes.to_csv(write.output("x_nodes.csv"), index=False, lineterminator="\n")
         edges.to_csv(
             write.output("x_edges.csv"), index=False, float_format="%.17g", lineterminator="\n"
@@ -514,20 +514,23 @@ class AnalysisPipeline:
         )
 
     @staticmethod
-    def _edge_outputs(graph: nx.DiGraph, road, *, progress=None) -> tuple[pd.DataFrame, gpd.GeoDataFrame]:
+    def _edge_outputs(graph: nx.DiGraph, road) -> tuple[pd.DataFrame, gpd.GeoDataFrame]:
+        """Edge table and WGS84 route GeoDataFrame, in sorted X-edge order.
+
+        Routes were found during instantiation as road-node ids; all lines are made
+        here in one step by ``road.route_geoseries``.
+        """
         table_rows: list[dict[str, object]] = []
         path_rows: list[dict[str, object]] = []
-        geometries = []
-        total_paths = graph.number_of_edges()
-        for finished, (source, target, data) in enumerate(
-            sorted(graph.edges(data=True), key=lambda edge: (str(edge[0]), str(edge[1]))),
-            start=1,
+        routes = []
+        for source, target, data in sorted(
+            graph.edges(data=True), key=lambda edge: (str(edge[0]), str(edge[1]))
         ):
             source_data = graph.nodes[source]
             target_data = graph.nodes[target]
-            road_path = data.get("road_path")
-            if road_path is None:
-                raise RuntimeError(f"X edge {source!r}->{target!r} is missing its road path")
+            route = data.get("route_nodes")
+            if route is None:
+                raise RuntimeError(f"X edge {source!r}->{target!r} is missing its road route")
             common = {
                 "source_type": str(source_data["type"]),
                 "source_cluster": int(source_data["cluster"]),
@@ -550,21 +553,16 @@ class AnalysisPipeline:
                     **common,
                 }
             )
-            geometries.append(road.path_geometry(road_path))
-            if progress is not None and (finished % 25000 == 0 or finished == total_paths):
-                progress(
-                    f"network X: route geometries {finished:,}/{total_paths:,} "
-                    f"({100 * finished / total_paths:.1f}%)"
-                )
+            routes.append(route)
         table = pd.DataFrame(table_rows, columns=_X_EDGE_COLUMNS)
         path_columns = [
             "from_id", "from_type", "from_cluster", "to_id", "to_type", "to_cluster",
             *_X_EDGE_COLUMNS,
         ]
         if path_rows:
-            paths = gpd.GeoDataFrame(
-                path_rows, geometry=geometries, crs=road.crs
-            ).to_crs("EPSG:4326")
+            geometry = road.route_geoseries(routes, "EPSG:4326")
+            del routes
+            paths = gpd.GeoDataFrame(path_rows, geometry=geometry.values, crs="EPSG:4326")
             paths = paths[path_columns + ["geometry"]]
         else:
             paths = gpd.GeoDataFrame(
@@ -680,7 +678,7 @@ class AnalysisPipeline:
     def _recipe_scores(self, planner, deps) -> ArtifactRecipe:
         return ArtifactRecipe.build(
             "analysis.scores",
-            implementation_version="distance-tempered-point-score-v1",
+            implementation_version="distance-tempered-point-score-v1" + MANAGED_TABLES_VERSION,
             dependencies={
                 "spatial.point_distances": deps["spatial.point_distances"],
                 "analysis.centrality": deps["analysis.centrality"],
@@ -699,7 +697,7 @@ class AnalysisPipeline:
                 distance_tempering=self.config.distance_tempering,
             )
         with detail_phase(self.progress, f"scoring: serializing {len(scores):,} point scores"):
-            write_geoframe(scores, write.output("scores.json"))
+            write_geoframe(scores, write.output("scores.parquet"))
         return {
             "rows": len(scores),
             "crs": str(scores.crs),
@@ -779,7 +777,7 @@ class AnalysisPipeline:
             raise RuntimeError("analysis.scores has not been prepared")
         if ref.stage != "analysis.scores":
             raise ValueError("ArtifactRef is not an analysis.scores artifact")
-        return read_geoframe(ref.path / "scores.json")
+        return read_geoframe(ref.path / "scores.parquet")
 
     def load_x(self, ref: ArtifactRef | None = None, *, include_paths: bool = True) -> XResult:
         ref = ref or self.workspace.artifact("analysis.x")

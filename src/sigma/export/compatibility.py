@@ -327,7 +327,7 @@ class ExportPipeline:
                 write_spatial_geopackage(geopackage_output, partitions, node_geo, x_paths)
             savepoints.save_file("geopackage", geopackage_output)
 
-        roads = as_wgs84(read_geoframe(deps["transport.roads"].path / "roads.json"))
+        roads = as_wgs84(read_geoframe(deps["transport.roads"].path / "roads.parquet"))
         boundary = None
         if "area.boundary" in deps and self.workspace.area is not None:
             payload = json.loads((deps["area.boundary"].path / "boundary.json").read_text(encoding="utf-8"))

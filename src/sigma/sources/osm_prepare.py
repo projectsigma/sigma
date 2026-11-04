@@ -8,6 +8,7 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 from .._cache_cleanup import remove_temporary_node_index
+from ..source_node_indexes import new_poi_node_index
 from ..area.catalog import load_areas
 from ..area.boundary import load_boundary
 from ..places.osm import extract_national_osm_pois, read_osm_cache
@@ -362,9 +363,9 @@ def _prepare_national_stage(
         return gpd.read_parquet(path)
 
     _set_stage(directory, state, "national_extraction", "running")
-    node_cache = cache_base / "geofabrik" / "node-locations.cache"
-    # A failed libosmium pass may leave a partial location index. Restart this stage cleanly.
-    node_cache.unlink(missing_ok=True)
+    # Each extraction owns its own fresh node index, including concurrent scans.
+    # Failed old scans are reviewed through `sigma storage prune --node-indexes`.
+    node_cache = new_poi_node_index(cache_base)
 
     try:
         points = extract_national_osm_pois(

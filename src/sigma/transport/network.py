@@ -65,15 +65,76 @@ def _iter_lines(geometry) -> Iterable[LineString]:
         raise ValueError(f"road geometry must be lineal, got {kind}")
 
 
+def _route_nodes(predecessors: np.ndarray, source: int, targets: np.ndarray) -> list[np.ndarray]:
+    """Road-node sequences ``source -> target`` for targets reachable from ``source``.
+
+    All predecessor chains are followed together, one numpy step per road edge, and
+    only targets still on their way to ``source`` take part in each step, so memory is
+    proportional to the route vertices themselves.  A target equal to ``source`` gives
+    the one-node sequence ``[source]``.  Node ids are stored as 32-bit integers.
+    """
+    targets = np.asarray(targets, dtype=np.int64)
+    cursor = targets.copy()
+    chunks = [cursor.copy()]
+    owners = [np.arange(len(targets))]
+    alive = np.flatnonzero(cursor != source)
+    # SciPy uses -9999 for "no predecessor"; a reachable target never meets it.
+    for _ in range(len(predecessors)):
+        if alive.size == 0:
+            break
+        step = predecessors[cursor[alive]]
+        if (step < 0).any():
+            raise RuntimeError(f"could not reconstruct a shortest road path from {source}")
+        cursor[alive] = step
+        chunks.append(step)
+        owners.append(alive)
+        alive = alive[step != source]
+    else:
+        raise RuntimeError(f"a shortest road path from {source} exceeded graph size")
+    owner = np.concatenate(owners)
+    # Each chunk lies one edge further from its target, so a stable sort by target
+    # gives every path in target -> source order; each is then reversed.
+    order = np.argsort(owner, kind="stable")
+    nodes = np.concatenate(chunks)[order].astype(np.int32)
+    counts = np.bincount(owner, minlength=len(targets))
+    return [path[::-1] for path in np.split(nodes, np.cumsum(counts)[:-1])]
+
+
+def _networkx_view(
+    nodes: gpd.GeoDataFrame, edges: gpd.GeoDataFrame, attributes: tuple[str, ...]
+) -> nx.Graph:
+    """Build a NetworkX copy of a road table on demand.
+
+    SIGMA's solvers use the sparse arrays only; this view exists for callers and tests
+    that inspect the network with NetworkX, so it is never built on the production path.
+    """
+    graph = nx.Graph()
+    xy = shapely.get_coordinates(nodes.geometry.to_numpy())
+    graph.add_nodes_from(
+        (int(node), {"x": float(point[0]), "y": float(point[1])})
+        for node, point in zip(nodes["network_node"].tolist(), xy, strict=True)
+    )
+    columns = [edges[name].tolist() for name in attributes]
+    graph.add_edges_from(
+        (int(u), int(v), dict(zip(attributes, values, strict=True)))
+        for u, v, *values in zip(edges["u"].tolist(), edges["v"].tolist(), *columns, strict=True)
+    )
+    return graph
+
+
 @dataclass(frozen=True)
 class RoadNetwork:
     """Immutable base road network before point positions are inserted."""
 
     crs: object
-    graph: nx.Graph
     nodes: gpd.GeoDataFrame
     segments: gpd.GeoDataFrame
     vertex_digits: int
+
+    @cached_property
+    def graph(self) -> nx.Graph:
+        """NetworkX view (nodes with ``x``/``y``; edges with ``length``/``edge_id``)."""
+        return _networkx_view(self.nodes, self.segments, ("length", "edge_id"))
 
     @classmethod
     def from_geodataframe(cls, roads: gpd.GeoDataFrame, vertex_digits: int = DEFAULT_VERTEX_DIGITS) -> "RoadNetwork":
@@ -123,10 +184,6 @@ class RoadNetwork:
         coordinate_keys = sorted({point for a, b, _ in raw for point in (a, b)})
         node_id = {xy: i for i, xy in enumerate(coordinate_keys)}
 
-        graph = nx.Graph()
-        for xy, network_node in node_id.items():
-            graph.add_node(network_node, x=xy[0], y=xy[1])
-
         # The graph is simple rather than a MultiGraph.  At this stage every segment is a
         # straight line between its canonical endpoints, so reversed/duplicate endpoint
         # pairs describe the same geometric arc and can be safely collapsed.
@@ -155,7 +212,6 @@ class RoadNetwork:
             segment_rows.append(
                 {"edge_id": edge_id, "u": u, "v": v, "length": length, "geometry": geometry}
             )
-            graph.add_edge(u, v, length=length, edge_id=edge_id)
 
         nodes = gpd.GeoDataFrame(
             {"network_node": np.arange(len(coordinate_keys), dtype=np.int64)},
@@ -163,7 +219,7 @@ class RoadNetwork:
             crs=roads.crs,
         )
         segments = gpd.GeoDataFrame(segment_rows, geometry="geometry", crs=roads.crs)
-        return cls(roads.crs, graph, nodes, segments, vertex_digits)
+        return cls(roads.crs, nodes, segments, vertex_digits)
 
 
     @classmethod
@@ -175,16 +231,6 @@ class RoadNetwork:
         v = np.asarray(sparse_graph.arc_v, dtype=np.int64)
         length = np.asarray(sparse_graph.arc_length, dtype=float)
         edge_id = np.arange(len(u), dtype=np.int64)
-
-        graph = nx.Graph()
-        graph.add_nodes_from(
-            (int(i), {"x": float(point[0]), "y": float(point[1])})
-            for i, point in enumerate(xy)
-        )
-        graph.add_edges_from(
-            (int(a), int(b), {"length": float(w), "edge_id": int(e)})
-            for e, (a, b, w) in enumerate(zip(u, v, length, strict=True))
-        )
         nodes = gpd.GeoDataFrame(
             {"network_node": np.arange(len(xy), dtype=np.int64)},
             geometry=gpd.GeoSeries(shapely.points(xy), crs=crs),
@@ -196,7 +242,8 @@ class RoadNetwork:
             geometry=gpd.GeoSeries(lines, crs=crs),
             crs=crs,
         )
-        return cls(crs, graph, nodes, segments, vertex_digits)
+        return cls(crs, nodes, segments, vertex_digits)
+
     @classmethod
     def from_file(
         cls, path: str, layer: str | None = None, vertex_digits: int = DEFAULT_VERTEX_DIGITS
@@ -317,7 +364,6 @@ class RoadNetwork:
         segment_line = self.segments.geometry.to_numpy()
         offsets = snapped.frame["offset"].to_numpy(float)
 
-        graph = self.graph.copy()
         base_xy = shapely.get_coordinates(self.nodes.geometry.to_numpy())
         node_xy = dict(
             zip(self.nodes["network_node"].tolist(), map(tuple, base_xy.tolist()), strict=True)
@@ -367,13 +413,7 @@ class RoadNetwork:
                     normalized=True,
                 )
                 node_xy[network_node] = (float(geometry.x), float(geometry.y))
-                graph.add_node(network_node, x=float(geometry.x), y=float(geometry.y))
                 offset_node[offset] = network_node
-
-            if interior_offsets:
-                if not graph.has_edge(u, v):
-                    raise RuntimeError(f"base edge {edge_id} is missing from the road graph")
-                graph.remove_edge(u, v)
 
             chain = [0.0, *interior_offsets, network_length]
             for start_offset, end_offset in zip(chain[:-1], chain[1:], strict=True):
@@ -392,7 +432,6 @@ class RoadNetwork:
                 if geometry.is_empty or geometry.geom_type != "LineString":
                     geometry = LineString([node_xy[start_node], node_xy[end_node]])
 
-                graph.add_edge(start_node, end_node, length=length, parent_edge_id=edge_id)
                 split_rows.append(
                     {
                         "u": start_node,
@@ -471,7 +510,7 @@ class RoadNetwork:
                 f"road augment: {touched_edge_count:,}/{touched_edge_count:,} "
                 "snapped road edges complete"
             )
-        return AugmentedNetwork(self.crs, graph, nodes, edges, point_node)
+        return AugmentedNetwork(self.crs, nodes, edges, point_node)
 
 
 @dataclass(frozen=True)
@@ -487,10 +526,17 @@ class AugmentedNetwork:
     """Road graph after all analysis-point snap positions have been inserted."""
 
     crs: object
-    graph: nx.Graph
     nodes: gpd.GeoDataFrame
     edges: gpd.GeoDataFrame
     point_node: np.ndarray
+
+    @cached_property
+    def graph(self) -> nx.Graph:
+        """NetworkX view (edges with ``length``/``parent_edge_id``/``aug_edge_id``)."""
+        attributes = tuple(
+            name for name in ("length", "parent_edge_id", "aug_edge_id") if name in self.edges
+        )
+        return _networkx_view(self.nodes, self.edges, attributes)
 
     @classmethod
     def from_checkpoint_frames(
@@ -502,7 +548,7 @@ class AugmentedNetwork:
         """Reconstruct and validate an augmented network from durable checkpoint tables.
 
         The checkpoint stores portable GeoParquet tables rather than a pickled NetworkX
-        object.  On restore we rebuild the lightweight graph container and verify the
+        object.  On restore we verify the
         invariants required by the sparse shortest-path representation.  This makes a
         damaged or incompatible checkpoint fail closed so the pipeline can rebuild it.
         """
@@ -560,30 +606,15 @@ class AugmentedNetwork:
         if point_node.size and (point_node.min() < 0 or point_node.max() >= len(restored_nodes)):
             raise ValueError("augmented-road point-node checkpoint references an unknown node")
 
-        graph = nx.Graph()
         xy = shapely.get_coordinates(restored_nodes.geometry.to_numpy())
         if len(xy) != len(restored_nodes):
             raise ValueError("augmented-road checkpoint node geometry is malformed")
-        graph.add_nodes_from(
-            (int(node), {"x": float(coord[0]), "y": float(coord[1])})
-            for node, coord in zip(node_ids, xy, strict=True)
-        )
-        graph.add_edges_from(
-            (
-                int(row.u),
-                int(row.v),
-                {
-                    "length": float(row.length),
-                    "parent_edge_id": int(row.parent_edge_id),
-                    "aug_edge_id": int(row.aug_edge_id),
-                },
-            )
-            for row in restored_edges.itertuples(index=False)
-        )
-        if graph.number_of_edges() != len(restored_edges):
+        # An undirected simple graph: (u, v) and (v, u) are the same edge.
+        pairs = np.sort(np.stack([u, v], axis=1), axis=1)
+        if len(np.unique(pairs, axis=0)) != len(restored_edges):
             raise ValueError("augmented-road checkpoint contains duplicate graph edges")
 
-        return cls(nodes.crs, graph, restored_nodes, restored_edges, point_node.copy())
+        return cls(nodes.crs, restored_nodes, restored_edges, point_node.copy())
 
     @cached_property
     def sparse_adjacency(self):
@@ -676,10 +707,20 @@ class AugmentedNetwork:
     ) -> tuple[np.ndarray, list[tuple[int, ...] | None]]:
         """Return exact shortest distances and road-node paths to requested targets.
 
-        This is the geometry-preserving counterpart of :meth:`distances_to_targets`.
+        Tuple form of :meth:`shortest_route_nodes_to_targets`.
+        """
+        distances, routes = self.shortest_route_nodes_to_targets(source, targets)
+        return distances, [None if r is None else tuple(int(v) for v in r) for r in routes]
+
+    def shortest_route_nodes_to_targets(
+        self, source: int, targets: np.ndarray | list[int] | tuple[int, ...]
+    ) -> tuple[np.ndarray, list[np.ndarray | None]]:
+        """Exact shortest distances and road-node routes from one source to requested targets.
+
         One SciPy Dijkstra run is performed for the source with a predecessor vector,
-        then only the requested target paths are reconstructed.  The predecessor vector
-        is discarded on return, so memory remains bounded by one single-source solve.
+        then only the requested routes are reconstructed (``None`` when unreachable).
+        Each route is a compact int32 array of road-node ids; :meth:`route_geoseries`
+        turns routes into lines.
         """
         source = int(source)
         target_array = np.asarray(targets, dtype=np.int64)
@@ -688,54 +729,86 @@ class AugmentedNetwork:
         n = self.sparse_adjacency.shape[0]
         if not 0 <= source < n:
             raise ValueError(f"unknown network source node: {source}")
+        if n > np.iinfo(np.int32).max:
+            raise ValueError("road network has too many nodes for 32-bit route storage")
+        out = np.full(target_array.shape, np.inf, dtype=float)
+        routes: list[np.ndarray | None] = [None] * len(target_array)
         if target_array.size == 0:
-            return np.empty(0, dtype=float), []
+            return out, routes
         if target_array.min() < 0 or target_array.max() >= n:
             raise ValueError("target list contains an unknown network node")
-
-        out = np.full(target_array.shape, np.inf, dtype=float)
-        paths: list[tuple[int, ...] | None] = [None] * len(target_array)
         same_component = self.sparse_component[target_array] == self.sparse_component[source]
         if not bool(same_component.any()):
-            return out, paths
+            return out, routes
 
         values, predecessors = dijkstra(
-            self.sparse_adjacency,
-            directed=True,
-            indices=source,
-            return_predecessors=True,
+            self.sparse_adjacency, directed=True, indices=source, return_predecessors=True
         )
         values = np.asarray(values, dtype=float)
         predecessors = np.asarray(predecessors, dtype=np.int64)
         out[same_component] = values[target_array[same_component]]
+        found = np.flatnonzero(same_component & (np.isfinite(out) | (target_array == source)))
+        for position, route in zip(
+            found.tolist(), _route_nodes(predecessors, source, target_array[found]), strict=True
+        ):
+            routes[position] = route
+        return out, routes
 
-        for position in np.flatnonzero(same_component):
-            target = int(target_array[position])
-            if target == source:
-                paths[int(position)] = (source,)
-                continue
-            if not np.isfinite(out[position]):
-                continue
-            reverse_path = [target]
-            cursor = target
-            # SciPy uses -9999 for an unreachable/no-predecessor vertex.  A finite
-            # distance in the same connected component should always reach source.
-            for _ in range(n):
-                predecessor = int(predecessors[cursor])
-                if predecessor < 0:
-                    raise RuntimeError(
-                        f"could not reconstruct shortest road path {source}->{target}"
-                    )
-                reverse_path.append(predecessor)
-                cursor = predecessor
-                if cursor == source:
-                    break
-            else:
-                raise RuntimeError(
-                    f"shortest road path {source}->{target} exceeded graph size"
-                )
-            paths[int(position)] = tuple(reversed(reverse_path))
-        return out, paths
+    def route_geoseries(self, routes: list, crs: object | None = None) -> gpd.GeoSeries:
+        """Lines of road-node routes, in road order, optionally reprojected to ``crs``.
+
+        Equal to ``[path_geometry(r) for r in routes]`` followed by ``to_crs(crs)``.
+        When every road edge is the straight two-point line between its node
+        coordinates (always true for networks built by SIGMA), a route's vertices are
+        exactly its node coordinates; the node coordinates are then reprojected once
+        and all lines are made in one ``shapely.linestrings`` call.  Each vertex is
+        reprojected by the same transformation either way, so the lines are identical.
+        """
+        if not self._edges_are_node_chords:
+            series = gpd.GeoSeries([self.path_geometry(r) for r in routes], crs=self.crs)
+            return series if crs is None else series.to_crs(crs)
+        xy = self._node_xy
+        target_crs = self.crs if crs is None else crs
+        if crs is not None:
+            points = gpd.GeoSeries(shapely.points(xy), crs=self.crs).to_crs(crs)
+            xy = shapely.get_coordinates(points.to_numpy())
+        lengths = np.fromiter((len(r) for r in routes), dtype=np.int64, count=len(routes))
+        if len(routes) == 0:
+            return gpd.GeoSeries([], crs=target_crs)
+        if lengths.min() < 1:
+            raise ValueError("a road route must contain at least one node")
+        # A one-node route (zero distance) is stored as a two-point line, as in
+        # path_geometry, so that it still fits a line layer.
+        nodes = np.concatenate([r if len(r) > 1 else np.repeat(r, 2) for r in routes])
+        index = np.repeat(np.arange(len(routes)), np.maximum(lengths, 2))
+        return gpd.GeoSeries(shapely.linestrings(xy[nodes], indices=index), crs=target_crs)
+
+    @cached_property
+    def _node_xy(self) -> np.ndarray:
+        """Node coordinates indexed by ``network_node``."""
+        return shapely.get_coordinates(self.nodes.geometry.to_numpy())
+
+    @cached_property
+    def _edges_are_node_chords(self) -> bool:
+        """Whether every edge geometry is exactly ``[xy[u], xy[v]]``.
+
+        This guard lets :meth:`route_geoseries` use node coordinates directly; when
+        it is false, the edge-geometry lookup of :meth:`path_geometry` is used
+        instead, so results never differ.
+        """
+        node_ids = self.nodes["network_node"].to_numpy(np.int64)
+        if not np.array_equal(node_ids, np.arange(len(node_ids), dtype=np.int64)):
+            return False
+        geometries = self.edges.geometry.to_numpy()
+        if len(geometries) == 0 or not bool((shapely.get_num_coordinates(geometries) == 2).all()):
+            return False
+        ends = shapely.get_coordinates(geometries).reshape(-1, 2, 2)
+        u = self.edges["u"].to_numpy(np.int64)
+        v = self.edges["v"].to_numpy(np.int64)
+        return bool(
+            np.array_equal(ends[:, 0], self._node_xy[u])
+            and np.array_equal(ends[:, 1], self._node_xy[v])
+        )
 
     @cached_property
     def _edge_geometry_lookup(self) -> dict[tuple[int, int], tuple[LineString, bool]]:

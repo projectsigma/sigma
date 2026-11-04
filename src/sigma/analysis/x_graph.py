@@ -72,18 +72,36 @@ def inverse_mean_hub_x_weight(
     return result
 
 
-def _positive_area_overlaps(left_geometry, right: gpd.GeoDataFrame) -> list[int]:
-    """Return right-row positions having positive-area intersection with ``left``."""
+def _positive_area_overlaps(left_geometry, right: gpd.GeoDataFrame) -> np.ndarray:
+    """Return right-row positions having positive-area intersection with ``left``.
+
+    Candidates keep the spatial-index order; the intersections are computed in one
+    vectorized GEOS call, with the same test as before (non-empty, positive area).
+    """
     candidates = np.asarray(
         right.sindex.query(left_geometry, predicate="intersects"),
         dtype=np.int64,
     )
-    overlaps: list[int] = []
-    for position in candidates:
-        intersection = left_geometry.intersection(right.geometry.iloc[int(position)])
-        if not intersection.is_empty and float(intersection.area) > 0:
-            overlaps.append(int(position))
-    return overlaps
+    if candidates.size == 0:
+        return candidates
+    intersections = shapely.intersection(left_geometry, right.geometry.to_numpy()[candidates])
+    keep = ~shapely.is_empty(intersections) & (shapely.area(intersections) > 0)
+    return candidates[keep]
+
+
+def _pack_routes(routes: list[np.ndarray]) -> dict[str, bytes]:
+    """Savepoint payload: route lengths and concatenated int32 road-node ids."""
+    lengths = np.asarray([len(route) for route in routes], dtype="<i8")
+    nodes = (np.concatenate(routes) if routes else np.empty(0, dtype="<i4")).astype("<i4", copy=False)
+    return {"route_lengths.bin": lengths.tobytes(), "route_nodes.bin": nodes.tobytes()}
+
+
+def _unpack_routes(stored: Mapping[str, bytes], count: int) -> list[np.ndarray]:
+    lengths = np.frombuffer(stored["route_lengths.bin"], dtype="<i8")
+    nodes = np.frombuffer(stored["route_nodes.bin"], dtype="<i4").astype(np.int32)
+    if len(lengths) != count or (lengths < 1).any() or int(lengths.sum()) != len(nodes):
+        raise ValueError("route savepoint does not match its X edges")
+    return np.split(nodes, np.cumsum(lengths)[:-1]) if count else []
 
 
 def _validate_spatial_inputs(
@@ -169,8 +187,9 @@ def instantiate_network(
 
     Every center becomes a node before edges are considered, so isolated clusters
     are retained.  For each positive weighted sector edge, only positive-area
-    polygon overlaps create candidate X edges.  Exact road distances are evaluated
-    one source center at a time and only for the requested target centers.
+    polygon overlaps create candidate X edges.  Exact road distances and routes
+    are evaluated one source center at a time and only for the requested target
+    centers; each X edge stores its route as int32 road-node ids (``route_nodes``).
     """
     decay_lambda = float(x_distance_decay_lambda)
     if not math.isfinite(decay_lambda) or decay_lambda < 0.0:
@@ -209,6 +228,18 @@ def instantiate_network(
         str(type_value): group.reset_index(drop=True)
         for type_value, group in partitions.groupby("type", sort=False)
     }
+    # Column arrays per type replace per-candidate ``.iloc`` row lookups.
+    clusters_by_type = {
+        type_value: frame["cluster"].to_numpy(np.int64)
+        for type_value, frame in partitions_by_type.items()
+    }
+    center_nodes_by_type = {
+        type_value: np.asarray(
+            [int(center_index[(type_value, int(c))]["center_network_node"]) for c in clusters],
+            dtype=np.int64,
+        )
+        for type_value, clusters in clusters_by_type.items()
+    }
 
     outgoing_by_type: dict[str, list[tuple[str, dict[str, object]]]] = {}
     for type1, type2, edge_data in economic_graph.edges(data=True):
@@ -227,20 +258,21 @@ def instantiate_network(
         unit = f"source:{type1}"
         if savepoints is not None:
             stored = savepoints.read(unit)
-            if stored is not None and set(stored) == {"edges.json"}:
+            if stored is not None and set(stored) == {
+                "edges.json", "route_lengths.bin", "route_nodes.bin"
+            }:
                 try:
                     saved = json.loads(stored["edges.json"])
                     if saved["source_type"] != type1:
                         raise ValueError("source mismatch")
+                    routes = _unpack_routes(stored, len(saved["edges"]))
                     recovered = []
-                    for row in saved["edges"]:
+                    for row, route in zip(saved["edges"], routes, strict=True):
                         source, target, attributes = row
                         if (source not in graph or target not in graph or
                                 str(graph.nodes[source]["type"]) != type1):
                             raise ValueError("cached X edge node mismatch")
-                        if "road_path" not in attributes:
-                            raise ValueError("cached X edge lacks road path")
-                        attributes["road_path"] = tuple(int(v) for v in attributes["road_path"])
+                        attributes["route_nodes"] = route
                         recovered.append((source, target, attributes))
                     for source, target, attributes in recovered:
                         graph.add_edge(source, target, **attributes)
@@ -260,10 +292,9 @@ def instantiate_network(
             )
 
         work_by_source_node: dict[int, list[tuple[str, int, int, int, float]]] = {}
-        for _, source_partition in source_partitions.iterrows():
-            cluster1 = int(source_partition["cluster"])
-            source_center = center_index[(type1, cluster1)]
-            source_network_node = int(source_center["center_network_node"])
+        source_geometries = source_partitions.geometry.to_numpy()
+        for position, cluster1 in enumerate(clusters_by_type[type1].tolist()):
+            source_network_node = int(center_nodes_by_type[type1][position])
             candidates = work_by_source_node.setdefault(source_network_node, [])
 
             for type2, edge_data in outgoing:
@@ -272,15 +303,14 @@ def instantiate_network(
                     raise ValueError(
                         f"economic edge {type1!r}->{type2!r} has non-positive/non-finite weight"
                     )
-                target_partitions = partitions_by_type[type2]
                 target_positions = _positive_area_overlaps(
-                    source_partition.geometry, target_partitions
+                    source_geometries[position], partitions_by_type[type2]
                 )
-                for target_position in target_positions:
-                    target_partition = target_partitions.iloc[target_position]
-                    cluster2 = int(target_partition["cluster"])
-                    target_center = center_index[(type2, cluster2)]
-                    target_network_node = int(target_center["center_network_node"])
+                for cluster2, target_network_node in zip(
+                    clusters_by_type[type2][target_positions].tolist(),
+                    center_nodes_by_type[type2][target_positions].tolist(),
+                    strict=True,
+                ):
                     candidates.append(
                         (type2, cluster1, cluster2, target_network_node, economic_weight)
                     )
@@ -302,19 +332,12 @@ def instantiate_network(
             target_nodes = np.fromiter(
                 (candidate[3] for candidate in candidates), dtype=np.int64, count=len(candidates)
             )
-            if hasattr(road, "shortest_paths_to_targets"):
-                road_distances, road_paths = road.shortest_paths_to_targets(
-                    source_network_node, target_nodes
-                )
-            else:
-                road_distances = road.distances_to_targets(source_network_node, target_nodes)
-                road_paths = [
-                    (source_network_node, int(target)) if np.isfinite(distance) else None
-                    for target, distance in zip(target_nodes, road_distances, strict=True)
-                ]
+            road_distances, routes = road.shortest_route_nodes_to_targets(
+                source_network_node, target_nodes
+            )
 
-            for candidate, road_distance, road_path in zip(
-                candidates, road_distances, road_paths, strict=True
+            for candidate, road_distance, route in zip(
+                candidates, road_distances, routes, strict=True
             ):
                 type2, cluster1, cluster2, _, economic_weight = candidate
                 road_distance = float(road_distance)
@@ -331,8 +354,8 @@ def instantiate_network(
                     continue
                 if road_distance < 0:
                     raise RuntimeError("shortest-path engine returned a negative road distance")
-                if road_path is None:
-                    raise RuntimeError("connected X edge is missing its shortest road path")
+                if route is None:
+                    raise RuntimeError("connected X edge is missing its shortest road route")
 
                 source_id = make_node_id(type1, cluster1)
                 target_id = make_node_id(type2, cluster2)
@@ -374,7 +397,7 @@ def instantiate_network(
                     dag_weight=economic_weight,
                     road_distance=road_distance,
                     effective_road_distance=effective_distance,
-                    road_path=road_path,
+                    route_nodes=route,
                     weight=combined_weight,
                 )
 
@@ -387,16 +410,20 @@ def instantiate_network(
                 if isinstance(value, np.ndarray):
                     return value.tolist()
                 raise TypeError(f"non-JSON X edge attribute: {type(value).__name__}")
+            saved_edges = list(graph.out_edges(source_ids, data=True))
             edge_data = [
-                [str(source), str(target), dict(data)]
-                for source, target, data in graph.out_edges(source_ids, data=True)
+                [str(source), str(target), {k: v for k, v in data.items() if k != "route_nodes"}]
+                for source, target, data in saved_edges
             ]
-            savepoints.save(unit, {"edges.json": json.dumps({
-                "source_type": type1,
-                "edges": edge_data,
-                "diagnostics": diagnostics[diagnostic_start:],
-                "omitted_zero_self_edges": omitted_zero_self_edges - omitted_start,
-            }, default=checkpoint_value, sort_keys=True, separators=(",", ":")).encode("utf-8")})
+            savepoints.save(unit, {
+                "edges.json": json.dumps({
+                    "source_type": type1,
+                    "edges": edge_data,
+                    "diagnostics": diagnostics[diagnostic_start:],
+                    "omitted_zero_self_edges": omitted_zero_self_edges - omitted_start,
+                }, default=checkpoint_value, sort_keys=True, separators=(",", ":")).encode("utf-8"),
+                **_pack_routes([data["route_nodes"] for _, _, data in saved_edges]),
+            })
             if progress is not None:
                 progress(f"network X: saved source type {type1!r} ({type_number:,}/{total_source_types:,})")
 

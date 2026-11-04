@@ -97,3 +97,41 @@ def test_managed_extraction_clips_projects_and_preserves_osm_audit_fields(tmp_pa
     # The crossing feature is clipped to the exact boundary when buffer_m=0.
     wgs = result.to_crs("EPSG:4326")
     assert float(wgs.total_bounds[0]) >= 120.99 - 1e-9
+
+
+def test_pbf_scan_selects_highway_ways_in_bbox_with_audit_tags(tmp_path):
+    osmium = pytest.importorskip("osmium")
+    from sigma.transport.roads import _extract_pbf_road_candidates
+
+    pbf = tmp_path / "small.osm.pbf"
+    writer = osmium.SimpleWriter(str(pbf))
+    coords = {1: (121.00, 14.60), 2: (121.01, 14.60), 3: (121.02, 14.61),
+              4: (125.00, 10.00), 5: (125.01, 10.00)}
+    for node_id, location in coords.items():
+        tags = {"highway": "traffic_signals"} if node_id == 2 else {}
+        writer.add_node(osmium.osm.mutable.Node(id=node_id, location=location, tags=tags))
+    ways = [
+        (10, [1, 2, 3], {"highway": "primary", "name": "Main", "oneway": "yes", "layer": "1"}),
+        (11, [1, 2], {"building": "yes"}),
+        (12, [2, 3], {"highway": "residential", "access": "private"}),
+        (13, [4, 5], {"highway": "primary"}),  # outside the bounding box
+        (14, [3, 1], {"highway": "service", "bridge": "yes"}),
+    ]
+    for way_id, refs, tags in ways:
+        writer.add_way(osmium.osm.mutable.Way(id=way_id, nodes=refs, tags=tags))
+    writer.close()
+
+    frame = _extract_pbf_road_candidates(pbf, (120.9, 14.5, 121.1, 14.7))
+
+    def values(column):
+        return [None if value is None or value != value else value for value in frame[column]]
+
+    assert frame["osm_way_id"].tolist() == [10, 14]
+    assert values("highway") == ["primary", "service"]
+    assert values("name") == ["Main", None]
+    assert values("oneway") == ["yes", None]
+    assert values("bridge") == [None, "yes"]
+    assert values("layer") == ["1", None]
+    assert [list(g.coords) for g in frame.geometry] == [
+        [coords[1], coords[2], coords[3]], [coords[3], coords[1]],
+    ]

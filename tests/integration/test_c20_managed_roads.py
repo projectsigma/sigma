@@ -94,8 +94,8 @@ def test_one_geofabrik_snapshot_feeds_poi_and_managed_road_consumers_independent
     assert calls["poi_source_id"] == source_id
     assert ws.manifest("transport.roads").metadata["source_id"] == source_id
     assert ws.manifest("transport.roads").metadata["road_source_mode"] == "geofabrik"
-    assert (road_ref.path / "roads.json").is_file()
-    assert (poi_ref.path / "osm-area.json").is_file()
+    assert (road_ref.path / "roads.parquet").is_file()
+    assert (poi_ref.path / "osm-area.parquet").is_file()
 
     # Transport depends only on the shared PBF pointer + boundary, not on POI extraction.
     assert spatial.planner.stages["transport.roads"].dependencies == (

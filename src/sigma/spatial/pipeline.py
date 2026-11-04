@@ -10,17 +10,20 @@ import numpy as np
 import pandas as pd
 import shapely
 
-from sigma._cache_cleanup import remove_temporary_node_index
+from sigma._cache_cleanup import (
+    new_road_node_index,
+    remove_temporary_node_index,
+)
 from sigma.artifacts import ArtifactRecipe, ArtifactRef, ArtifactWrite
 from sigma.economy import Economy
 from sigma.economy.io_utils import read_vector
 from sigma.execution import ExecutionPlanner
-from sigma.places.frame_io import read_geoframe, write_geoframe
+from sigma.places.frame_io import MANAGED_TABLES_VERSION, read_geoframe, write_geoframe
 from sigma.sources import SourceRef
 from sigma.stages import StageSpec
 from sigma.savepoints import StageSavepoints  # SIGMA_RESUMABLE_SAVEPOINTS_V1
 from sigma.transport._sparse_solver import SparseRoadSolver
-from sigma.transport.network import RoadNetwork, SnappedPoints
+from sigma.transport.network import AugmentedNetwork, RoadNetwork, SnappedPoints
 from sigma.transport.roads import FileRoadSource, GeofabrikRoadSource, RoadSource, validate_road_frame
 from sigma.workspace import SigmaWorkspace
 
@@ -125,6 +128,9 @@ class SpatialPipeline:
         )
         self.boundary_layer = boundary_layer
         self.progress = progress
+        # (clusters artifact id, retained points, augmented road) of the last build;
+        # centers, point distances, partitions and X share one build per command.
+        self._augmented_cache: tuple[str, gpd.GeoDataFrame, AugmentedNetwork] | None = None
         self._road_source: SourceRef | None = None
         if isinstance(self.roads, FileRoadSource):
             self._road_source = self.roads.register(workspace.sources)
@@ -217,7 +223,7 @@ class SpatialPipeline:
             # Preserve the exact C9 recipe for compatibility and explicit file-road overrides.
             return ArtifactRecipe.build(
                 "transport.roads",
-                implementation_version="file-road-source-v1",
+                implementation_version="file-road-source-v1" + MANAGED_TABLES_VERSION,
                 sources={"roads": self._road_source},
                 parameters={"layer": self.roads.layer},
             )
@@ -228,7 +234,7 @@ class SpatialPipeline:
         boundary = self._boundary_from_artifact(deps["area.boundary"])
         return ArtifactRecipe.build(
             "transport.roads",
-            implementation_version="geofabrik-road-source-v1",
+            implementation_version="geofabrik-road-source-v1" + MANAGED_TABLES_VERSION,
             dependencies=deps,
             sources={"geofabrik": geofabrik},
             parameters=self.roads.recipe_parameters(self.place_pipeline.area, boundary),
@@ -242,7 +248,7 @@ class SpatialPipeline:
             identities["economy_sector_fingerprint"] = self.economy.sector_fingerprint
         return ArtifactRecipe.build(
             "spatial.points",
-            implementation_version="point-input-v2-economy-code",
+            implementation_version="point-input-v2-economy-code" + MANAGED_TABLES_VERSION,
             dependencies=deps,
             sources=sources,
             parameters={
@@ -259,7 +265,7 @@ class SpatialPipeline:
         cfg = self.config
         return ArtifactRecipe.build(
             "spatial.clusters",
-            implementation_version="network-hdbscan-step1-v2-default-euclidean-fallback",
+            implementation_version="network-hdbscan-step1-v2-default-euclidean-fallback" + MANAGED_TABLES_VERSION,
             dependencies=deps,
             parameters={
                 "vertex_digits": cfg.vertex_digits,
@@ -285,7 +291,7 @@ class SpatialPipeline:
     def _recipe_centers(self, planner, deps) -> ArtifactRecipe:
         return ArtifactRecipe.build(
             "spatial.centers",
-            implementation_version="network-1-median-v3-default-euclidean-fallback",
+            implementation_version="network-1-median-v3-default-euclidean-fallback" + MANAGED_TABLES_VERSION,
             dependencies=deps,
             parameters={"euclidean_fallback": True, "continue_on_error": True},
         )
@@ -293,7 +299,7 @@ class SpatialPipeline:
     def _recipe_point_distances(self, planner, deps) -> ArtifactRecipe:
         return ArtifactRecipe.build(
             "spatial.point_distances",
-            implementation_version="own-center-network-shortest-path-v2-skip-unrecoverable-centers",
+            implementation_version="own-center-network-shortest-path-v2-skip-unrecoverable-centers" + MANAGED_TABLES_VERSION,
             dependencies=deps,
         )
 
@@ -301,7 +307,7 @@ class SpatialPipeline:
         assert self._boundary_source is not None
         return ArtifactRecipe.build(
             "area.boundary",
-            implementation_version="file-boundary-source-v1",
+            implementation_version="file-boundary-source-v1" + MANAGED_TABLES_VERSION,
             sources={"boundary": self._boundary_source},
             parameters={"layer": self.boundary_layer},
             identities={"workspace_area": self.workspace.area_identity or "custom"},
@@ -311,7 +317,7 @@ class SpatialPipeline:
         cfg = self.config
         return ArtifactRecipe.build(
             "spatial.partitions",
-            implementation_version="network-voronoi-step4-v3-default-euclidean-fallback",
+            implementation_version="network-voronoi-step4-v3-default-euclidean-fallback" + MANAGED_TABLES_VERSION,
             dependencies=deps,
             parameters={
                 "resolution": cfg.voronoi_resolution,
@@ -339,7 +345,7 @@ class SpatialPipeline:
         invalid = sorted(set(boundary.geometry.geom_type.astype(str)) - {"Polygon", "MultiPolygon"})
         if invalid:
             raise ValueError(f"study boundary must contain only polygon geometry; found {invalid}")
-        write_geoframe(boundary, write.output("boundary_frame.json"))
+        write_geoframe(boundary, write.output("boundary_frame.parquet"))
         return {
             "rows": len(boundary),
             "crs": str(boundary.crs),
@@ -366,12 +372,7 @@ class SpatialPipeline:
                     f"shared Geofabrik source changed after registration: {validation.reason}"
                 )
             boundary = self._boundary_from_artifact(deps["area.boundary"])
-            node_cache = (
-                self.workspace.sources.root
-                / "geofabrik"
-                / "road-node-index"
-                / f"{geofabrik.sha256}.nodes.cache"
-            )
+            node_cache = new_road_node_index(self.workspace.sources.root, geofabrik.sha256)
             try:
                 roads = self.roads.load(
                     geofabrik.path,
@@ -389,7 +390,7 @@ class SpatialPipeline:
                 "road_source_mode": "geofabrik",
                 **self.roads.recipe_parameters(self.place_pipeline.area, boundary),
             }
-        write_geoframe(roads, write.output("roads.json"))
+        write_geoframe(roads, write.output("roads.parquet"))
         return {
             "rows": len(roads),
             "crs": str(roads.crs),
@@ -406,7 +407,7 @@ class SpatialPipeline:
                 raise RuntimeError(f"point source changed after registration: {validation.reason}")
             return read_vector(self._point_source.path, self.points_layer)
         if self.place_pipeline is not None:
-            frame = read_geoframe(deps["places.classified"].path / "places.json")
+            frame = read_geoframe(deps["places.classified"].path / "places.parquet")
             # Siphon's preserved canonical place identifier is ``poi_id`` while Engine's
             # spatial contract is ``canonical_id``.  Adapt only at this boundary so neither
             # proven upstream nor downstream schema has to be rewritten during migration.
@@ -440,9 +441,9 @@ class SpatialPipeline:
         road_manifest = self.workspace.artifacts.manifest(deps["transport.roads"])
         road_crs = road_manifest.metadata.get("crs")
         if not road_crs:
-            road_crs = read_geoframe(deps["transport.roads"].path / "roads.json").crs
+            road_crs = read_geoframe(deps["transport.roads"].path / "roads.parquet").crs
         points = points.to_crs(road_crs)
-        write_geoframe(points, write.output("points.json"))
+        write_geoframe(points, write.output("points.parquet"))
         return {
             "rows": len(points),
             "crs": str(points.crs),
@@ -452,8 +453,8 @@ class SpatialPipeline:
         }, {}
 
     def _exec_clusters(self, planner, recipe, deps, write: ArtifactWrite):
-        roads = read_geoframe(deps["transport.roads"].path / "roads.json")
-        points = read_geoframe(deps["spatial.points"].path / "points.json")
+        roads = read_geoframe(deps["transport.roads"].path / "roads.parquet")
+        points = read_geoframe(deps["spatial.points"].path / "points.parquet")
         context = prepare_sparse_context(
             roads,
             points,
@@ -477,7 +478,7 @@ class SpatialPipeline:
             events=events,
             savepoints=StageSavepoints(self.workspace.root, recipe.stage, recipe.fingerprint),
         )
-        write_geoframe(clustered, write.output("clustered.json"))
+        write_geoframe(clustered, write.output("clustered.parquet"))
         save_sparse_context(
             context,
             write.output("snap_context"),
@@ -571,13 +572,22 @@ class SpatialPipeline:
         return out[columns].copy()
 
     def _retained_with_augmented(self, cluster_ref: ArtifactRef):
+        """Retained clustered points and the road network with their snap positions.
+
+        The result depends only on the immutable clusters artifact, so it is built once
+        and reused by later stages of the same command (callers get their own copy of
+        the point table; the road network is read-only).
+        """
+        cached = self._augmented_cache
+        if cached is not None and cached[0] == cluster_ref.artifact_id:
+            return cached[1].copy(), cached[2]
         clustered = self.read_clusters(cluster_ref, public=False)
         retained = retained_points(clustered)
         if retained.empty:
             raise RuntimeError("network HDBSCAN retained no clusters")
         context, metadata = load_sparse_context(cluster_ref.path / "snap_context")
         point_ref = self._dependency_ref(cluster_ref, "spatial.points")
-        all_points = read_geoframe(point_ref.path / "points.json")
+        all_points = read_geoframe(point_ref.path / "points.parquet")
         validate_point_alignment(metadata, all_points["canonical_id"].astype(str).tolist())
         source_pos = retained["_sparse_source_pos"].to_numpy(np.int64, copy=False)
         road = RoadNetwork.from_sparse_graph(
@@ -605,7 +615,8 @@ class SpatialPipeline:
         out["snap_distance"] = snapped.frame["snap_distance"].to_numpy(float)
         out["network_position"] = snapped.frame["snapped_geometry"].to_numpy()
         out = out.drop(columns="_sparse_source_pos")
-        return out, augmented
+        self._augmented_cache = (cluster_ref.artifact_id, out, augmented)
+        return out.copy(), augmented
 
     def _exec_centers(self, planner, recipe, deps, write: ArtifactWrite):
         retained, augmented = self._retained_with_augmented(deps["spatial.clusters"])
@@ -634,7 +645,7 @@ class SpatialPipeline:
             encoding="utf-8",
         )
         centers = self._clean_center_output(detailed)
-        write_geoframe(centers, write.output("centers.json"))
+        write_geoframe(centers, write.output("centers.parquet"))
         requested = int(retained[["type", "cluster"]].drop_duplicates().shape[0])
         return {
             "rows": len(centers),
@@ -647,7 +658,7 @@ class SpatialPipeline:
 
     def _exec_point_distances(self, planner, recipe, deps, write: ArtifactWrite):
         retained, augmented = self._retained_with_augmented(deps["spatial.clusters"])
-        centers = read_geoframe(deps["spatial.centers"].path / "centers.json")
+        centers = read_geoframe(deps["spatial.centers"].path / "centers.parquet")
         center_node = {
             (str(row["type"]), int(row["cluster"])): int(row["center_network_node"])
             for _, row in centers.iterrows()
@@ -685,7 +696,7 @@ class SpatialPipeline:
         retained["distance_to_cluster_median"] = distance.astype(float)
         retained["point_center_distance_method"] = "network_shortest_path"
         public = self._clean_distance_output(retained)
-        write_geoframe(public, write.output("point_distances.json"))
+        write_geoframe(public, write.output("point_distances.parquet"))
         return {
             "rows": len(public),
             "cluster_count": int(public[["type", "cluster"]].drop_duplicates().shape[0]),
@@ -728,8 +739,8 @@ class SpatialPipeline:
         return out.sort_values(["type", "cluster"], kind="stable").reset_index(drop=True)
 
     def _load_boundary_frame(self, ref: ArtifactRef) -> gpd.GeoDataFrame:
-        managed = ref.path / "boundary_frame.json"
-        if managed.exists():
+        managed = ref.path / "boundary_frame.parquet"
+        if managed.exists() or managed.with_suffix(".json").exists():
             return read_geoframe(managed)
         payload_path = ref.path / "boundary.json"
         if not payload_path.exists():
@@ -744,7 +755,7 @@ class SpatialPipeline:
     def _exec_partitions(self, planner, recipe, deps, write: ArtifactWrite):
         retained, augmented = self._retained_with_augmented(deps["spatial.clusters"])
         boundary = self._load_boundary_frame(deps["area.boundary"])
-        centers = read_geoframe(deps["spatial.centers"].path / "centers.json")
+        centers = read_geoframe(deps["spatial.centers"].path / "centers.parquet")
         events: list[dict[str, object]] = []
         detailed = all_surface_partitions(
             augmented,
@@ -770,7 +781,7 @@ class SpatialPipeline:
             )
         )
         public = self._clean_partition_output(detailed, expected_keys)
-        write_geoframe(public, write.output("partitions.json"))
+        write_geoframe(public, write.output("partitions.parquet"))
 
         detail_rows = []
         for row in detailed.itertuples(index=False):
@@ -834,19 +845,19 @@ class SpatialPipeline:
         ref = ref or self.workspace.artifact("spatial.centers")
         if ref is None:
             raise RuntimeError("spatial.centers has not been prepared")
-        return read_geoframe(ref.path / "centers.json")
+        return read_geoframe(ref.path / "centers.parquet")
 
     def read_point_distances(self, ref: ArtifactRef | None = None) -> gpd.GeoDataFrame:
         ref = ref or self.workspace.artifact("spatial.point_distances")
         if ref is None:
             raise RuntimeError("spatial.point_distances has not been prepared")
-        return read_geoframe(ref.path / "point_distances.json")
+        return read_geoframe(ref.path / "point_distances.parquet")
 
     def read_partitions(self, ref: ArtifactRef | None = None) -> gpd.GeoDataFrame:
         ref = ref or self.workspace.artifact("spatial.partitions")
         if ref is None:
             raise RuntimeError("spatial.partitions has not been prepared")
-        return read_geoframe(ref.path / "partitions.json")
+        return read_geoframe(ref.path / "partitions.parquet")
 
     def read_partition_diagnostics(self, ref: ArtifactRef | None = None) -> dict[str, object]:
         ref = ref or self.workspace.artifact("spatial.partitions")
@@ -858,7 +869,7 @@ class SpatialPipeline:
         ref = ref or self.workspace.artifact("spatial.points")
         if ref is None:
             raise RuntimeError("spatial.points has not been prepared")
-        return read_geoframe(ref.path / "points.json")
+        return read_geoframe(ref.path / "points.parquet")
 
     def _dependency_ref(self, ref: ArtifactRef, name: str) -> ArtifactRef:
         manifest = self.workspace.artifacts.manifest(ref)
@@ -878,7 +889,7 @@ class SpatialPipeline:
             raise RuntimeError("spatial.clusters has not been prepared")
         context, metadata = load_sparse_context(ref.path / "snap_context")
         point_ref = self._dependency_ref(ref, "spatial.points")
-        points = read_geoframe(point_ref.path / "points.json")
+        points = read_geoframe(point_ref.path / "points.parquet")
         validate_point_alignment(metadata, points["canonical_id"].astype(str).tolist())
         return context, metadata
 
@@ -886,7 +897,7 @@ class SpatialPipeline:
         ref = ref or self.workspace.artifact("spatial.clusters")
         if ref is None:
             raise RuntimeError("spatial.clusters has not been prepared")
-        clustered = read_geoframe(ref.path / "clustered.json")
+        clustered = read_geoframe(ref.path / "clustered.parquet")
         audit = json.loads((ref.path / "clustering_audit.json").read_text(encoding="utf-8"))
         clustered.attrs["clustering_summary"] = audit.get("clustering_summary", [])
         clustered.attrs["clustering_trace"] = audit.get("clustering_trace", [])
