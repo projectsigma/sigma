@@ -376,16 +376,6 @@ def test_v3_nhfr_export_requires_explicit_ownership_and_hospital_type(tmp_path):
     assert {(x.source_id, x.ownership) for x in r} == {("A1", "public"), ("A2", "private")}
 
 
-def test_v3_ched_unknown_institution_type_not_guessed(tmp_path):
-    f = tmp_path / "ched.csv"
-    f.write_text("HEI Code,HEI Name,Type,Address\n"
-                 "101,Some Private College,Private Non-Sectarian Stock,Street Quezon City\n"
-                 "102,Some SUC,SUC Main,Quezon City\n"
-                 "103,Not Verifiable,Others please specify,Quezon City\n")
-    r = import_export(f, "ched_hei", as_of="2026-11-01", source_url="https://heida.ched.gov.ph/hei-directory/13")
-    assert {(x.source_id, x.ownership) for x in r} == {("101", "private"), ("102", "public")}
-
-
 def test_v3_deped_import_requires_explicit_sector(tmp_path):
     f = tmp_path / "deped.csv"
     f.write_text("School ID,School Name,Sector,Division\n"
@@ -425,13 +415,3 @@ def test_v3_a_subunit_hidden_in_secondary_source_name_is_reviewed():
     v = resolver().resolve(sample)
     assert v["shadow_status"] == "ENTITY_REVIEW"
     assert v["shadow_entity_reason"] == "possible_subunit_in_source_name"
-
-
-def test_v3_ched_public_web_table_combined_name_and_code(tmp_path):
-    f = tmp_path / "hei.csv"
-    f.write_text('HEI Name & Code,Type,Address\n'
-                 '"ABE International College of Business and Accountancy Inc. - Cubao 13308",Private Non-Sectarian Non-Stock,Quezon City\n'
-                 '"Unnamed College 99999",Others please specify,Quezon City\n')
-    r = import_export(f, "ched_hei", as_of="2026-11-01", source_url="https://heida.ched.gov.ph/hei-directory/13")
-    assert [(x.source_id, x.name, x.ownership) for x in r] == [
-        ("13308", "ABE International College of Business and Accountancy Inc. - Cubao", "private")]

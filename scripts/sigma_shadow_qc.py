@@ -52,10 +52,8 @@ def cli() -> int:
     ap.add_argument("--registry-csv", type=Path, action="append", default=[], help="Additional curated official registry CSV snapshot")
     ap.add_argument("--doh-export", type=Path, help="Optional DOH NHFR export CSV/XLSX (must contain official facility code and ownership)")
     ap.add_argument("--deped-export", type=Path, help="Optional DepEd masterlist CSV/XLSX (must contain school ID and public/private type)")
-    ap.add_argument("--ched-export", type=Path, help="Optional CHED HEIDA CSV/XLSX (must contain HEI code and explicit type)")
     ap.add_argument("--doh-as-of", help="As-of date for the DOH export (required when supplied)")
     ap.add_argument("--deped-as-of", help="As-of date for the DepEd export (required when supplied)")
-    ap.add_argument("--ched-as-of", help="As-of date for the CHED export (required when supplied)")
     args = ap.parse_args()
     ws, out = args.workspace.resolve(), args.out.resolve()
     source = ws / "places" / "places.parquet"
@@ -64,7 +62,7 @@ def cli() -> int:
     repo = Path(__file__).resolve().parents[1]
     if is_inside(out, ws) or is_inside(out, repo):
         ap.error("--out must be outside the SIGMA workspace and Git repository")
-    if any(path and not path.is_file() for path in (args.evaluation_csv, args.matched_records_csv, args.registry_links, args.doh_export, args.deped_export, args.ched_export, *args.registry_csv)):
+    if any(path and not path.is_file() for path in (args.evaluation_csv, args.matched_records_csv, args.registry_links, args.doh_export, args.deped_export, *args.registry_csv)):
         ap.error("an optional CSV/registry file was not found")
     try:
         import pandas as pd
@@ -90,7 +88,7 @@ def cli() -> int:
         "io80_codes", "io240_codes", "io80_code", "io240_code",
         "ownership_side", "ownership_reason", "economy_code",
         "city", "municipality", "osm_city", "overture_city", "address", "osm_address", "overture_address",
-        "deped_school_id", "school_id", "nhfr_code", "doh_facility_code", "ched_hei_code", "hei_code",
+        "deped_school_id", "school_id", "nhfr_code", "doh_facility_code",
     )
     read_cols = [c for c in needed if c in columns]
     if not {"canonical_id", "psic_code", "psic_status", "io80_codes", "io240_codes"} <= columns:
@@ -122,7 +120,6 @@ def cli() -> int:
     imports = (
         ("doh_nhfr", args.doh_export, args.doh_as_of, "https://nhfr.doh.gov.ph/VActivefacilitiesList"),
         ("deped_masterlist", args.deped_export, args.deped_as_of, "https://www.deped.gov.ph/"),
-        ("ched_hei", args.ched_export, args.ched_as_of, "https://heida.ched.gov.ph/hei-directory/13"),
     )
     for kind, path, as_of, url in imports:
         if path is not None:

@@ -1,0 +1,33 @@
+{
+  "schema": "sigma-national-source-manifest-v3",
+  "beis": {
+    "source_claim": "User-supplied reduced DepEd BEIS/EBEIS schools masterlist",
+    "official_publication_url": null,
+    "snapshot_date": null,
+    "input_file": "schools_town_psgc_clean.csv",
+    "input_encoding": "Windows-1252",
+    "input_sha256": "e367bb4bb3337c949d08b6b51ea24325e1624376b81da22b152d05918266a5e6",
+    "packaged_path": "src/sigma/resources/classification/beis_schools_national.csv.gz",
+    "packaged_sha256": "3754451c8ed247a663b91172eb9629efb5f74b19ca67e994c53e0845d47428b2",
+    "rows": 30364,
+    "unique_school_ids": 30364,
+    "unique_town_psgc": 1593,
+    "conventional_six_digit_id_rows": 29870,
+    "ownership_abstention_rows": 494,
+    "duplicate_normalized_name_town_groups": 796,
+    "duplicate_group_additional_rows": 914,
+    "ownership_status": "ID-prefix hints only, no automatic promotion until source and canonical match verified"
+  },
+  "philhealth": {
+    "source_document": "HOSP_093026.pdf",
+    "as_of": "2026-09-30",
+    "url": "https://www.philhealth.gov.ph/partners/providers/facilities/accredited/HOSP_093026.pdf",
+    "document_sha256": "9ef34056f893a5aa485619e71d8481f02da149ce61a1ca1d75686a2f4c81c0b4",
+    "compact_csv": "data/references/philhealth_level3_20260930.csv",
+    "compact_sha256": "65fc98dd42431e76082bbab3daee3af289c0ad4253e3613c4cfd0f2feb77b350",
+    "rows": 125,
+    "government": 63,
+    "private": 62,
+    "publication_row_not_facility_id": true
+  }
+}
