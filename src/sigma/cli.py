@@ -125,12 +125,15 @@ def _storage_size(nbytes: int) -> str:
 
 def _storage_inspect(
     workspace: Path | None, *, older_than_days: int,
-    obsolete: bool, quarantine: bool, apply: bool,
+    obsolete: bool, quarantine: bool, apply: bool, node_indexes: bool = False,
 ) -> None:
     from .storage import inspect_workspace, prune
 
-    paths = _storage_workspace_paths(workspace)
-    if not paths:
+    if node_indexes and (workspace is not None or obsolete or quarantine):
+        raise ValueError("--node-indexes is a source-only operation; do not combine it "
+                         "with --workspace, --obsolete, or --quarantine")
+    paths = [] if node_indexes else _storage_workspace_paths(workspace)
+    if not paths and not node_indexes:
         typer.echo("No SIGMA workspaces found.")
         return
     grand_total = 0
@@ -162,6 +165,20 @@ def _storage_inspect(
             )
             if status == "deleted" or not apply:
                 grand_total += candidate.bytes
+    if node_indexes:
+        from .source_node_indexes import inspect_node_indexes, prune_node_indexes
+        source_store = _initialized_source_store()
+        report = inspect_node_indexes(source_store, older_than_days=older_than_days)
+        typer.echo(f"\nShared-source libosmium indexes: {report.found_count} files, "
+                   f"{_storage_size(report.found_bytes)} total")
+        for candidate, status in prune_node_indexes(report, apply=apply):
+            typer.echo(f"  {status}: {_storage_size(candidate.size)} "
+                       f"[libosmium node index] {candidate.path}")
+            if status == "deleted" or not apply:
+                grand_total += candidate.size
+        if not apply and report.found_count > len(report.eligible):
+            typer.echo(f"  {report.found_count - len(report.eligible)} index files are too "
+                       f"recent or otherwise ineligible (minimum age: {older_than_days} days).")
     mode = "Deleted" if apply else "Previewed for cleanup"
     typer.echo(f"\n{mode}: {_storage_size(grand_total)}")
     if not apply:
@@ -174,11 +191,13 @@ def storage_report(
     obsolete: bool = typer.Option(False, "--obsolete", help="Also preview superseded immutable artifacts."),
     quarantine: bool = typer.Option(False, "--quarantine", help="Also preview old quarantines."),
     older_than_days: int = typer.Option(30, "--older-than-days", min=1),
+    node_indexes: bool = typer.Option(False, "--node-indexes",
+                                     help="Inspect/prune only shared-source libosmium indexes (not workspace files)."),
 ) -> None:
     """Inspect storage, without deleting anything."""
     _storage_inspect(
         workspace, older_than_days=older_than_days,
-        obsolete=obsolete, quarantine=quarantine, apply=False,
+        obsolete=obsolete, quarantine=quarantine, apply=False, node_indexes=node_indexes,
     )
 
 
@@ -191,6 +210,8 @@ def storage_prune(
     ),
     quarantine: bool = typer.Option(False, "--quarantine", help="Opt in to removing old quarantines."),
     older_than_days: int = typer.Option(30, "--older-than-days", min=1),
+    node_indexes: bool = typer.Option(False, "--node-indexes",
+                                     help="Inspect/prune only shared-source libosmium indexes (not workspace files)."),
 ) -> None:
     """Remove old SIGMA-created staging; nothing happens without --apply.
 
@@ -200,7 +221,7 @@ def storage_prune(
     """
     _storage_inspect(
         workspace, older_than_days=older_than_days,
-        obsolete=obsolete, quarantine=quarantine, apply=apply,
+        obsolete=obsolete, quarantine=quarantine, apply=apply, node_indexes=node_indexes,
     )
 
 def _economy(spec: str | None) -> Economy:

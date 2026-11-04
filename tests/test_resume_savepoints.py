@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 from shapely.geometry import LineString, Point, Polygon
 
-from sigma.savepoints import StageSavepoints, CheckpointedRoad
+from sigma.savepoints import StageSavepoints
 
 
 def test_savepoint_is_atomic_verified_and_recipe_scoped(tmp_path: Path):
@@ -45,32 +45,6 @@ def test_large_file_checkpoint_resume_and_corruption(tmp_path: Path):
     restored.unlink()
     assert not store.restore_file("geopackage", restored)
     assert not restored.exists()
-
-
-def test_route_geometry_batches_reused_without_geometry_recomputation(tmp_path: Path):
-    from sigma.analysis.pipeline import AnalysisPipeline
-
-    graph = nx.DiGraph()
-    graph.add_node("a", type="A", cluster=0)
-    graph.add_node("b", type="B", cluster=1)
-    graph.add_edge("a", "b", technical_coefficient=0.5,
-                   road_distance=8., weight=4., road_path=(1, 2))
-    class Road:
-        crs = "EPSG:4326"
-        calls = 0
-        def path_geometry(self, path):
-            self.calls += 1
-            return LineString([(0, 0), (1, 1)])
-    store = StageSavepoints(tmp_path, "analysis.x", "recipe")
-    road = Road()
-    first_edges, first_paths = AnalysisPipeline._edge_outputs(
-        graph, CheckpointedRoad(road, graph, store, batch_size=1))
-    assert road.calls == 1
-    second_edges, second_paths = AnalysisPipeline._edge_outputs(
-        graph, CheckpointedRoad(road, graph, store, batch_size=1))
-    assert road.calls == 1
-    pd.testing.assert_frame_equal(first_edges, second_edges)
-    assert first_paths.geometry.iloc[0].equals(second_paths.geometry.iloc[0])
 
 
 def test_clustering_completed_type_reused(tmp_path: Path, monkeypatch):
@@ -147,10 +121,10 @@ def test_network_x_source_type_restored_without_route_solving(tmp_path: Path):
 
     class Road:
         calls = 0
-        def shortest_paths_to_targets(self, source_node, targets):
+        def shortest_route_nodes_to_targets(self, source_node, targets):
             self.calls += 1
             return np.asarray([5.0] * len(targets)), [
-                (int(source_node), int(t)) for t in targets
+                np.asarray([source_node, 7, t], dtype=np.int32) for t in targets
             ]
 
     road = Road()
@@ -159,5 +133,7 @@ def test_network_x_source_type_restored_without_route_solving(tmp_path: Path):
     assert road.calls == 1
     second, diag2 = instantiate_network(centers, partitions, economy, road, savepoints=store)
     assert road.calls == 1
-    assert list(first.edges(data=True)) == list(second.edges(data=True))
+    strip = lambda g: [(u, v, {k: x for k, x in d.items() if k != 'route_nodes'}) for u, v, d in g.edges(data=True)]
+    assert strip(first) == strip(second)
+    assert [list(d["route_nodes"]) for _, _, d in second.edges(data=True)] == [[2, 7, 3]]
     pd.testing.assert_frame_equal(diag1, diag2)

@@ -19,7 +19,7 @@ import pandas as pd
 from sigma.artifacts import ArtifactRecipe, ArtifactRef, ArtifactWrite
 from sigma.execution import ExecutionPlanner
 from sigma.economy.io_utils import normalize_sector_id
-from sigma.places.frame_io import read_geoframe, write_geoframe
+from sigma.places.frame_io import MANAGED_TABLES_VERSION, read_geoframe, write_geoframe
 from sigma.sources import SourceRef
 from sigma.stages import StageSpec
 from sigma.transport import FileRoadSource
@@ -286,13 +286,13 @@ class RestartSpatialPipeline:
 
     def _recipe_roads(self, planner, deps):
         return ArtifactRecipe.build(
-            "transport.roads", implementation_version="restart-file-road-source-v1",
+            "transport.roads", implementation_version="restart-file-road-source-v1" + MANAGED_TABLES_VERSION,
             sources={"roads": self._road_source}, parameters={"layer": self.roads.layer},
         )
 
     def _recipe_centers(self, planner, deps):
         return ArtifactRecipe.build(
-            "spatial.centers", implementation_version="legacy-restart-centers-v3-selected-code-coercion",
+            "spatial.centers", implementation_version="legacy-restart-centers-v3-selected-code-coercion" + MANAGED_TABLES_VERSION,
             dependencies={"transport.roads": deps["transport.roads"]},
             sources={"centers": self._center_source},
             parameters={"vertex_digits": self.config.vertex_digits, "saved_network_node_ids": "ignored"},
@@ -302,7 +302,7 @@ class RestartSpatialPipeline:
     def _recipe_partitions(self, planner, deps):
         return ArtifactRecipe.build(
             "spatial.partitions",
-            implementation_version="legacy-restart-partitions-v3-road-crs-normalization",
+            implementation_version="legacy-restart-partitions-v3-road-crs-normalization" + MANAGED_TABLES_VERSION,
             dependencies={"transport.roads": deps["transport.roads"]},
             sources={"partitions": self._partition_source},
             identities=self._economy_identity(),
@@ -310,7 +310,7 @@ class RestartSpatialPipeline:
 
     def _recipe_points(self, planner, deps):
         return ArtifactRecipe.build(
-            "spatial.point_distances", implementation_version="legacy-restart-point-distances-v2-selected-code-coercion",
+            "spatial.point_distances", implementation_version="legacy-restart-point-distances-v2-selected-code-coercion" + MANAGED_TABLES_VERSION,
             dependencies={"spatial.centers": deps["spatial.centers"], "spatial.partitions": deps["spatial.partitions"]},
             sources={"points": self._point_source},
             identities=self._economy_identity(),
@@ -321,11 +321,11 @@ class RestartSpatialPipeline:
         if not validation.valid:
             raise RuntimeError(f"road source changed after registration: {validation.reason}")
         roads = validate_road_frame(read_vector(self._road_source.path, self.roads.layer))
-        write_geoframe(roads, write.output("roads.json"))
+        write_geoframe(roads, write.output("roads.parquet"))
         return {"rows": len(roads), "crs": str(roads.crs)}, {"legacy_restart": True}
 
     def _road_network(self, road_ref: ArtifactRef) -> RoadNetwork:
-        roads = read_geoframe(road_ref.path / "roads.json")
+        roads = read_geoframe(road_ref.path / "roads.parquet")
         return RoadNetwork.from_geodataframe(roads, vertex_digits=self.config.vertex_digits)
 
     def _resnap_centers(self, frame: gpd.GeoDataFrame, road_ref: ArtifactRef) -> tuple[gpd.GeoDataFrame, AugmentedNetwork, float]:
@@ -341,7 +341,7 @@ class RestartSpatialPipeline:
     def _exec_centers(self, planner, recipe, deps, write: ArtifactWrite):
         frame = _clean_centers(gpd.read_parquet(self._center_source.path), self._sector_codes)
         projected, _, max_resnap = self._resnap_centers(frame, deps["transport.roads"])
-        write_geoframe(projected, write.output("centers.json"))
+        write_geoframe(projected, write.output("centers.parquet"))
         return {"rows": len(projected), "crs": str(projected.crs), "max_center_resnap_distance": max_resnap}, {"legacy_restart": True}
 
     def _exec_partitions(self, planner, recipe, deps, write: ArtifactWrite):
@@ -349,10 +349,10 @@ class RestartSpatialPipeline:
             gpd.read_parquet(self._partition_source.path), self._sector_codes
         )
         source_crs = str(frame.crs)
-        roads = read_geoframe(deps["transport.roads"].path / "roads.json")
+        roads = read_geoframe(deps["transport.roads"].path / "roads.parquet")
         if frame.crs != roads.crs:
             frame = frame.to_crs(roads.crs)
-        write_geoframe(frame, write.output("partitions.json"))
+        write_geoframe(frame, write.output("partitions.parquet"))
         return {
             "rows": len(frame),
             "crs": str(frame.crs),
@@ -376,7 +376,7 @@ class RestartSpatialPipeline:
                 )
         if points.crs != centers.crs:
             points = points.to_crs(centers.crs)
-        write_geoframe(points, write.output("point_distances.json"))
+        write_geoframe(points, write.output("point_distances.parquet"))
         return {"rows": len(points), "crs": str(points.crs), "legacy_extra_point_rows_dropped": dropped}, {"legacy_restart": True}
 
     def prepare_imports(self, *, force: bool = False) -> tuple[ArtifactRef, ArtifactRef, ArtifactRef]:
@@ -397,16 +397,16 @@ class RestartSpatialPipeline:
         ref = ref or self.workspace.artifact("spatial.centers")
         if ref is None:
             raise RuntimeError("spatial.centers has not been imported")
-        return read_geoframe(ref.path / "centers.json")
+        return read_geoframe(ref.path / "centers.parquet")
 
     def read_partitions(self, ref: ArtifactRef | None = None) -> gpd.GeoDataFrame:
         ref = ref or self.workspace.artifact("spatial.partitions")
         if ref is None:
             raise RuntimeError("spatial.partitions has not been imported")
-        return read_geoframe(ref.path / "partitions.json")
+        return read_geoframe(ref.path / "partitions.parquet")
 
     def read_point_distances(self, ref: ArtifactRef | None = None) -> gpd.GeoDataFrame:
         ref = ref or self.workspace.artifact("spatial.point_distances")
         if ref is None:
             raise RuntimeError("spatial.point_distances has not been imported")
-        return read_geoframe(ref.path / "point_distances.json")
+        return read_geoframe(ref.path / "point_distances.parquet")

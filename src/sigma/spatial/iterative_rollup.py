@@ -289,8 +289,8 @@ def prepare_iterative_rollup(
         raise RuntimeError('spatial.points differs from baseline clustering dependency')
     cfg = config_from_manifest(manifest)
     cfg.validate()
-    points = read_geoframe(point_root / 'points.json')
-    clustered = read_geoframe(cluster_ref.path / 'clustered.json')
+    points = read_geoframe(point_root / 'points.parquet')
+    clustered = read_geoframe(cluster_ref.path / 'clustered.parquet')
     if len(points) != len(clustered) or not points['canonical_id'].astype(str).equals(clustered['canonical_id'].astype(str)):
         raise RuntimeError('baseline clustering and input points are not positionally identical')
     if not points['type'].astype(str).equals(clustered['type'].astype(str)):

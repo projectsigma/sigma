@@ -46,7 +46,7 @@ def test_real_x_edge_keeps_route_and_uses_member_radii_for_weight():
     assert edge["road_distance"] == pytest.approx(200)
     assert edge["effective_road_distance"] == pytest.approx(250)
     assert edge["weight"] == pytest.approx(.2/250)
-    assert edge["road_path"] is not None
+    assert road.route_geoseries([edge["route_nodes"]]).iloc[0].length == pytest.approx(200)
 
 
 def test_inverse_hub_has_one_metre_floor():

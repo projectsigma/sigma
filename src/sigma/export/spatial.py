@@ -13,7 +13,6 @@ import pandas as pd
 import pyogrio
 from shapely.geometry import Point
 
-from sigma.transport.network import AugmentedNetwork
 from sigma.analysis.graph import make_node_id
 
 WGS84 = "EPSG:4326"
@@ -60,77 +59,6 @@ def build_x_node_outputs(
     ]
     geo = geo[order]
     table = pd.DataFrame(geo.drop(columns="geometry"))
-    return table, geo
-
-
-def build_x_edge_outputs(
-    graph: nx.DiGraph,
-    road: AugmentedNetwork,
-) -> tuple[pd.DataFrame, gpd.GeoDataFrame]:
-    """Create tabular X edges and exact shortest-road-path line geometry."""
-    rows: list[dict[str, object]] = []
-    geometries = []
-    for source, target, data in sorted(
-        graph.edges(data=True), key=lambda edge: (str(edge[0]), str(edge[1]))
-    ):
-        source_data = graph.nodes[source]
-        target_data = graph.nodes[target]
-        road_path = data.get("road_path")
-        if road_path is None:
-            raise RuntimeError(f"X edge {source!r}->{target!r} is missing its road path")
-        rows.append(
-            {
-                "from_id": str(source),
-                "from_type": str(source_data["type"]),
-                "from_cluster": int(source_data["cluster"]),
-                "to_id": str(target),
-                "to_type": str(target_data["type"]),
-                "to_cluster": int(target_data["cluster"]),
-                # Keep established CSV aliases as well as explicit from/to names.
-                "source_type": str(source_data["type"]),
-                "source_cluster": int(source_data["cluster"]),
-                "target_type": str(target_data["type"]),
-                "target_cluster": int(target_data["cluster"]),
-                "technical_coefficient": float(data["dag_weight"]),
-                "road_distance": float(data["road_distance"]),
-                "edge_weight": float(data["weight"]),
-            }
-        )
-        geometries.append(road.path_geometry(road_path))
-
-    edge_columns = [
-        "from_id",
-        "from_type",
-        "from_cluster",
-        "to_id",
-        "to_type",
-        "to_cluster",
-        "source_type",
-        "source_cluster",
-        "target_type",
-        "target_cluster",
-        "technical_coefficient",
-        "road_distance",
-        "edge_weight",
-    ]
-    if rows:
-        geo = gpd.GeoDataFrame(rows, geometry=geometries, crs=road.crs).to_crs(WGS84)
-    else:
-        geo = gpd.GeoDataFrame(
-            {column: pd.Series(dtype="object") for column in edge_columns},
-            geometry=gpd.GeoSeries([], crs=WGS84),
-            crs=WGS84,
-        )
-    table_columns = [
-        "source_type",
-        "source_cluster",
-        "target_type",
-        "target_cluster",
-        "technical_coefficient",
-        "road_distance",
-        "edge_weight",
-    ]
-    table = pd.DataFrame(geo.drop(columns="geometry"))[table_columns]
     return table, geo
 
 

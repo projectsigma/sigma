@@ -113,9 +113,9 @@ def test_submetre_road_distance_is_capped_to_one_metre():
     economic.add_edge("A", "B", weight=3.0)
 
     class SubmetreRoad:
-        def shortest_paths_to_targets(self, source, targets):
+        def shortest_route_nodes_to_targets(self, source, targets):
             return np.full(len(targets), 0.5), [
-                (int(source), int(target)) for target in targets
+                np.asarray([source, target], dtype=np.int32) for target in targets
             ]
 
     graph, diagnostics = instantiate_network(centers, partitions, economic, SubmetreRoad())
@@ -162,10 +162,11 @@ def test_targeted_distance_batching_is_preserved_without_full_distance_materiali
         def __init__(self):
             self.calls = []
 
-        def distances_to_targets(self, source, targets):
+        def shortest_route_nodes_to_targets(self, source, targets):
             targets = list(map(int, targets))
             self.calls.append((int(source), tuple(targets)))
-            return np.abs(np.asarray(targets, dtype=float) - float(source))
+            distances = np.abs(np.asarray(targets, dtype=float) - float(source))
+            return distances, [np.asarray([source, t], dtype=np.int32) for t in targets]
 
         def distances_from(self, source):  # pragma: no cover
             raise AssertionError("X must not materialize full distance dictionaries")
@@ -185,7 +186,7 @@ def test_disconnected_positive_overlap_is_audited_and_not_instantiated():
     economic.add_edge("A", "B", weight=1.0)
 
     class DisconnectedRoad:
-        def shortest_paths_to_targets(self, source, targets):
+        def shortest_route_nodes_to_targets(self, source, targets):
             return np.full(len(targets), np.inf), [None] * len(targets)
 
     graph, diagnostics = instantiate_network(centers, partitions, economic, DisconnectedRoad())

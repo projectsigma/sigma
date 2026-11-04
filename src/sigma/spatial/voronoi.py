@@ -23,7 +23,9 @@ fallback after the network attempts fail.
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass
+import hashlib
 import io
 import json
 from typing import Callable
@@ -287,10 +289,15 @@ def _owners_for_anchors(
     network: AugmentedNetwork,
     result: NetworkVoronoi,
     reachable_edge_positions: np.ndarray,
+    tree: shapely.STRtree | None = None,
 ) -> np.ndarray:
-    """Vectorized nearest-road attachment, preserving SIGMA's tied-edge owner rule."""
-    lines = network.edges.geometry.iloc[reachable_edge_positions].to_numpy()
-    (point_index, local_edge), _ = shapely.STRtree(lines).query_nearest(
+    """Vectorized nearest-road attachment, preserving SIGMA's tied-edge owner rule.
+
+    ``tree`` may be a prebuilt ``STRtree`` over exactly the reachable edges.
+    """
+    if tree is None:
+        tree = shapely.STRtree(network.edges.geometry.iloc[reachable_edge_positions].to_numpy())
+    (point_index, local_edge), _ = tree.query_nearest(
         anchors, all_matches=True, return_distance=True
     )
     if len(point_index) == 0:
@@ -328,8 +335,24 @@ def surface_partition_for_type(
     resolution: float,
     max_cells: int = 1_000_000,
     progress: Callable[[str], None] | None = None,
+    *,
+    cache: dict | None = None,
 ) -> gpd.GeoDataFrame:
-    """Render one economic type's network Voronoi as boundary-clipped polygons."""
+    """Render one economic type's network Voronoi as boundary-clipped polygons.
+
+    ``cache`` (optional) keeps results that do not depend on the attempt: the boundary,
+    recent grids, this type's network Voronoi and recent edge indexes.  Reusing them
+    gives exactly the same partitions.  A cache belongs to one road network and one
+    boundary; it is emptied when either object changes.  Grids are kept only while
+    their cells together stay within ``max_cells`` (one grid of the largest allowed
+    size), and at most two edge indexes are kept.
+    """
+    cache = {} if cache is None else cache
+    if cache.get("scope") != (id(network), id(boundary)):
+        cache.clear()
+        # The objects themselves are kept so that their ids stay unique while cached.
+        cache.update(scope=(id(network), id(boundary)), owners=(network, boundary),
+                     grids=OrderedDict(), trees=OrderedDict())
     required = {"type", "cluster", "network_node"}
     missing = required - set(type_points.columns)
     if missing:
@@ -339,13 +362,31 @@ def surface_partition_for_type(
     if type_points["type"].nunique(dropna=False) != 1:
         raise ValueError("surface_partition_for_type received more than one economic type")
 
-    result = network_voronoi(
-        network,
-        type_points["network_node"].to_numpy(np.int64, copy=False),
-        type_points["cluster"].to_numpy(np.int64, copy=False),
-    )
-    boundary_geometry = _boundary_geometry(boundary, network.crs)
-    cells, anchors = _grid(boundary_geometry, resolution, max_cells)
+    cached_voronoi = cache.get("voronoi")
+    if cached_voronoi is not None and cached_voronoi[0] is type_points:
+        result = cached_voronoi[1]
+    else:
+        result = network_voronoi(
+            network,
+            type_points["network_node"].to_numpy(np.int64, copy=False),
+            type_points["cluster"].to_numpy(np.int64, copy=False),
+        )
+        cache["voronoi"] = (type_points, result)
+    cached_boundary = cache.get("boundary")
+    if cached_boundary is not None and cached_boundary[0] is boundary:
+        boundary_geometry = cached_boundary[1]
+    else:
+        boundary_geometry = _boundary_geometry(boundary, network.crs)
+        cache["boundary"] = (boundary, boundary_geometry)
+    grids = cache["grids"]
+    grid_key = (float(resolution), int(max_cells))
+    if grid_key in grids:
+        grids.move_to_end(grid_key)
+    else:
+        grids[grid_key] = _grid(boundary_geometry, resolution, max_cells)
+        while len(grids) > 1 and sum(len(g[0]) for g in grids.values()) > max_cells:
+            grids.popitem(last=False)
+    cells, anchors = grids[grid_key]
     type_value = str(type_points["type"].iloc[0])
     if progress is not None:
         progress(
@@ -366,7 +407,19 @@ def surface_partition_for_type(
 
     if progress is not None:
         progress(f"voronoi: type {type_value!r}: vectorized assignment of {len(anchors):,} cells")
-    labels = _owners_for_anchors(anchors, network, result, reachable_edge_positions)
+    trees = cache["trees"]
+    tree_key = hashlib.sha256(reachable_edge_positions.tobytes()).hexdigest()
+    if tree_key in trees:
+        trees.move_to_end(tree_key)
+    else:
+        trees[tree_key] = shapely.STRtree(
+            network.edges.geometry.iloc[reachable_edge_positions].to_numpy()
+        )
+        if len(trees) > 2:
+            trees.popitem(last=False)
+    labels = _owners_for_anchors(
+        anchors, network, result, reachable_edge_positions, tree=trees[tree_key]
+    )
     if progress is not None:
         progress(f"voronoi: type {type_value!r}: assigned {len(anchors):,}/{len(anchors):,} cells")
 
@@ -605,6 +658,7 @@ def all_surface_partitions(
         raise ValueError("Euclidean Voronoi fallback requires cluster centers")
 
     parts: list[gpd.GeoDataFrame] = []
+    cache: dict = {}  # shared by all types and attempts; see surface_partition_for_type
     groups = list(points.groupby("type", sort=True))
     total_types = len(groups)
     for position, (type_value, group) in enumerate(groups, start=1):
@@ -666,6 +720,7 @@ def all_surface_partitions(
                     attempt_resolution,
                     max_cells,
                     progress=progress,
+                    cache=cache,
                 )
                 if attempt > 0:
                     if progress is not None:

@@ -182,34 +182,45 @@ def _extract_pbf_road_candidates(
     west, south, east, north = (float(value) for value in bbox)
     rows: list[dict[str, object]] = []
     wkbfab = osmium.geom.WKBFactory()
-
-    class RoadHandler(osmium.SimpleHandler):
-        def __init__(self):
-            super().__init__()
-            self.ways_seen = 0
-            self.next_report = 1_000_000
-
-        def way(self, way):
-            self.ways_seen += 1
-            if progress is not None and self.ways_seen >= self.next_report:
+    if node_cache is None:
+        index_spec = "flex_mem"
+    else:
+        node_cache.parent.mkdir(parents=True, exist_ok=True)
+        index_spec = f"sparse_file_array,{node_cache}"
+    if progress is not None:
+        progress(f"managed roads: scanning shared Geofabrik PBF {pbf_path.name}")
+    # The location cache sees every node; the filters then pass only ways with a
+    # ``highway`` key to Python, instead of a Python call for every way in the file.
+    processor = (
+        osmium.FileProcessor(str(pbf_path), osmium.osm.NODE | osmium.osm.WAY)
+        .with_locations(index_spec)
+        .with_filter(osmium.filter.EntityFilter(osmium.osm.WAY))
+        .with_filter(osmium.filter.KeyFilter("highway"))
+    )
+    ways_seen = 0
+    next_report = 1_000_000
+    try:
+        for way in processor:
+            ways_seen += 1
+            if progress is not None and ways_seen >= next_report:
                 progress(
-                    f"managed roads: {self.ways_seen:,} OSM ways examined; "
+                    f"managed roads: {ways_seen:,} OSM highway ways examined; "
                     f"{len(rows):,} candidate ways retained"
                 )
-                self.next_report += 1_000_000
+                next_report += 1_000_000
             highway = way.tags.get("highway")
             access = way.tags.get("access")
             if not _selected_osm_road(highway, access):
-                return
+                continue
             try:
                 geometry = shapely.wkb.loads(wkbfab.create_linestring(way), hex=True)
             except (RuntimeError, ValueError):
-                return
+                continue
             if geometry.is_empty or not isinstance(geometry, LineString):
-                return
+                continue
             minx, miny, maxx, maxy = geometry.bounds
             if maxx < west or minx > east or maxy < south or miny > north:
-                return
+                continue
             rows.append(
                 {
                     "osm_way_id": int(way.id),
@@ -223,19 +234,11 @@ def _extract_pbf_road_candidates(
                     "geometry": geometry,
                 }
             )
-
-    handler = RoadHandler()
-    if node_cache is None:
-        index_spec = "flex_mem"
-    else:
-        node_cache.parent.mkdir(parents=True, exist_ok=True)
-        index_spec = f"sparse_file_array,{node_cache}"
-    if progress is not None:
-        progress(f"managed roads: scanning shared Geofabrik PBF {pbf_path.name}")
-    try:
-        handler.apply_file(str(pbf_path), locations=True, idx=index_spec)
     except RuntimeError as exc:
         raise RuntimeError(f"managed Geofabrik road extraction failed: {exc}") from exc
+    finally:
+        # Release the node-location index now, so the caller can delete its file.
+        del processor
     if progress is not None:
         progress(
             f"managed roads: PBF scan complete; {len(rows):,} candidate ways retained"
