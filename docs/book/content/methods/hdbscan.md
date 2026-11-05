@@ -1,5 +1,7 @@
 # Network HDBSCAN*: discovering localized ecosystems
 
+Optional [network Gap k-medoids refinement](network_gap_medians.md) occurs **after** HDBSCAN and preserves HDBSCAN noise. It is off by default.
+
 SIGMA clusters establishments **separately for each economic type**. The clustering model is HDBSCAN*, but its pairwise distance is shortest-path distance on the supplied road network rather than Euclidean distance.
 
 The implementation lineage is HDBSCAN* (Campello, Moulavi & Sander, 2013; Campello et al., 2015) plus earlier network-constrained clustering (Yiu & Mamoulis, 2004; Wang et al., 2019).

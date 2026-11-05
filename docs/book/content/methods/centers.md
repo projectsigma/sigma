@@ -1,6 +1,6 @@
 # Cluster centers: the network-node 1-median
 
-After clustering, SIGMA chooses one road-network node to represent each `(economic type, cluster)`.
+After clustering (and any optional [network Gap k-medoids refinement](network_gap_medians.md)), SIGMA chooses one road-network node to represent each final `(economic type, cluster)`.
 
 ## Objective
 

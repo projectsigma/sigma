@@ -283,6 +283,12 @@ def _config(
     max_snap_distance: float | None = None,
     min_cluster_size: int = 5,
     min_samples: int | None = None,
+    median_gap_refinement: bool = False,
+    median_gap_max_k: int = 6,
+    median_gap_replicates: int = 10,
+    median_gap_max_sites: int = 64,
+    median_gap_seed: int = 20261105,
+    median_gap_workers: int = 4,
     cluster_selection_method: str = "eom",
     allow_single_cluster: bool = False,
     hdbscan_max_distance: float = 5000.0,
@@ -325,6 +331,12 @@ def _config(
         max_snap_distance=max_snap_distance,
         min_cluster_size=min_cluster_size,
         min_samples=min_samples,
+        median_gap_refinement=median_gap_refinement,
+        median_gap_max_k=median_gap_max_k,
+        median_gap_replicates=median_gap_replicates,
+        median_gap_max_sites=median_gap_max_sites,
+        median_gap_seed=median_gap_seed,
+        median_gap_workers=median_gap_workers,
         cluster_selection_method=cluster_selection_method,  # type: ignore[arg-type]
         allow_single_cluster=allow_single_cluster,
         hdbscan_max_distance=hdbscan_max_distance,
@@ -493,6 +505,14 @@ def run_command(
     mwas_method: str = typer.Option("fast", "--mwas-method"),
     min_cluster_size: int = typer.Option(5, "--min-cluster-size"),
     min_samples: int | None = typer.Option(None, "--min-samples"),
+    median_gap_refinement: bool = typer.Option(False, "--median-gap/--no-median-gap",
+        help="Refine retained HDBSCAN clusters using network Gap k-medoids."),
+    median_gap_max_k: int = typer.Option(6, "--median-gap-max-k"),
+    median_gap_replicates: int = typer.Option(10, "--median-gap-replicates"),
+    median_gap_max_sites: int = typer.Option(64, "--median-gap-max-sites"),
+    median_gap_seed: int = typer.Option(20261105, "--median-gap-seed"),
+    median_gap_workers: int = typer.Option(4, "--median-gap-workers", min=1, max=4,
+        help="Independent spawn processes for network Gap refinement (1-4; default 4)."),
     allow_single_cluster: bool = typer.Option(False, "--allow-single-cluster"),
     voronoi_resolution: float = typer.Option(500.0, "--voronoi-resolution"),
     centrality_method: str | None = typer.Option(
@@ -540,6 +560,12 @@ def run_command(
             transaction_preprocessing=transaction_preprocessing,
             source_store=shared_store, roads_layer=roads_layer,
             min_cluster_size=min_cluster_size, min_samples=min_samples,
+            median_gap_refinement=median_gap_refinement,
+            median_gap_max_k=median_gap_max_k,
+            median_gap_replicates=median_gap_replicates,
+            median_gap_max_sites=median_gap_max_sites,
+            median_gap_seed=median_gap_seed,
+            median_gap_workers=median_gap_workers,
             allow_single_cluster=allow_single_cluster, voronoi_resolution=voronoi_resolution,
             centrality_method=centrality_method, centrality_direction=centrality_direction,
             x_distance_decay_lambda=x_distance_decay_lambda,
@@ -586,33 +612,57 @@ def run_command(
                 raise ValueError("--iterative-rollup requires an existing generated hierarchical "
                                  "economy with membership.csv; run sigma load AREA first")
             from .spatial.iterative_rollup import prepare_iterative_rollup
-            original_places = job._require_loaded_places()
-            baseline = job.ensure("spatial.clusters")
+            # Roll-up eligibility and prediction use original HDBSCAN labels,
+            # not the later k-medoids subdivision of those labels.
+            base_config = (
+                replace(config, spatial=replace(config.spatial, median_gap_refinement=False))
+                if median_gap_refinement else config
+            )
+            base_job = (
+                _job(area=area, workspace=workspace, roads=road_source,
+                     roads_layer=roads_layer, output_dir=output_dir,
+                     source_store=shared_store, economy=economy,
+                     areas_file=areas_file, config=base_config, progress=progress,
+                     route_geometry=route_geometry)
+                if median_gap_refinement else job
+            )
+            original_places = base_job._require_loaded_places()
+            baseline = base_job.ensure("spatial.clusters")
             rollup_package = prepare_iterative_rollup(
-                workspace=workspace, base_economy=job.economy,
+                workspace=workspace, base_economy=base_job.economy,
                 base_places=original_places, cluster_ref=baseline, progress=progress,
             )
             if rollup_package is not None:
-                job = _job(
-                    area=area, workspace=workspace, roads=road_source, roads_layer=roads_layer,
-                    output_dir=output_dir, source_store=shared_store,
-                    economy=str(rollup_package / "economy"),
-                    areas_file=areas_file, config=config, progress=progress,
+                # Verify the baseline prediction without k-median refinement.
+                # Only then prepare the effective job with the user's setting.
+                verification_job = _job(
+                    area=area, workspace=workspace, roads=road_source,
+                    roads_layer=roads_layer, output_dir=output_dir,
+                    source_store=shared_store, economy=str(rollup_package / "economy"),
+                    areas_file=areas_file, config=base_config, progress=progress,
                     route_geometry=route_geometry,
                 )
-                # Validate the counterfactual clustering BEFORE routing, X or export.
                 import json as _rollup_preflight_json
                 expected_clusters = _rollup_preflight_json.loads(
                     (rollup_package / "economy" / "rollup_audit.json").read_text(encoding="utf-8")
                 )["predicted_cluster_count"]
-                job.ensure("spatial.clusters")
-                effective_cluster_manifest = job.workspace.manifest("spatial.clusters")
+                verification_job.ensure("spatial.clusters")
+                effective_cluster_manifest = verification_job.workspace.manifest("spatial.clusters")
                 if (effective_cluster_manifest is None
                         or effective_cluster_manifest.metadata.get("cluster_count") != expected_clusters):
                     raise RuntimeError(
                         f"iterative roll-up clusters do not match verified prediction "
                         f"({expected_clusters}); refusing to build X or publish exports"
                     )
+                job = (
+                    _job(area=area, workspace=workspace, roads=road_source,
+                         roads_layer=roads_layer, output_dir=output_dir,
+                         source_store=shared_store,
+                         economy=str(rollup_package / "economy"),
+                         areas_file=areas_file, config=config, progress=progress,
+                         route_geometry=route_geometry)
+                    if median_gap_refinement else verification_job
+                )
         if progress is not None:
             # Keep the public CLI compatible with jobs that expose places_path
             # without the private resolver (including CLI integration fakes).
@@ -621,7 +671,7 @@ def run_command(
             progress(f"analysis input: {input_path}")
             progress("starting spatial, economic, X, centrality, scoring, and export stages")
         result = job.refresh() if refresh else job.run(force=force)
-        if rollup_package is not None:
+        if rollup_package is not None and not median_gap_refinement:
             import json as _rollup_json
             prediction = _rollup_json.loads(
                 (rollup_package / "economy" / "rollup_audit.json").read_text(encoding="utf-8")

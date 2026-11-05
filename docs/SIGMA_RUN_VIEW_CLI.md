@@ -118,3 +118,8 @@ sigma view quezon_city --port 8766
 For changes to classification/tagging inputs and rules, first run `sigma load AREA` with the appropriate source/force options, review the loaded places, then `sigma run AREA --refresh`. Updating `run` alone does not reclassify establishments.
 
 The previous `--ui-only` spelling remains supported as an alias for `--fast`.
+
+
+## Network Gap k-medoids refinement (opt-in)
+
+`sigma run AREA --median-gap --refresh` enables an optional, audited post-HDBSCAN network k-medoids split selected by a Gap-statistic one-standard-error criterion. Defaults: max k 6, 10 reference draws, 64 fit observations per parent, fixed seed. Flags: `--no-median-gap`, `--median-gap-max-k`, `--median-gap-replicates`, `--median-gap-max-sites`, `--median-gap-seed`. It never invalidates clusters or reallocates HDBSCAN noise. See [Network Gap method](../docs/book/content/methods/network_gap_medians.md).
