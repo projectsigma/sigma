@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import hashlib
 import math
+import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
 import numpy as np
@@ -35,6 +37,7 @@ class NetworkGapConfig:
     max_sites: int = 64
     seed: int = 20261105
     min_members: int = 5
+    workers: int = 1  # Python API retains serial behavior; CLI defaults to 4.
 
     def validate(self) -> None:
         if self.max_k < 2 or self.replicates < 2 or self.max_sites < 3:
@@ -45,33 +48,76 @@ class NetworkGapConfig:
             raise ValueError('min_members must be >=2')
         if self.seed < 0:
             raise ValueError('network Gap seed must be non-negative')
+        if isinstance(self.workers, bool) or not isinstance(self.workers, int) or not 1 <= self.workers <= 4:
+            raise ValueError('network Gap workers must be an integer from 1 through 4')
+
+
+def _bounded_distances(
+    solver: SparseRoadSolver, sources: np.ndarray, targets: np.ndarray,
+) -> np.ndarray:
+    """Exact shortest road distances from a few source vertices to needed targets.
+
+    SciPy's Dijkstra limit returns exact distances for reached vertices. Expand
+    until every target has been reached. Multiple sources are processed in memory-
+    bounded batches, and the component subgraph is cached by SparseRoadSolver.
+    No road route is approximated or truncated by the radius.
+    """
+    sources = np.asarray(sources, dtype=np.int64)
+    targets = np.asarray(targets, dtype=np.int64)
+    if sources.ndim != 1 or targets.ndim != 1 or not len(sources) or not len(targets):
+        raise ValueError('network Gap needs nonempty 1D source and destination arrays')
+    comp = int(solver.component[sources[0]])
+    if (np.any(solver.component[sources] != comp)
+            or np.any(solver.component[targets] != comp)):
+        raise ValueError('one candidate cluster crosses disconnected road components')
+    component_nodes, sub = solver._component_graph(comp)
+    src = np.searchsorted(component_nodes, sources)
+    dst = np.searchsorted(component_nodes, targets)
+    if (not np.array_equal(component_nodes[src], sources)
+            or not np.array_equal(component_nodes[dst], targets)):
+        raise RuntimeError('sampled nodes not found in road component')
+
+    if solver.xy is None:
+        first_limit = 2_000.0
+    else:
+        source_xy = np.asarray(solver.xy[sources], dtype=float)
+        target_xy = np.asarray(solver.xy[targets], dtype=float)
+        # 1.5x Euclidean diameter is a starting radius, NOT a distance proxy.
+        span = source_xy[:, None, :] - target_xy[None, :, :]
+        first_limit = max(1.0, 1.5 * float(np.hypot(span[..., 0], span[..., 1]).max(initial=0.0)))
+
+    batch = max(1, 2_000_000 // max(len(component_nodes), 1))
+    result = np.empty((len(sources), len(targets)), dtype=float)
+    for start in range(0, len(sources), batch):
+        stop = min(len(sources), start + batch)
+        limit = first_limit
+        while True:
+            raw = np.atleast_2d(np.asarray(
+                dijkstra(sub, directed=True, indices=src[start:stop], limit=limit),
+                dtype=float,
+            ))
+            selected = raw[:, dst]
+            if np.isfinite(selected).all():
+                result[start:stop] = selected
+                break
+            if not np.isfinite(limit):
+                raise RuntimeError('a within-component shortest-path matrix is not finite')
+            limit = 2.0 * limit if limit < 1e12 else np.inf
+    return result
 
 
 def _matrix(solver: SparseRoadSolver, nodes: np.ndarray) -> np.ndarray:
-    """All shortest road distances among bounded, unique demand network nodes."""
+    """Exact all-pairs shortest road distances between bounded candidate sites."""
     sites = np.asarray(nodes, dtype=np.int64)
-    if len(sites) == 0:
-        raise ValueError('cannot compute an empty road distance matrix')
-    if np.any(solver.component[sites] != solver.component[sites[0]]):
-        raise ValueError('one candidate cluster crosses disconnected road components')
-    component_nodes, sub = solver._component_graph(int(solver.component[sites[0]]))
-    local = np.searchsorted(component_nodes, sites)
-    if not np.array_equal(component_nodes[local], sites):
-        raise RuntimeError('sampled nodes not found in road component')
-    batch = max(1, 2_000_000 // max(len(component_nodes), 1))
-    matrix = np.empty((len(sites), len(sites)), dtype=float)
-    for start in range(0, len(sites), batch):
-        end = min(len(sites), start + batch)
-        raw = dijkstra(sub, directed=True, indices=local[start:end])
-        raw = np.atleast_2d(np.asarray(raw, dtype=float))
-        matrix[start:end] = raw[:, local]
-    if not np.isfinite(matrix).all():
-        raise RuntimeError('a within-component shortest-path matrix is not finite')
-    return matrix
+    return _bounded_distances(solver, sites, sites)
 
 
 def _medoid_curve(matrix: np.ndarray, weights: np.ndarray, maximum_k: int):
-    """Deterministic PAM-style greedy BUILD + improving SWAP for every candidate k."""
+    """Deterministic PAM BUILD + SWAP, with vectorized cost evaluation.
+
+    Retains the original candidate scan order and strict-improvement threshold,
+    including first-wins behavior for numerically tied alternatives.
+    """
     n = len(weights)
     chosen: list[int] = []
     objectives: list[float] = []
@@ -89,20 +135,30 @@ def _medoid_curve(matrix: np.ndarray, weights: np.ndarray, maximum_k: int):
         chosen.append(added)
         chosen.sort()
         old = float(matrix[:, chosen].min(axis=1) @ weights)
-        # Strict improvements ensure termination (finite subsets of candidates).
         while True:
             move = None
             best = old
             owned = set(chosen)
+            available = [j for j in range(n) if j not in owned]
+            if not available:
+                break
+            # Removing one existing center leaves one nearest-distance vector.
+            # For all replacement candidates, compute weighted costs together,
+            # rather than rebuilding/reducing each candidate's k-column matrix.
             for position in range(len(chosen)):
-                for candidate in range(n):
-                    if candidate in owned:
-                        continue
-                    proposal = chosen.copy()
-                    proposal[position] = candidate
-                    cost = float(matrix[:, proposal].min(axis=1) @ weights)
+                other = [v for j, v in enumerate(chosen) if j != position]
+                if other:
+                    nearest_other = matrix[:, other].min(axis=1)
+                    costs = np.minimum(nearest_other[:, None], matrix[:, available]).T @ weights
+                else:
+                    costs = matrix[:, available].T @ weights
+                for candidate, cost in zip(available, costs):
+                    cost = float(cost)
                     if cost < best - max(1e-9, abs(best) * 1e-12):
-                        best, move = cost, sorted(proposal)
+                        best = cost
+                        proposal = chosen.copy()
+                        proposal[position] = int(candidate)
+                        move = sorted(proposal)
             if move is None:
                 break
             chosen = move
@@ -173,15 +229,80 @@ def _selected_k(
     return selected, gap.tolist(), status, [int(sites[j]) for j in site_sets[selected - 1]], len(sample), len(pool)
 
 
+# A fixed process pool: each worker owns its own road adjacency, component labels,
+# coordinate array, spatial index, and per-component Dijkstra cache. None of these
+# objects is shared or sent with each cluster task.  Windows uses spawn explicitly.
+_GAP_WORKER_STATE = None
+
+
+def _init_gap_worker(adjacency, component, xy, config: NetworkGapConfig) -> None:
+    global _GAP_WORKER_STATE
+    # BLAS matrix-vector operations should not start a second thread pool per
+    # process. threadpoolctl is optional; no additional runtime dependency.
+    try:
+        from threadpoolctl import threadpool_limits
+        threadpool_limits(limits=1, user_api='blas')
+    except ImportError:
+        pass
+    solver = SparseRoadSolver(adjacency, component, xy)
+    _GAP_WORKER_STATE = (solver, cKDTree(xy), config)
+
+
+def _compute_gap_cluster(solver, tree, config, sector, original_cluster, demand):
+    """Pure per-cluster work. Cluster IDs are deliberately NOT allocated here."""
+    selected = 1
+    gap: list[float] = []
+    medoids: list[int] = []
+    status = 'one_site'
+    sampled = len(demand)
+    support = 0
+    unique_count = int(len(np.unique(demand)))
+    if len(demand) < 2 * config.min_members:
+        status = 'insufficient_members_for_split'
+    elif unique_count >= 3:
+        rng = np.random.default_rng(_seed(config.seed, sector, original_cluster))
+        selected, gap, status, medoids, sampled, support = _selected_k(
+            solver, demand, tree, config, rng,
+        )
+    else:
+        status = 'insufficient_distinct_positions'
+    owners = None
+    if selected > 1:
+        # Same sorted medoid order, distance tie handling and min-members check as
+        # the serial implementation. Distances are exact expanding-radius Dijkstra.
+        medoids = sorted(medoids)
+        distances = _bounded_distances(solver, np.asarray(medoids, dtype=np.int64), demand)
+        if not np.isfinite(distances).all():
+            raise RuntimeError(f'network Gap disconnected child in {sector}/{original_cluster}')
+        owners = np.argmin(distances, axis=0)
+        active = np.unique(owners)
+        counts = np.bincount(owners, minlength=len(medoids))
+        if len(active) <= 1 or not np.all(counts[active] >= config.min_members):
+            selected, status, medoids, owners = 1, 'no_admissible_partition', [], None
+    return {
+        'selected': int(selected), 'gap': gap, 'status': status, 'medoids': medoids,
+        'sampled': int(sampled), 'support': int(support), 'unique_count': unique_count,
+        'owners': owners,
+    }
+
+
+def _run_gap_worker(task):
+    if _GAP_WORKER_STATE is None:
+        raise RuntimeError('network Gap worker was not initialized')
+    solver, tree, config = _GAP_WORKER_STATE
+    sector, original_cluster, demand = task
+    return _compute_gap_cluster(solver, tree, config, sector, original_cluster, demand)
+
+
 def refine_clusters_by_gap(
     retained: pd.DataFrame, network, config: NetworkGapConfig,
     *, progress=None,
 ) -> tuple[np.ndarray, list[dict[str, object]]]:
-    """Return revised cluster labels for retained points; never discard observations.
+    """Refine HDBSCAN clusters independently, with deterministic final labeling.
 
-    Caller must provide columns type, cluster, canonical_id, network_node.
-    Labels remain unchanged for k=1; new children receive IDs above the
-    largest original cluster index in their economic sector.
+    Parallel workers return only per-cluster selection/assignment results.  The
+    calling process assigns child IDs in the original sorted group order, keeping
+    the output, audit ordering, and split-only progress identical to serial mode.
     """
     config.validate()
     required = {'type', 'cluster', 'canonical_id', 'network_node'}
@@ -192,68 +313,90 @@ def refine_clusters_by_gap(
     solver = SparseRoadSolver.from_augmented(network)
     if solver.xy is None:
         raise ValueError('network Gap requires projected network-node geometry')
-    tree = cKDTree(np.asarray(solver.xy, dtype=float))
     new_labels = retained['cluster'].to_numpy(dtype=np.int64, copy=True)
     audit: list[dict[str, object]] = []
     maxima = retained.groupby('type', sort=False)['cluster'].max().astype(int).to_dict()
-    # A single cluster may contain many establishments but few distinct sites.
-    for (sector, original_cluster), indices in retained.groupby(['type', 'cluster'], sort=True).indices.items():
+    jobs = []
+    heavy_tasks = []
+    for (sector, original_cluster), indices in retained.groupby(
+        ['type', 'cluster'], sort=True,
+    ).indices.items():
         positions = np.asarray(indices, dtype=np.int64)
-        sort_key = retained.iloc[positions]['canonical_id'].astype(str).to_numpy()
-        positions = positions[np.argsort(sort_key, kind='stable')]
+        keys = retained.iloc[positions]['canonical_id'].astype(str).to_numpy()
+        positions = positions[np.argsort(keys, kind='stable')]
         demand = retained.iloc[positions]['network_node'].to_numpy(np.int64)
-        selected = 1
-        gap: list[float] = []
-        medoids: list[int] = []
-        status = 'one_site'
-        sampled = len(demand)
-        support = 0
-        if len(np.unique(demand)) >= 3:
-            rng = np.random.default_rng(_seed(config.seed, str(sector), int(original_cluster)))
-            selected, gap, status, medoids, sampled, support = _selected_k(
-                solver, demand, tree, config, rng,
-            )
-        assigned_ids = [int(original_cluster)]
-        if selected > 1:
-            # Assign *all* original observations by exact network distance, not
-            # just sampled demand sites. Tie-break by lowest network node ID.
-            medoids = sorted(medoids)
-            distances = np.stack([
-                np.asarray(dijkstra(solver.adjacency, directed=True, indices=int(medoid)), dtype=float)[demand]
-                for medoid in medoids
-            ])
-            if not np.isfinite(distances).all():
-                raise RuntimeError(f'network Gap disconnected child in {sector}/{original_cluster}')
-            owners = np.argmin(distances, axis=0)
-            active = np.unique(owners)
-            counts = np.bincount(owners, minlength=len(medoids))
-            if len(active) > 1 and np.all(counts[active] >= config.min_members):
-                # Preserve parent's label for the child with smallest canonical ID.
+        sector = str(sector)
+        original_cluster = int(original_cluster)
+        eligible = (len(demand) >= 2 * config.min_members and len(np.unique(demand)) >= 3)
+        jobs.append((sector, original_cluster, positions, demand, eligible))
+        if eligible:
+            heavy_tasks.append((sector, original_cluster, demand))
+
+    def assemble(results):
+        for sector, original_cluster, positions, demand, eligible in jobs:
+            if eligible:
+                outcome = next(results)
+            else:
+                # No graph search or reference draws for infeasible clusters.
+                outcome = {
+                    'selected': 1, 'gap': [],
+                    'status': ('insufficient_members_for_split'
+                               if len(demand) < 2 * config.min_members else 'one_site'),
+                    'medoids': [], 'sampled': len(demand), 'support': 0,
+                    'unique_count': int(len(np.unique(demand))), 'owners': None,
+                }
+            selected = int(outcome['selected'])
+            medoids = outcome['medoids']
+            assigned_ids = [original_cluster]
+            if selected > 1:
+                owners = outcome['owners']
+                if owners is None:
+                    raise RuntimeError('split result is missing point-to-medoid assignments')
+                active = np.unique(owners)
                 primary = int(owners[0])
-                mapping = {primary: int(original_cluster)}
+                mapping = {primary: original_cluster}
                 for child in active:
-                    if int(child) == primary:
-                        continue
-                    maxima[sector] += 1
-                    mapping[int(child)] = int(maxima[sector])
+                    if int(child) != primary:
+                        maxima[sector] += 1
+                        mapping[int(child)] = int(maxima[sector])
                 new_labels[positions] = [mapping[int(x)] for x in owners]
                 assigned_ids = sorted(mapping.values())
-            else:
-                selected = 1
-                status = 'no_admissible_partition'
-                medoids = []
-        audit.append({
-            'type': str(sector), 'hdbscan_cluster': int(original_cluster),
-            'observations': int(len(positions)), 'distinct_demand_nodes': int(len(np.unique(demand))),
-            'sampled_observations': int(sampled), 'reference_vertex_pool': int(support),
-            'selected_k': int(selected), 'outcome': status,
-            'new_cluster_ids': assigned_ids,
-            'selected_medoid_nodes': medoids,
-            'gap_by_k': [float(x) for x in gap],
-            'sampled_approximation': bool(sampled < len(demand)),
-        })
-        if progress is not None and selected > 1:
-            progress(f'network Gap: sector {sector} cluster {original_cluster} -> {selected} road-median cells')
-    if len(new_labels) != len(retained) or np.any(new_labels < 0):
-        raise RuntimeError('network Gap changed retained-point eligibility')
-    return new_labels, audit
+            audit.append({
+                'type': sector, 'hdbscan_cluster': original_cluster,
+                'observations': int(len(positions)),
+                'distinct_demand_nodes': int(outcome['unique_count']),
+                'sampled_observations': int(outcome['sampled']),
+                'reference_vertex_pool': int(outcome['support']),
+                'selected_k': selected, 'outcome': outcome['status'],
+                'new_cluster_ids': assigned_ids,
+                'selected_medoid_nodes': medoids,
+                'gap_by_k': [float(x) for x in outcome['gap']],
+                'sampled_approximation': bool(outcome['sampled'] < len(demand)),
+            })
+            if progress is not None and selected > 1:
+                progress(f'network Gap: sector {sector} cluster {original_cluster} -> {selected} road-median cells')
+        if len(new_labels) != len(retained) or np.any(new_labels < 0):
+            raise RuntimeError('network Gap changed retained-point eligibility')
+        return new_labels, audit
+
+    if not heavy_tasks:
+        return assemble(iter(()))
+    if config.workers == 1 or len(heavy_tasks) == 1:
+        tree = cKDTree(np.asarray(solver.xy, dtype=float))
+        serial_results = (
+            _compute_gap_cluster(solver, tree, config, *task) for task in heavy_tasks
+        )
+        return assemble(iter(serial_results))
+
+    # Pass large road arrays only once at process initialization, not with every
+    # cluster task.  Four isolated workers reuse their own subgraph caches.
+    # Explicit spawn works from Windows conda CLI, not only from Unix fork mode.
+    context = multiprocessing.get_context('spawn')
+    with ProcessPoolExecutor(
+        max_workers=min(config.workers, len(heavy_tasks)),
+        mp_context=context,
+        initializer=_init_gap_worker,
+        initargs=(solver.adjacency, solver.component, np.asarray(solver.xy), config),
+    ) as executor:
+        ordered = executor.map(_run_gap_worker, heavy_tasks, chunksize=1)
+        return assemble(iter(ordered))

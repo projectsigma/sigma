@@ -62,6 +62,7 @@ class SpatialConfig:
     median_gap_replicates: int = 10
     median_gap_max_sites: int = 64
     median_gap_seed: int = 20261105
+    median_gap_workers: int = 4
     voronoi_resolution: float = 500.0
     voronoi_max_cells: int = 1_000_000
     voronoi_refine_factor: float = 0.5

@@ -97,3 +97,35 @@ https://doi.org/10.1111/1467-9868.00293
 
 Kaufman, L., & Rousseeuw, P. J. (1990). *Finding Groups in Data: An
 Introduction to Cluster Analysis*. Wiley (Partitioning Around Medoids).
+
+### Performance implementation v3
+
+This implementation uses exact expanding-radius road shortest paths to compute
+observed and reference distance matrices and to assign the full cluster after
+an accepted split. The PAM candidate SWAP evaluation is vectorized, while
+candidate ordering and strict improvement rules are retained. Clusters too small
+to contain two children of `min_cluster_size` are kept without Gap simulations.
+Progress is logged **only when a cluster actually splits**.
+
+These changes do not reduce Gap reference replicates, sample sizes, or the
+statistical search range, and do not introduce Euclidean or truncated road
+distances. They do not guarantee runtime gains for dispersed clusters: bounded
+search may explore an entire road component in that case.
+
+### Windows-safe parallel execution (v4)
+
+`sigma run quezon_city --median-gap` uses **4 isolated worker processes** by
+ default, adjustable with `--median-gap-workers 1..4`. A fixed process pool
+ assigns one retained HDBSCAN cluster at a time to each worker. On Windows the
+ workers use `spawn`. Each worker deserializes its own road adjacency, component
+ indices and node geometry *once* and caches its own shortest-path subgraphs.
+ No mutable road objects are shared between processes, and the parent process
+ assigns all child cluster IDs in sorted order. This preserves the serial seed,
+ Gap selection, cluster IDs, audit ordering, and split-only console messages.
+ Workers do **not** rebuild the road graph from source files per cluster.
+ The `--median-gap-workers 1` run is a serial parity/control mode.
+
+ Four worker processes increase memory use; speedups are workload-dependent.
+ The method, one-SE rule, reference replicates, sampling, and maximum k do not
+ change. HDBSCAN clustering, hierarchical roll-up validation, network centers,
+ Voronoi construction, X, and scoring remain serial/unchanged.

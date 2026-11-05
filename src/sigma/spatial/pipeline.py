@@ -69,6 +69,7 @@ class SpatialRunConfig:
     median_gap_replicates: int = 10
     median_gap_max_sites: int = 64
     median_gap_seed: int = 20261105
+    median_gap_workers: int = 4
 
     # Preserve Engine fallback policy: network Voronoi is primary, coarse network
     # partitions are refined, and planar Euclidean Voronoi is the default recovery path.
@@ -273,7 +274,7 @@ class SpatialPipeline:
             "spatial.clusters",
             implementation_version=(
                 "network-hdbscan-step1-v2-default-euclidean-fallback"
-                if not cfg.median_gap_refinement else "network-hdbscan-median-gap-v1"
+                if not cfg.median_gap_refinement else "network-hdbscan-median-gap-v4-exact-multiprocess"
             ) + MANAGED_TABLES_VERSION,
             dependencies=deps,
             parameters={
@@ -524,6 +525,7 @@ class SpatialPipeline:
                         max_sites=self.config.median_gap_max_sites,
                         seed=self.config.median_gap_seed,
                         min_members=self.config.min_cluster_size,
+                        workers=self.config.median_gap_workers,
                     ), progress=self.progress)
                 clustered.iloc[
                     source_pos, clustered.columns.get_loc("cluster")

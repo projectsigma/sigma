@@ -288,6 +288,7 @@ def _config(
     median_gap_replicates: int = 10,
     median_gap_max_sites: int = 64,
     median_gap_seed: int = 20261105,
+    median_gap_workers: int = 4,
     cluster_selection_method: str = "eom",
     allow_single_cluster: bool = False,
     hdbscan_max_distance: float = 5000.0,
@@ -335,6 +336,7 @@ def _config(
         median_gap_replicates=median_gap_replicates,
         median_gap_max_sites=median_gap_max_sites,
         median_gap_seed=median_gap_seed,
+        median_gap_workers=median_gap_workers,
         cluster_selection_method=cluster_selection_method,  # type: ignore[arg-type]
         allow_single_cluster=allow_single_cluster,
         hdbscan_max_distance=hdbscan_max_distance,
@@ -509,6 +511,8 @@ def run_command(
     median_gap_replicates: int = typer.Option(10, "--median-gap-replicates"),
     median_gap_max_sites: int = typer.Option(64, "--median-gap-max-sites"),
     median_gap_seed: int = typer.Option(20261105, "--median-gap-seed"),
+    median_gap_workers: int = typer.Option(4, "--median-gap-workers", min=1, max=4,
+        help="Independent spawn processes for network Gap refinement (1-4; default 4)."),
     allow_single_cluster: bool = typer.Option(False, "--allow-single-cluster"),
     voronoi_resolution: float = typer.Option(500.0, "--voronoi-resolution"),
     centrality_method: str | None = typer.Option(
@@ -561,6 +565,7 @@ def run_command(
             median_gap_replicates=median_gap_replicates,
             median_gap_max_sites=median_gap_max_sites,
             median_gap_seed=median_gap_seed,
+            median_gap_workers=median_gap_workers,
             allow_single_cluster=allow_single_cluster, voronoi_resolution=voronoi_resolution,
             centrality_method=centrality_method, centrality_direction=centrality_direction,
             x_distance_decay_lambda=x_distance_decay_lambda,
