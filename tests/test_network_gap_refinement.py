@@ -60,6 +60,38 @@ def test_run_help_exposes_median_gap_options():
     assert {"--median-gap", "--no-median-gap", "--median-gap-workers"} <= registered_options
 
 
+def test_network_gap_is_canonical_four_worker_default():
+    from sigma.config import SigmaConfig, SpatialConfig
+    from sigma.spatial.pipeline import SpatialRunConfig
+    from sigma.cli import _config
+
+    assert SpatialConfig().median_gap_refinement is True
+    assert SpatialRunConfig().median_gap_refinement is True
+    assert SigmaConfig.default().spatial.median_gap_refinement is True
+    assert _config().spatial.median_gap_refinement is True
+    for obj in (SpatialConfig(), SpatialRunConfig(), SigmaConfig.default().spatial, _config().spatial):
+        assert obj.median_gap_workers == 4
+
+
+def test_median_gap_cli_overrides_and_equivalent_profile():
+    from sigma.config import SigmaConfig
+    from sigma.cli import _config
+    from typer.main import get_command
+    from sigma.cli import app
+
+    assert SigmaConfig.equivalent().spatial.median_gap_refinement is False
+    assert _config(equivalent=True).spatial.median_gap_refinement is False
+    assert _config(equivalent=True, median_gap_refinement=True).spatial.median_gap_refinement is True
+    assert _config(median_gap_refinement=False).spatial.median_gap_refinement is False
+    assert _config(median_gap_refinement=True, median_gap_workers=1).spatial.median_gap_workers == 1
+
+    run = get_command(app).commands["run"]
+    flag = next(p for p in run.params if "--median-gap" in (*p.opts, *p.secondary_opts))
+    workers = next(p for p in run.params if "--median-gap-workers" in p.opts)
+    assert flag.default is None  # implicit value inherits the selected profile
+    assert workers.default == 4
+
+
 def test_configuration_rejects_missing_model_comparisons():
     import pytest
     with pytest.raises(ValueError):

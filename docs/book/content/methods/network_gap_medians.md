@@ -1,13 +1,18 @@
-# Network Gap k-medoids: optional post-HDBSCAN refinement
+# Network Gap k-medoids: default post-HDBSCAN refinement
 
-SIGMA can refine each **retained** Network HDBSCAN cluster into several
-network-nearest-medoid cells, without rerunning HDBSCAN. This is **opt-in**:
+SIGMA refines each eligible **retained** network HDBSCAN cluster into
+network-nearest-medoid cells where the Gap Statistic supports a split.
+Refinement is **enabled by default** in canonical runs; four isolated
+workers evaluate independent clusters:
 
 ```powershell
-sigma run quezon_city --median-gap --refresh
+sigma run quezon_city
 ```
 
-Disable with `--no-median-gap` (the default). The original HDBSCAN cluster
+Use `--no-median-gap` for unrefined HDBSCAN, or
+`--median-gap-workers 1` for serial refinement. Legacy `--equivalent`
+mode preserves its historical baseline unless `--median-gap` is explicitly
+specified. The original HDBSCAN cluster
 label is recorded as `hdbscan_cluster` in the refined clustered-points artifact;
 `cluster` is the final downstream label. Unclustered HDBSCAN observations
 remain noise; there is **no invalidation** and no automatic reassignment of
@@ -64,7 +69,7 @@ with `no_admissible_partition`; it never silently deletes establishments.
 
 CLI flags:
 
-- `--median-gap` / `--no-median-gap`: opt in/out (default off)
+- `--median-gap` / `--no-median-gap`: opt in/out (canonical default on; legacy `--equivalent` off)
 - `--median-gap-max-k INTEGER`: search bound (default 6)
 - `--median-gap-replicates INTEGER`: bootstrap reference repetitions (default 10)
 - `--median-gap-max-sites INTEGER`: maximum observations per HDBSCAN cluster used in fit (default 64)
@@ -76,8 +81,11 @@ new labels, sampled vs full size, medoid sites, and the per-k Gap values.
 The feature **changes cluster centers, network Voronoi partitions, X topology,
 Katz centrality, and scores**. Existing X routing geometry is not a valid
 weight-only reuse source when these spatial dependencies change; expect X to
-rebuild. Use `sigma run AREA --median-gap --refresh` and then
+rebuild. Use `sigma run AREA` to compute the canonical Gap-refined
+pipeline (or `--no-median-gap` to reproduce the unrefined baseline), then
 `sigma view AREA --refresh` to publish the matching Explorer workspace.
+Avoid `--refresh` unless recomputation is actually required; an existing
+immutable artifact with the same recipe must not be overwritten.
 
 ## Scope and limitations
 
@@ -114,8 +122,9 @@ search may explore an entire road component in that case.
 
 ### Windows-safe parallel execution (v4)
 
-`sigma run quezon_city --median-gap` uses **4 isolated worker processes** by
- default, adjustable with `--median-gap-workers 1..4`. A fixed process pool
+`sigma run quezon_city` uses **4 isolated worker processes** for Gap
+ refinement by default, adjustable with `--median-gap-workers 1..4`.
+ A fixed process pool
  assigns one retained HDBSCAN cluster at a time to each worker. On Windows the
  workers use `spawn`. Each worker deserializes its own road adjacency, component
  indices and node geometry *once* and caches its own shortest-path subgraphs.

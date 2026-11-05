@@ -283,7 +283,7 @@ def _config(
     max_snap_distance: float | None = None,
     min_cluster_size: int = 5,
     min_samples: int | None = None,
-    median_gap_refinement: bool = False,
+    median_gap_refinement: bool | None = None,
     median_gap_max_k: int = 6,
     median_gap_replicates: int = 10,
     median_gap_max_sites: int = 64,
@@ -331,7 +331,8 @@ def _config(
         max_snap_distance=max_snap_distance,
         min_cluster_size=min_cluster_size,
         min_samples=min_samples,
-        median_gap_refinement=median_gap_refinement,
+        median_gap_refinement=(base.spatial.median_gap_refinement
+                               if median_gap_refinement is None else median_gap_refinement),
         median_gap_max_k=median_gap_max_k,
         median_gap_replicates=median_gap_replicates,
         median_gap_max_sites=median_gap_max_sites,
@@ -505,8 +506,9 @@ def run_command(
     mwas_method: str = typer.Option("fast", "--mwas-method"),
     min_cluster_size: int = typer.Option(5, "--min-cluster-size"),
     min_samples: int | None = typer.Option(None, "--min-samples"),
-    median_gap_refinement: bool = typer.Option(False, "--median-gap/--no-median-gap",
-        help="Refine retained HDBSCAN clusters using network Gap k-medoids."),
+    median_gap_refinement: bool | None = typer.Option(None, "--median-gap/--no-median-gap",
+        help="Refine retained HDBSCAN clusters using network Gap k-medoids "
+             "(on by default; off in legacy --equivalent mode)."),
     median_gap_max_k: int = typer.Option(6, "--median-gap-max-k"),
     median_gap_replicates: int = typer.Option(10, "--median-gap-replicates"),
     median_gap_max_sites: int = typer.Option(64, "--median-gap-max-sites"),
@@ -571,6 +573,9 @@ def run_command(
             x_distance_decay_lambda=x_distance_decay_lambda,
             distance_tempering=distance_tempering,
         )
+        # Resolve the CLI override before iterative roll-up: the baseline
+        # roll-up test must use unrefined HDBSCAN even when Gap is default.
+        median_gap_refinement = config.spatial.median_gap_refinement
         if (economy is None and config.spatial.classification is None
                 and (Path(workspace) / "places" / "places.parquet").is_file()):
             from .economy.hierarchical_auto import read_profile, profile_is_current

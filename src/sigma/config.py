@@ -57,7 +57,7 @@ class SpatialConfig:
     hdbscan_core_truncation_tolerance: float = 0.01
     hdbscan_stability_tolerance: float = 1e-12
     hdbscan_max_neighbor_pairs: int = 20_000_000
-    median_gap_refinement: bool = False
+    median_gap_refinement: bool = True
     median_gap_max_k: int = 6
     median_gap_replicates: int = 10
     median_gap_max_sites: int = 64
@@ -117,7 +117,7 @@ class SigmaConfig:
         if mwas_method not in {"fast", "exact"}:
             raise ValueError("mwas_method must be 'fast' or 'exact'")
         return cls(
-            spatial=SpatialConfig(classification="io80"),
+            spatial=SpatialConfig(classification="io80", median_gap_refinement=False),
             economic=EconomicConfig(
                 transaction_preprocessing="none",
                 legacy_mwas_method=mwas_method,

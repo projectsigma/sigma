@@ -64,7 +64,7 @@ class SpatialRunConfig:
     hdbscan_core_truncation_tolerance: float = 0.01
     hdbscan_stability_tolerance: float = 1e-12
     hdbscan_max_neighbor_pairs: int = 20_000_000
-    median_gap_refinement: bool = False
+    median_gap_refinement: bool = True
     median_gap_max_k: int = 6
     median_gap_replicates: int = 10
     median_gap_max_sites: int = 64
