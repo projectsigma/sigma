@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — Explorer unclustered visibility and PSIC details (PR #35)
+
+- Local Explorer now provides two independent, initially off checkboxes: **Show unscored sectors**
+  (zero-cluster sectors, no network selected) and **Show unclustered for scored sectors**
+  (all eligible points without a selection; inside highlighted focus/linked same-sector
+  Voronoi polygons with a scored-network selection).
+- Both overlays use hollow, sector-colored circles sized from the minimum scored establishment
+  of the effective sector, or the global scored minimum for zero-cluster sectors. This is only
+  visual sizing; unclustered places remain without a cluster, X membership, or SIGMA score.
+- Unclustered circle opacity is not network-depth dependent. Scored establishments retain their
+  own depth-based opacity, and visibility follows network and sector filters.
+- The local establishment panel displays PSIC code and available descriptive title, preferring
+  explicit source titles before the bundled PSIC Rev. 5 taxonomy; missing titles are not inferred.
+
 ## Unreleased — Network Voronoi grid convergence (stage 12)
 
 - The default start spacing of the Voronoi grid is now 50 m (`--voronoi-resolution`, `SpatialConfig.voronoi_resolution`, `SpatialRunConfig.voronoi_resolution`); it was 500 m. The legacy `--equivalent` profile uses the same start.

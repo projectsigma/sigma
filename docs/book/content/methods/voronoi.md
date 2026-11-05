@@ -127,16 +127,19 @@ from the fixed sector palette; it does not alter 1-D network ownership or
 reconstruct polygons. The outline can be shown even while the ordinary
 partition-polygon display is off.
 
-The opt-in **Unclustered within highlighted partitions** layer uses the
-existing 2-D exported polygon as a spatial inclusion test, restricted to
-unclustered establishments whose **effective economic type matches the
-particular highlighted cluster**. Depth-dependent opacity visualizes the
-selected X neighborhood; it does **not** assign HDBSCAN cluster membership,
-modify a Voronoi owner, create X edges or infer an establishment SIGMA score.
-In cross-sector overlapping polygons, a point can be geographic context for
-more than one sector; the effective-sector match prevents cross-sector
-membership inference. The polygon is a finite-grid approximation, not an
-exact planar road-network boundary.
+With a scored establishment or cluster selected, the opt-in
+**Show unclustered for scored sectors** checkbox uses the published 2-D polygons as a
+spatial inclusion test. It shows unclustered establishments only within the focus or
+linked partitions **of their own
+effective economic sector**. With no selection, the same checkbox shows all eligible
+unclustered establishments of scored sectors, without a polygon test. The independent
+**Show unscored sectors** checkbox operates only without a selection and only on sectors
+with zero clusters. Both are initially off; their hollow-circle opacity does not vary
+with network depth. A point may geographically fall in overlapping polygons of different
+economic sectors, but Explorer tests it only against polygons of its **own** effective sector.
+Neither containment nor display assigns HDBSCAN membership, changes a network Voronoi owner,
+creates X edges, or infers a SIGMA score. Each polygon remains a finite-grid approximation
+of network ownership, not an exact planar road-network boundary.
 
 ## Euclidean recovery fallback
 

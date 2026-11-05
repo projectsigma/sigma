@@ -74,7 +74,16 @@ The browser opens at `http://127.0.0.1:8765/` by default. Use `sigma view pasig 
 
 **Fixed sector colors.** Sector colors come from one fixed 336-color specification (16 IO16, 80 IO80 and 240 IO240 colors). Sparse hierarchy codes resolve to the color of their industry, and residual `o` sectors use the color of their parent. In Explorer, a rolled-up sector can be expanded to show its original sub-sectors with their own colors and point-only visibility controls; the parent remains the effective sector for clustering, Voronoi territories, X nodes, centrality and scores. Colors are presentation only and never change an X weight or a score.
 
-**Context displays.** **Unclustered within highlighted partitions** is an opt-in display of unclustered establishments of a matching sector inside the published Voronoi polygons of the displayed network (focus opacity 0.96; network step `d` uses `0.90 / sqrt(d)`). These establishments do **not** gain cluster membership or scores. Hovering a cluster-center triangle while a selection is active outlines that cluster's published Voronoi polygon in its sector color.
+**Context displays.** In the local Explorer, two independent checkboxes are off by default.
+**Show unscored sectors** reveals classified, unclustered establishments in zero-cluster sectors
+only when no network is selected. **Show unclustered for scored sectors** reveals all such
+establishments of scored sectors without a selection; with a selected scored establishment
+or cluster, it shows only those inside highlighted focus or linked Voronoi polygons of their
+own effective sector. The circles are hollow and sector-colored; their radius is based on
+the smallest scored point of that sector (or the smallest scored point overall when the sector
+has no scored members). Visibility is presentation-only: it never supplies a cluster, X link,
+or SIGMA score. Hovering a cluster-center triangle during a selection outlines its published
+Voronoi polygon in the sector color.
 
 **Fast UI changes:** after an Explorer bundle exists, `sigma view pasig --fast` copies the current HTML, CSS, JavaScript, logo and favicon into it and opens the browser **without rebuilding** its graph, tiles or routing data. It does **not** check whether SIGMA's published results changed; use ordinary `sigma view pasig` to check freshness or `--refresh` for a full rebuild. `--fast` and `--refresh` cannot be combined, and `--ui-only` is an alias for `--fast`.
 
