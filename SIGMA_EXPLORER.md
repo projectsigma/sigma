@@ -66,7 +66,7 @@ The initial network view uses **Direct links** with the **3 per cluster** strong
 - **Collapsible right panel:** the Establishment Finder starts collapsed to leave space for the network. Selected location, Cluster network, Linked clusters, and Most central clusters can each be collapsed independently. The network starts expanded. Selecting an establishment from finder results automatically collapses the finder; reopening the network resizes its diagram.
 - Cytoscape.js directed graph: direct, two-step or all reachable neighborhoods; outgoing, incoming, or both directions; top-N strongest connections per visited cluster. Direction controls how the neighborhood is discovered; the diagram shows all permitted directed edges among those discovered clusters, including edges between clusters at the maximum selected depth and reciprocal pairs. Arrowheads and coefficients follow the published X edge direction.
 - **Theater view:** expand the network to a full-screen work surface; `Esc` returns to the normal layout, `Fit graph` restores the extent.
-- **Exact routes:** incoming and outgoing edges retain their **own** published road geometries. They are not merged or approximated as straight geographic chords. On the map, incoming routes are dashed blue and outgoing routes solid red; for a link in both directions both lines lie on the same road. Line width reflects the coefficient **relative to the strongest direct displayed link**. Hovering a route lists every route under the pointer (up to three linked clusters), each with both coefficients, X weights and the road distance. In a route file, a reverse edge whose path is exactly the reversed forward path is stored once (`reverse_of`) and rebuilt in the browser; paths that differ are stored separately.
+- **Exact road routes, browser-native by default (PR #29):** numerical X exports the center-to-center road distances and weights **without** precomputing all route geometries. The default browser bundle instead contains a validated compact road graph and center-node IDs; a Web Worker runs shortest-path reconstruction **on demand** for displayed links and checks each route length against the numerical X distance. Its route cache is bounded. This is not a Euclidean chord or an approximation of the weighted `effective_road_distance`. Incoming routes remain dashed blue and outgoing solid red; edge weights and hover explanations remain those of the published numerical model. `sigma run AREA --route-geometry precomputed` explicitly materializes GIS route paths at export, and that legacy bundle mode may use route files and `reverse_of` reuse. The normal browser mode does not store an individual route file for each X edge.
 - **Large views:** when more than 150,000 individual establishments lie in the visible zoom-13 tiles, the map shows density shading built from establishment counts on a grid of about 1 km (zoom-15 cells, placed at cell centers, not at establishments) rather than an empty establishment layer. Zoom in to see individual records. This is an aggregation fallback, **not** a full vector-tile implementation.
 - **Network limits:** a maximum of 300 network nodes and 1,500 **directed** edges are visualized per selection; the interface marks truncated views. Graph weights and provenance remain available in the source CSV/GeoPackage.
 
@@ -121,9 +121,9 @@ or establishment tiles.
 
 ## Inputs
 
-Required: `sigma_points.parquet`, `sigma_X_nodes.csv`, `sigma_X_edges.csv`, and `sigma_spatial_outputs.gpkg` containing `clusters` and `paths` layers. Optional: `sigma_run_metadata.json`, `sigma_manifest.json`, `sigma_boundary.parquet`, `sigma_roads.parquet`, `ATTRIBUTION.txt`, and `DATABASE_LICENSE.txt`.
+Required: `sigma_points.parquet`, `sigma_X_nodes.csv`, `sigma_X_edges.csv`, and `sigma_spatial_outputs.gpkg` containing `clusters` and `paths` layers. In the **default browser-routing mode**, the `paths` layer contains no precomputed X routes; `sigma_routing_graph.bin`, `sigma_run_metadata.json` with `route_mode=browser`, and node-table `routing_node` IDs provide the on-demand route inputs. The Explorer builder verifies that these correspond and refuses an unsafe or incomplete browser graph. The explicit precomputed mode instead fills the `paths` layer. Optional: `sigma_manifest.json`, `sigma_boundary.parquet`, `sigma_roads.parquet`, `ATTRIBUTION.txt`, and `DATABASE_LICENSE.txt`.
 
-The bundle builder compares file content hashes, checks the listed SHA-256 hashes and sizes in an authentic SIGMA export manifest where present, validates X-edge-to-route correspondences, and rejects cluster partitions without X nodes. A failed staged replacement preserves the previously published bundle. Hash checking may take noticeable disk I/O for large GeoPackages; this prioritizes correctness over instantaneous freshness checks. SIGMA's export overwrites files but never deletes old ones, so when the manifest lists the run's files, an optional file it does not list (for example a boundary left from an earlier run) is ignored and reported as a note.
+The bundle builder compares file content hashes, checks the listed SHA-256 hashes and sizes in an authentic SIGMA export manifest where present, validates X edges against the selected route publication mode, and rejects cluster partitions without X nodes. A failed staged replacement preserves the previously published bundle. Hash checking may take noticeable disk I/O for large GeoPackages; this prioritizes correctness over instantaneous freshness checks. SIGMA's export overwrites files but never deletes old ones, so when the manifest lists the run's files, an optional file it does not list (for example a boundary left from an earlier run) is ignored and reported as a note.
 
 ### Storage and cleanup
 
@@ -177,6 +177,15 @@ read-only evidence panels tailored to this Explorer bundle's **area**, selected
 change the real-world case study; choose **Examine this cluster in Explorer**
 to jump back to the map and its exact computed road paths. A currently selected
 Explorer X node is passed to the tutorial when opened from the header.
+
+The static Under the Hood narrative now distinguishes the **baseline**
+area-specific hierarchy, **K=0** iterative roll-up, **post-HDBSCAN Gap**
+refinement (four workers by default), final **network-node 1-medians**, and
+subsequent network Voronoi, X, centrality and point scoring. The explanatory
+pipeline is the canonical default, **not a claim that every previously
+published Explorer bundle ran with those settings**. Audit the specific run's
+configuration and clustering artifact for that distinction. The tutorial does
+not rerun Gap or read `median_gap_audit.json` as a browser input.
 
 The additional panels use `data/metadata.json` and `data/graph.json` and do not
 run classification, clustering, route-finding, IO recalculation, or scoring.

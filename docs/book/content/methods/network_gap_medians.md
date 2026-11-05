@@ -54,6 +54,13 @@ and records `upper_bound_reached`: the result is *search-bound-limited*, not
 proof of global optimality. If $k=1$ is selected, the original HDBSCAN cluster
 is preserved unchanged.
 
+**This is a single nonrecursive model-selection pass.** Child clusters are
+not passed through Gap again. Recalculating a child's exact network 1-median
+in `spatial.centers` is a separate location-allocation computation, not a
+second test for additional medoids. The adapted Gap null draws from the
+**parent cluster's** road-vertex bounding rectangle; recursive retesting
+would change that null and is not implemented as a canonical option.
+
 ## Numerical and computational safeguards
 
 Defaults are $B=10$, $k_\max=6$, at most 64 establishment observations
@@ -74,6 +81,7 @@ CLI flags:
 - `--median-gap-replicates INTEGER`: bootstrap reference repetitions (default 10)
 - `--median-gap-max-sites INTEGER`: maximum observations per HDBSCAN cluster used in fit (default 64)
 - `--median-gap-seed INTEGER`: reproducible random seed (default 20261105)
+- `--median-gap-workers INTEGER`: isolated processes, 1–4 (canonical default 4)
 
 The immutable `spatial.clusters` artifact writes `median_gap_audit.json` when
 refinement is enabled, containing per-parent selected k, outcome, original and
@@ -95,7 +103,10 @@ compactness. Reference results depend on the road-vertex representation,
 network topology, sample limit, and the choice of bounding rectangle. This is
 not the original Euclidean Gap test and does not invalidate the HDBSCAN label.
 The search is bounded; approximation and boundary statuses must be reported
-rather than described as an unqualified global optimum.
+rather than described as an unqualified global optimum. In particular,
+subdividing one sector's clusters does **not** guarantee a smaller union of
+sector-wise Voronoi territories, fewer X overlaps or less concentrated Katz
+scores. Those outcomes need direct empirical checks.
 
 ## References
 

@@ -1,6 +1,11 @@
 # Cluster centers: the network-node 1-median
 
-After clustering (and any optional [network Gap k-medoids refinement](network_gap_medians.md)), SIGMA chooses one road-network node to represent each final `(economic type, cluster)`.
+After HDBSCAN and canonical [network Gap k-medoid refinement](network_gap_medians.md)
+(default on; `--no-median-gap` disables it), SIGMA chooses one road-network
+node to represent **each final** `(economic type, cluster)`. If a retained
+HDBSCAN cluster split into children, each child receives its own full-network
+1-median. These centers are not merely the sampled observed-node medoids
+chosen during Gap model selection.
 
 ## Objective
 

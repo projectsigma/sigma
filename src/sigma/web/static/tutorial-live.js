@@ -180,6 +180,9 @@
     const area = meta.area || 'current study area';
     const economy = meta.economy_id || 'not identified in run metadata';
     const economyName = economyDisplayName(economy);
+    const routePresentation = meta.route_mode === 'browser'
+      ? 'Routes are reconstructed on demand by the browser Web Worker from the published routing graph and checked against numeric X distances.'
+      : 'This bundle uses published precomputed shortest-path geometries rather than browser-native routing.';
     const number = n => fmt(n);
     const sampleParam = new URLSearchParams(location.search).get('node');
     const initial = sampleParam && nodeMap.get(sampleParam);
@@ -291,10 +294,10 @@
         return note(`${here}: ${number(s?.points)} establishments in this published economy. ${number(counts.unassigned_points)} establishments across the entire area have no assigned X node.`, 'Published sector assignments and node membership');
       }
       if (section === 'roads') {
-        if (idx === 0) return note(`${c('roads')} road features appear in this bundle (${meta.has_roads ? 'road layer included' : 'road layer omitted'}); distances use ${meta.distance_unit || 'unspecified units'}. The exact published X routes can be explored on the map.`, 'Visual road feature count, not graph-vertex count');
+        if (idx === 0) return note(`${c('roads')} road features appear in this bundle (${meta.has_roads ? 'road layer included' : 'road layer omitted'}); distances use ${meta.distance_unit || 'unspecified units'}. The exact center-to-center X distances are published; ${routePresentation}`, 'Visual road feature count, not graph-vertex count');
         if (idx === 1) return note('Road junction identities and overpass connectivity are intermediate graph data and are not exposed in Explorer. The network diagram uses published results.', 'Method illustration only');
         if (idx === 2) return note(`The currently selected cluster's published road-center distances are visible on individual X links. Establishment snap offsets are not in this browser bundle.`, 'Do not equate cluster-to-cluster distances with individual place snap distances');
-        return note(example ? `An actual X link connected to this cluster has published road distance ${fmt(example.distance, 1)} ${meta.distance_unit || ''}. The illustration above is not that route.` : 'No adjacent X link is available for a real road-distance example.', 'The Explorer map shows exact published routes');
+        return note(example ? `An actual X link connected to this cluster has published road distance ${fmt(example.distance, 1)} ${meta.distance_unit || ''}. The illustration above is not that route.` : 'No adjacent X link is available for a real road-distance example.', `The Explorer map uses center-to-center shortest paths. ${routePresentation}`);
       }
       if (section === 'clusters') {
         if (idx === 0) return note(`${here} contains ${number(clusterCount)} published clusters representing ${number(s?.points)} establishments in ${area}. Not all establishments necessarily belong to a cluster.`, 'Actual X-node cluster counts');

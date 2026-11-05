@@ -1,6 +1,16 @@
-# Institution ownership: registry-backed shadow v3
+# Institutional administrative activity and ownership evidence
 
-**Status:** opt-in shadow diagnostics, **not** integrated with `sigma run` or `sigma view`. A distinct conservative subset is applied in `sigma load` (see `docs/SIGMA_INSTITUTION_TAGGING_LOAD.md`). Policy `shadow-evidence-v3`.
+## Current production `sigma load` workflow
+
+Institutional activity and public/private ownership are distinct questions. The normal `places.psic` stage may identify clearly administrative government offices as PSIC **84120** under narrowly defined rules; it retains the previous PSIC decision and does not treat a frontline hospital or school as an administrative office. Ambiguous cases are marked for review rather than forcibly reassigned.
+
+The production `places.classified` stage then considers conservative ownership promotion using explicit OSM/Overture ownership attributes, independently verified canonical registry links, or official external-ID matches. The current layered institutional evidence includes packaged national BEIS school references, UniFAST higher-education references and, **when separately installed**, a validated national hospital snapshot; a QC-specific fallback may apply in its defined area. **A normalized name/city match alone is provisional**, not sufficient to prove physical identity or automatically override stronger PSIC/IO evidence. Promotion stays within the PSIC candidate-set constraints, preserves original classification, audits conflict/abstention, and never uses the held-out diagnostic labels as ground truth for classification.
+
+These are production tagging safeguards in `src/sigma/places/pipeline.py` and `src/sigma/classification/ownership_promotion.py`, not an automatic re-run of the separately invoked diagnostic below. See [National institution registry](https://github.com/projectsigma/sigma/blob/main/docs/SIGMA_NATIONAL_INSTITUTION_REGISTRY_V1.md) and [Administrative activity](https://github.com/projectsigma/sigma/blob/main/docs/SIGMA_ADMIN_ACTIVITY_OWNERSHIP_V1.md) for source coverage and limits.
+
+## Historical registry-backed shadow v3 diagnostic
+
+**Status of the historical v3 shadow procedure:** opt-in diagnostic invoked separately, not a direct `sigma run` step. Its `shadow-evidence-v3` policy and QC-specific reference snapshots must not be mistaken for the complete current production ownership-promotion policy.
 
 Running the shadow QC script changes only diagnostic files. It does **not** modify existing PSIC/IO tags, economic-sector assignments, cluster geometries, network edges, centrality, or acquisition scores. Run `scripts/sigma_shadow_qc.py` explicitly to evaluate it against an existing place workspace. The v2 baseline is retained by the reversible installer.
 
@@ -43,4 +53,4 @@ Outputs include the v2 reports plus:
 
 ## Reversibility and scope
 
-The v3 patch modifies only the four previously installed v2 shadow files and adds two shadow-only files (`src/sigma/classification/registry.py`, `scripts/registry_qc_official_sources.csv`). It leaves all production modules and artifacts untouched. Installer preflight requires exact v2 or v3 bytes, aborts on mixed/mutated files, and supports `--revert` (restores v2 precisely). Workspace inputs are read only; output must be outside repository and workspace.
+The historical v3 shadow diagnostic was designed to write independent reports without modifying production artifacts. This statement describes that earlier shadow-only workflow; subsequent production `sigma load` releases added conservative institutional evidence handling separately. Do not interpret the old installer/revert notes as instructions for the current source tree; consult current CLI and production tests before running historical scripts.

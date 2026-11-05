@@ -1,3 +1,10 @@
+> **Historical implementation note (before PR #29, November 5, 2026).**
+> This page describes the earlier per-edge route-file Explorer architecture.
+> Current default exports use numerical X plus browser-native on-demand shortest
+> paths in a Web Worker. The route-file/cache statements below apply only to
+> historical or explicit precomputed-route bundles; they are not the current
+> canonical routing method. See [Explorer](book/content/intro/explorer.md).
+
 # Explorer interaction latency patch (v1)
 
 This change affects only the browser Explorer's `app.js` and its regression tests. SIGMA's economic graph, directed Network X, road routes, spatial partitions, clustering parameters, establishment scores, and saved data remain unchanged.

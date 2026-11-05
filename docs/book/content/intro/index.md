@@ -9,29 +9,47 @@ For hands-on exploration after a run, **[SIGMA Explorer](explorer.md)** provides
 The canonical workflow is
 
 ```text
-area boundary
-   │
-   ├── OSM places ─────┐
-   │                   ├─ canonical places ─ PSIC ─ economic type
-   └── Overture places ┘                         │
-                                                 ▼
-shared OSM roads ─ snap ─ network HDBSCAN* ─ clusters
-                                      │             │
-                                      │             ├─ network 1-median centers
-                                      │             └─ network-Voronoi surface partitions
-                                      │
-IO transactions ─ technical coefficients ─ directed economic graph
-                                      │
-                                      └─────────────┐
-                                                    ▼
-                                      directed spatial-economic X graph
+OSM + Overture establishments ──> reconcile ──> PSIC / IO candidates
                                                     │
-                                      balanced sender-receiver Katz
+PSA 2018 IO240 hierarchy ──> sigma load: baseline sparse local sectors
                                                     │
-                                      distance-tempered point scores
+road graph ──> snap ──> baseline network HDBSCAN* (sector K counts)
+                                                    │
+             generated hierarchy only: K=0 residual-first roll-up
+                         (recluster affected effective sectors)
+                                                    │
+                         retained HDBSCAN clusters + noise
+                                                    │
+                  network Gap k-medoids, one pass (4 workers)
+                  (only retained clusters; noise remains noise)
+                                                    │
+                              final child clusters
+                                    │           │
+                       network-node 1-medians  network Voronoi
+                                    └─────┬─────┘
+                                          │
+IO transactions ──> effective sector coefficients ──> spatial-economic X
+                                          │
+                                balanced directed Katz
+                                          │
+                                distance-tempered scores
 ```
 
-The default is deliberately conservative: deterministic place classification, no LLM requirement, no transaction preprocessing, the full directed economic graph, road-network-first spatial methods, and a balanced directed Katz score. New areas loaded with `sigma load AREA` use a per-area hierarchical PSA 2018 IO240/IO80/IO16 economy; legacy unselected IO80 workspaces retain IO80 until explicitly reloaded. The X graph does not identify observed suppliers: its directed links combine input-output coefficients, positive-area spatial partition overlap, connected 1-medians, clustered-sector shares, and mean hub-mediated road-distance attenuation.
+The Gap refinement step is **on by default** for canonical runs (including
+fixed IO-level areas). Hierarchical iterative roll-up is a separate, conditional
+run-stage policy only for generated hierarchies; it evaluates **unrefined**
+HDBSCAN cluster counts before Gap. Final medians are recalculated for every
+accepted child, but Gap does **not** repeatedly rerun on those children.
+See [Gap refinement](../methods/network_gap_medians.md) and
+[Hierarchical economy](../methods/hierarchical.md).
+
+The diagram is a conceptual **dependency sequence**, not a direct code-stage
+DAG. It separates the baseline HDBSCAN K=0 test used for conditional economic
+roll-up from the subsequent single-pass Gap subdivision and the final
+network 1-medians. Its X stage uses numerical road distances without route
+geometries; the default Explorer draws shortest road routes on request from a
+compact published graph. [The X graph](../methods/x_graph.md) describes the
+route publication modes. The default is deliberately conservative: deterministic place classification, no LLM requirement, no transaction preprocessing, the full directed economic graph, road-network-first spatial methods, and a balanced directed Katz score. New areas loaded with `sigma load AREA` use a per-area hierarchical PSA 2018 IO240/IO80/IO16 economy; legacy unselected IO80 workspaces retain IO80 until explicitly reloaded. The X graph does not identify observed suppliers: its directed links combine input-output coefficients, positive-area spatial partition overlap, connected 1-medians, clustered-sector shares, and mean hub-mediated road-distance attenuation.
 
 ```{admonition} What is a SIGMA node?
 :class: note

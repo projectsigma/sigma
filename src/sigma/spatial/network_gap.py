@@ -1,4 +1,4 @@
-"""Optional network-distance k-medoids refinement using a Gap-statistic adaptation.
+"""Network-distance k-medoids refinement using a Gap-statistic adaptation.
 
 HDBSCAN decides which observations belong to a density-based cluster. This module
 can subdivide each *retained* HDBSCAN cluster into network-nearest-medoid cells;
@@ -12,7 +12,10 @@ network-specific null model, NOT the original Euclidean Gap statistic.
 
 The medoid candidate restriction and capped demand subsample make optimization
 approximate. Final child centers are independently recomputed by SIGMA's existing
-exact network-vertex 1-median stage.  The feature is opt-in and audited.
+exact network-vertex 1-median stage. Canonical SIGMA enables this single-pass
+refinement by default with four workers; legacy `--equivalent` defaults off.
+The module-level `NetworkGapConfig` defaults to serial for direct API callers.
+Every run is audited; no recursive subdivision is performed.
 """
 from __future__ import annotations
 

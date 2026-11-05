@@ -1,4 +1,4 @@
-/* SIGMA opt-in browser route reconstruction. No scoring or network-X edits. */
+/* SIGMA default browser-native route reconstruction. Presentation only: numerical Network X and scores are computed upstream. */
 'use strict';
 let graphPromise = null;
 const pathCache = new Map();

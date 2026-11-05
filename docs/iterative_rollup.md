@@ -19,7 +19,7 @@ hierarchy remain unchanged. `sigma load` itself does not cluster points.
    original generated hierarchical economy and places preview.
 2. Load the exact `spatial.points` dependency, saved sparse road graph, snaps,
    baseline cluster assignments, audit and clustering parameters.
-3. Identify active economic sectors whose final cluster count is zero. Search
+3. Identify sectors whose **unrefined baseline HDBSCAN** retained-cluster count is zero (`K=0`). Search
    for an existing sparse-code residual under the closest IO80 ancestor,
    otherwise under the IO16 ancestor. Never create an arbitrary residual or
    fold into an unrelated sector.
@@ -53,11 +53,12 @@ hierarchy remain unchanged. `sigma load` itself does not cluster points.
    `rollup_manifest.json`. The original `hierarchical/places.parquet`, original
    economic package, user-editable `places/places.parquet`, original tags,
    saved clustering artifacts, and Git files are not overwritten by this stage.
-9. Re-create the normal SIGMA job against the **new** Economy/places pair. Its
-   fingerprint drives the regular spatial, economic, X, Katz and export stages.
-   The final cluster count is checked against the roll-up diagnostic prediction
-   **before** network X, routing geometry and exports; it is checked again after
-   the run completes.
+9. Re-create the SIGMA job against the **effective** Economy/places pair.
+   Verify the unrefined HDBSCAN count against the roll-up prediction first,
+   **before** applying the canonical one-pass network Gap refinement to
+   retained clusters. Then final child 1-medians, network Voronoi,
+   numerical X, Katz and export stages follow. Gap does not influence K=0
+   source eligibility or the roll-up acceptance calculation.
 
 ## Use
 
@@ -94,16 +95,18 @@ No source data must be restored. Standard cached artifacts can be reused.
 - All comparison results are specific to the area, source data and clustering
   configuration. Other workspaces may produce different accepted mergers.
 
-## Revision and recovery
+## Audit and baseline comparison
 
-`git diff` previews only `src/sigma/cli.py`,
-`src/sigma/economy/hierarchical_auto.py`, and the new files supplied by this
-patch. Do not commit or push until tests and the Quezon City smoke check pass.
-The installer never stages files, commits, resets branches, or rewrites baseline
-workspace outputs. Revert the code with Git, and omit the option to restore the
-previous algorithm. Derived roll-up packages remain inert if unselected; remove
-only after confirming they are no longer in use.
-
+The default is active only for a **generated hierarchical economy**. To
+compare against the same loaded sector partition without roll-up, rerun with
+`--no-iterative-rollup` and review the effective Economy ID, `rollup_audit.json`,
+original/effective economic codes, and baseline/final clustered counts.
+To isolate *clustering refinement* from economic roll-up, additionally use
+`--no-median-gap`. A `sigma view AREA --fast` operation changes tutorial/UI
+assets only and cannot reconstruct or swap analytical results. Analytical
+artifacts are immutable by recipe; do not delete their directories to bypass
+integrity checks. The default exporter uses browser-native routing rather
+than large precomputed route geometry files.
 
 ## Original classifications and Explorer
 
@@ -116,7 +119,6 @@ represent separate HDBSCAN clusters, Voronoi cells or SIGMA scores.
 
 This is provided by the companion Explorer provenance module and does not
 rewrite immutable rolled-up packages. See the source-package README for a
-metadata-only refresh of an already published Explorer, without rebuilding the
-large route geometry files.
+metadata-only refresh of an already published Explorer, without recomputing the numerical X graph or regenerating browser routing data.
 
 <!-- SIGMA_ROLLUP_DEFAULT_AND_ORIGINAL_TAGS_V2 -->

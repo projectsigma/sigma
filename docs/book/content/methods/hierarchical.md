@@ -14,7 +14,7 @@ A place first receives a PSIC Rev. 5 code (see the places page). The PSIC code i
 4. **A tag at each level.** A level receives a code only when its candidate set has one member. Three kinds of evidence can choose inside a candidate set without leaving it:
    - same-name evidence from other places in the run, for the IO80 pairs (55, 56) and (66, 67);
    - direct OpenStreetMap tag rules for IO80 (`tagging/compatibility/rules.yml`). They match parsed `key=value` tags, never names or substrings. Primary tags decide before the auxiliary keys `cuisine`, `brand` and `operator`. Tags that point to different IO80 industries make the evidence a conflict.
-   - ownership evidence for education (IO80 74 public / 75 private) and health (76 / 77), from names such as "National High School" or "Rural Health Unit" and, for a few clinic categories, from the category. It abstains when evidence points both ways or is absent, and does not treat generic terms such as "elementary school", "clinic" or "health center" as ownership proof. Results are inferred, **not** registry-verified.
+   - ownership evidence for education (IO80 74 public / 75 private) and health (76 / 77), from names such as "National High School" or "Rural Health Unit" and, for a few clinic categories, from the category. It abstains when evidence points both ways or is absent, and does not treat generic terms such as "elementary school", "clinic" or "health center" as ownership proof. These name/category heuristics are inferred, **not** registry verification. Separately, `places.classified` may promote independently corroborated institutional public/private IO evidence from explicit source ownership, verified registry links or official external-ID matches **when compatible with PSIC candidate sets**. Name/city matching alone remains provisional; conflicts abstain. See [Institutional ownership evidence](shadow_classification.md).
 5. **Consistency.** The three tags must nest. If they do not, the tag from the stronger source is kept (PSIC outranks direct rules): a finer PSIC tag replaces a weaker coarser one by its parent (`DERIVED_FROM_IO240` / `DERIVED_FROM_IO80`); otherwise the finer tag is cleared (`LEVEL_CONFLICT`).
 
 `io_mapping_provisional` is `true` when the mapping depends on a draft bridge row or a draft refinement row, that is, on a link that is not from a published concordance.
@@ -73,6 +73,34 @@ generated hierarchical areas, not fixed `--io-level 16|80|240`, explicit
 custom economies or equivalent mode. Switching the CLI option changes the
 *next analysis*, not the already-published Explorer data. To display a
 different run, publish its corresponding outputs and rebuild/check Explorer.
+
+### Relationship to network Gap refinement and network medians
+
+The two adaptive steps have **different inputs, decisions and effects**:
+
+1. **Baseline hierarchy at `sigma load`:** classify place industries using
+   sparse IO240/IO80/IO16 sector keys and the area's support/residual policy.
+2. **Baseline network HDBSCAN at `sigma run`:** find retained clusters and
+   sector-level `K=0`; use these **unrefined** counts to evaluate residual-first
+   iterative roll-up where eligible, potentially rebuilding the effective
+   economic partition and affected sector clusters.
+3. **Canonical network Gap pass:** for each **retained HDBSCAN cluster** of the
+   final effective sector partition, test `k=1..6` (subject to sampling and
+   admissibility) and subdivide only if supported by its adapted one-SE
+   rule. Four independent workers run by default. This stage does **not**
+   rescue K=0 sectors, merge economic types, reassign HDBSCAN noise, or
+   recursively test the new children.
+4. **Network centers and partitions:** compute a new, full-network 1-median
+   for each final child cluster; use these final memberships to create
+   type-specific network Voronoi, X nodes, centrality and scores.
+
+The audit keeps both `original_economy_code` and effective `economy_code` for
+hierarchical roll-up, while refined clustered points separately retain
+`hdbscan_cluster` beside the **final** `cluster` label. A change to either
+method can invalidate downstream spatial/economic artifacts; Explorer must
+show matching published output. See [Gap k-medoids](network_gap_medians.md),
+[End-to-end workflow](../workflow/end_to_end.md), and
+[Reading outputs](../reference/outputs.md).
 
 ### Fixed hierarchical palette and original-child inspection
 

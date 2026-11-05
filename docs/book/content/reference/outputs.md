@@ -48,6 +48,19 @@ Key audit fields include:
 
 Noise rows are not passed into cluster-center calculation.
 
+For the canonical Gap-refined run, `spatial.clusters` retains the original
+`hdbscan_cluster` and the effective final `cluster` used for X nodes, alongside
+`median_gap_audit.json` in the **immutable clustering artifact**. The audit
+records original sector/cluster, observations and sampled observations,
+chosen `selected_k`, one-SE or `upper_bound_reached` outcome, selected
+observed-node medoids, and final child cluster IDs. A selected `k=1`
+means no refinement; `upper_bound_reached` means the search bound was hit,
+**not** that unlimited subdivision is justified. The method runs **once**
+per original retained cluster, by default with **four workers**; HDBSCAN
+noise remains noise. This audit is an analytical artifact, not necessarily
+included in the browser Explorer bundle. Do not treat the browser's
+worked examples as a substitute for the run-specific audit.
+
 ## Centers
 
 `center_method` distinguishes the primary `network_1_median` from the centroid-road-snap fallback. `median_objective` is meaningful for the primary method.
@@ -68,7 +81,7 @@ An X edge carries:
 - `technical_coefficient` from the positive directed economic graph;
 - `road_distance`, the actual shortest road separation of the two 1-medians;
 - `effective_road_distance`, the center distance plus each cluster's **mean** member-to-median road distance;
-- shortest `road_path` geometry between the centers; and
+- optional center-to-center geographical route **only in explicit precomputed export mode**; the numerical X artifact and default browser export have no stored per-edge route geometry; and
 - `edge_weight = technical_coefficient * source_cluster_sector_share * target_cluster_sector_share / max(effective_road_distance_metres, 1) ** x_distance_decay_lambda` (default exponent 1).
 
 The sector-share denominator counts only retained **clustered** establishments
@@ -76,11 +89,19 @@ of the same exact sector, not all classified establishments. Neither Voronoi
 overlap area nor total establishment count is directly multiplied into the
 edge weight. Disconnected spatial candidates are logged separately.
 
-For an X weight-only recomputation, `analysis.x` may reuse immutable route
-geometry via `x_paths.parquet` plus an overlay. Its **current numerical
-attributes** are in `x_edges.csv`, and the supported `load_x()` reader
-applies them. Do not treat numerical columns in a reused raw GeoParquet as
-authoritative; see [The X graph](../methods/x_graph.md).
+Canonical `analysis.x` is numerical-only: `x_nodes.csv` and `x_edges.csv`
+contain the authoritative node and edge attributes. The current
+`x_paths.parquet` in the analytical artifact is an **empty** GeoParquet
+placeholder; legacy hardlink/overlay support does not define the current
+pipeline. The published `sigma_X_edges.csv` holds the current weights.
+
+At `export.bundle`, `--route-geometry browser` (default) writes
+`sigma_routing_graph.bin` and `routing_node` in `sigma_X_nodes.csv`.
+Explorer's Web Worker reconstructs route geometries on demand and verifies
+route lengths against `road_distance`; the published GeoPackage `paths`
+layer is empty. With explicit `--route-geometry precomputed`, export builds
+center-to-center shortest-path geometries and fills `paths`. Both modes use
+the same numerical X values and SIGMA scores. See [The X graph](../methods/x_graph.md).
 
 ## Centrality
 

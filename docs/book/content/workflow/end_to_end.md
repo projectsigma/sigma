@@ -34,9 +34,23 @@ classification.taxonomy ├─> places.psic
 ```text
 source.geofabrik_pbf + area.boundary ──> transport.roads
 transport.roads + places.classified ───> spatial.points
-spatial.points + transport.roads ──────> spatial.clusters
-spatial.clusters ──────────────────────> spatial.centers
-    └─ optional network Gap k-medoids refinement inside spatial.clusters
+spatial.points + transport.roads ──> baseline HDBSCAN labels / K counts
+                            │
+                            ├─ generated hierarchy: K=0 iterative roll-up
+                            │       -> effective IO sector partition
+                            │       -> recluster affected sectors
+                            ▼
+                     retained HDBSCAN clusters
+                            │
+                            └─ default Gap k-medoids (four processes)
+                                 └─ single pass; unsplit clusters + noise kept
+                                          │
+                                          ▼
+                                  spatial.clusters
+                                          │
+                                          ▼
+                                    spatial.centers
+                          (final network-node 1-median per cluster)
 spatial.clusters + spatial.centers ────> spatial.point_distances
 spatial.clusters + spatial.centers + area.boundary ──> spatial.partitions
 ```
@@ -86,13 +100,19 @@ spatial.point_distances ─┘
 `places.classified` first obtains the baseline IO240/IO80/IO16 sparse
 sector assignments chosen at `sigma load`. In a generated hierarchical
 `SIGMA run`, HDBSCAN cluster counts reveal which sectors retain `K=0`.
-The optional (default-on) iterative residual-first roll-up changes the
+The conditional (default-on for generated hierarchies) iterative residual-first roll-up changes the
 effective sector partition only when a valid candidate meets the positive
 net-retention criterion, then regenerates the affected downstream spatial
 and economic stages. The original tags persist as
 `original_economy_code`; the effective IDs are used for all `(type,cluster)`
 X nodes and for national IO sector aggregation. Turning off the roll-up
-preserves the loaded baseline classification.
+preserves the loaded baseline classification. After the roll-up decision,
+canonical runs perform **one nonrecursive Gap-statistic k-medoid pass** on
+retained HDBSCAN clusters in the effective sectors, with four workers by
+default. Accepted children get their own full-graph network 1-medians. The
+Gap stage does not decide K=0 eligibility or reassess noise; fixed IO and
+custom economies skip automatic roll-up but still use canonical Gap refinement.
+Legacy `--equivalent` keeps the unrefined default.
 
 This is a **conditional dependency branch** of the analysis pipeline, not
 an added establishment-to-establishment edge or an automatic nearest-center
@@ -102,6 +122,13 @@ presentation, never inputs to `analysis.x` or `analysis.scores`.
 <!-- sigma-docs-20261104-v1:end -->
 
 ## Why this order matters
+
+The numerical `analysis.x` stage uses exact center-to-center shortest-road
+**distances** but does not calculate route geometries. The default export
+publishes a compact road graph and center IDs for browser-native on-demand
+routes. The optional precomputed mode materializes all routes **after** X
+weights are computed. This separation is central to the PR #29 architecture:
+route display is not part of Katz scoring.
 
 The workflow separates four different kinds of inference:
 
@@ -124,4 +151,4 @@ SIGMA supports a deliberate human review step after deterministic place classifi
 
 ## Post-analysis visualization
 
-After `sigma run AREA`, use `sigma view AREA` to browse the published points, partitions, cluster-level X links, and shortest-road-path geometries through [SIGMA Explorer](../intro/explorer.md). This is a **read-only presentation step after export**, not an additional model stage. The generated QGIS project remains available for conventional GIS inspection.
+After `sigma run AREA`, use `sigma view AREA` to browse the published points, partitions and cluster-level X links; default browser-native routes are reconstructed only for requested links in [SIGMA Explorer](../intro/explorer.md). This is a **read-only presentation step after export**, not an additional model stage. The generated QGIS project remains available for conventional GIS inspection.
