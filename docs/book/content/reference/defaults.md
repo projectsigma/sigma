@@ -57,10 +57,11 @@ The stage 5 settings live in `<SIGMA_HOME>/hierarchical-defaults.json` (written 
 | core truncation tolerance | 0.01 |
 | membership stability tolerance | $10^{-12}$ |
 | max neighbor pairs | 20,000,000 |
-| Voronoi surface resolution | 500 m |
-| max Voronoi cells | 1,000,000 |
+| Voronoi start resolution (`--voronoi-resolution`) | 50 m (coarser only when the grid would exceed the cell budget) |
+| max Voronoi candidate cells (bounding box of the study boundary) | 1,000,000 |
 | Voronoi refine factor | 0.5 |
-| max refinements | 5 |
+| max refinements | 5 (at most six renderings per sector) |
+| Voronoi convergence tolerance | 0.005 changed-owner area fraction (code constant) |
 
 ## Economy (stage 13)
 

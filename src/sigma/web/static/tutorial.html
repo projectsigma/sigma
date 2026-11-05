@@ -873,8 +873,10 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
             <li>Read the exact network-Voronoi owner at that point.</li>
             <li>Dissolve the cells by (type, cluster).</li>
           </ol>
-          <p>Defaults: 500 m cells, at most one million cells. If a valid cluster receives no cell, the cell size is halved, up to five times. Within one type, each cell has exactly one owner, so the polygons of one type cover the area without overlap.</p>
-          <p class="callout">The exact object is road ownership. The polygon is a finite-resolution rendering of it, not an exact planar boundary, and most of its area contains no establishment. If rendering fails, the labeled fallback is a Euclidean Voronoi of the cluster centers.</p>
+          <p>Within one type, each cell has exactly one owner, so the polygons of one type cover the area without overlap.</p>
+          <p><strong>How fine must the grid be?</strong> A cell takes one owner, so a cell crossed by a boundary still has only one owner, and a very small territory can receive no cell at all. The run starts with 50 m cells. Each time a grid works, SIGMA halves the cell size, renders again and measures the <em>changed-owner area</em>: the share of the study area whose owning cluster differs between the two grids. It stops when that share is at most 0.5 % and keeps the finer grid. If a cluster receives no cell, the size is halved without a comparison.</p>
+          <p class="mini">Limits: at most one million candidate cells over the bounding box of the boundary (a start grid above that is made coarser, toward the finest size that fits by 12 bisections) and at most five halvings. When a limit stops refinement, SIGMA keeps the finest grid that worked. In a bounding box larger than about 625 km², even 25 m cells do not fit, so the first surface is kept without a comparison. The measure is a share of the whole area, so a small territory can still change while the sector counts as converged. <code>partition_diagnostics.json</code> records, for each sector, the kept cell size and why refinement stopped.</p>
+          <p class="callout">The exact object is road ownership. The polygon is a finite-resolution rendering of it, not an exact planar boundary, and most of its area contains no establishment. Convergence means the rendering no longer depends much on the cell size; it does not make the boundary exact. If no grid gives a network surface, the labeled fallback is a Euclidean Voronoi of the cluster centers.</p>
         </article>
       </div>
       <figure class="fig-wrap">
@@ -1155,7 +1157,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
         <tr><td>Clustering</td><td>HDBSCAN*; network-space clustering</td><td>weighted snaps, sparse search horizon, adaptive stopping, fallback</td></tr>
         <tr><td>Post-HDBSCAN refinement</td><td>Gap statistic (Tibshirani et al.); PAM k-medoids</td><td>road-vertex reference; medoids among observed positions; <var>k</var> ≤ 6; sample of 64; up to four workers; one pass, never recursive</td></tr>
         <tr><td>Centers</td><td>network-node 1-median (location theory)</td><td>road-node candidates; labeled centroid recovery</td></tr>
-        <tr><td>Territories</td><td>graph and network Voronoi</td><td>finite-grid 2-D rendering, refinement, Euclidean fallback</td></tr>
+        <tr><td>Territories</td><td>graph and network Voronoi</td><td>finite-grid 2-D rendering from a 50 m start, halved until at most 0.5 % of the area changes owner (within a cell budget and five halvings); Euclidean fallback only without a network surface</td></tr>
         <tr><td>Economy</td><td>IO technical coefficients; RAS</td><td>configurable table; optional greedy MWAS and support repair</td></tr>
         <tr><td>Centrality</td><td>Katz; sender–receiver coupling</td><td>geometric mean, then one final L2 normalization</td></tr>
         <tr><td>Point scoring</td><td>distance-based score tempering</td><td>cluster p90 scale and capped linear tempering</td></tr>
@@ -1206,7 +1208,8 @@ sigma view pasig</pre>
         <tr><td>Zero-cluster roll-up (9)</td><td class="n">On for generated hierarchy</td></tr>
         <tr><td>Post-HDBSCAN Gap / workers (10)</td><td class="n">On / 4</td></tr>
         <tr><td>Gap k ceiling / draws / sample / seed (10)</td><td class="n">6 / 10 / 64 / 20261105</td></tr>
-        <tr><td>Voronoi grid / max. cells (12)</td><td class="n">500 m / 1 M</td></tr>
+        <tr><td>Voronoi start grid / max. cells (12)</td><td class="n">50 m / 1 M</td></tr>
+        <tr><td>Voronoi halvings / convergence (12)</td><td class="n">≤ 5 / ≤ 0.5 % area</td></tr>
         <tr><td>Transaction preprocessing (13)</td><td class="n">none</td></tr>
         <tr><td>X distance-decay exponent λ<sub>X</sub> (14)</td><td class="n">1.0</td></tr>
         <tr><td>Katz α factor, β (15)</td><td class="n">0.85, 1</td></tr>

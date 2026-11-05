@@ -27,7 +27,8 @@ sigma run ───────────────────────�
  10  Gap refinement     one nonrecursive network Gap k-medoid pass, up to 4 workers;
                         retained clusters only, noise stays noise
  11  centers            network-node 1-median of every final cluster
- 12  territories        network Voronoi per sector, rendered as polygons
+ 12  territories        network Voronoi per sector, rendered as polygons on a grid
+                        (50 m start, halved until ownership converges or a limit)
  13  economy            effective-sector table → coefficients a_ij = z_ij / x_j
  14  graph X            IO edge ∧ territory overlap ∧ road-connected centers;
                         weight with sector shares and mean hub distance
@@ -69,6 +70,6 @@ The equations in this book describe the current `sigma` source tree. When the im
 - clustering is HDBSCAN* on sparse bounded **road-network distance**, with a Euclidean recovery path only after network clustering fails;
 - the network Gap refinement uses a road-vertex reference distribution and PAM-style k-medoids, an adaptation of the Euclidean Gap statistic;
 - cluster centers are exact **network-node 1-medians**, with a centroid-to-road-to-node recovery path;
-- network Voronoi ownership is exact on the 1-D road graph, while its published polygon layer is a finite-resolution **2-D rendering** of that ownership;
+- network Voronoi ownership is exact on the 1-D road graph, while its published polygon layer is a finite-resolution **2-D rendering** of that ownership; the grid starts at 50 m and is refined until at most 0.5 % of the area changes owner between successive grids, within a cell budget;
 - the default economy preserves the full directed technical-coefficient graph; optional `mwas_ras_fast` changes the transaction table before coefficients are recomputed;
 - canonical centrality is a SIGMA geometric-mean rescaling of paired incoming/outgoing Katz scores, grounded in the sender-receiver Katz product literature rather than presented as a separately published named index.

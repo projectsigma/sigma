@@ -507,7 +507,7 @@ network HDBSCAN EOM; network leaf recovery on error; Euclidean recovery if neede
 K=0 residual-first roll-up for generated hierarchical economies, before Gap
 single-pass network Gap k-medoids on retained HDBSCAN clusters (default limit: 4 workers)
 final network-node 1-median for every retained/refined cluster
-network Voronoi partitions with resolution refinement + planar fallback
+network Voronoi partitions: 50 m start, refine until convergence or a limit; planar fallback if needed
 full positive directed IO technical-coefficient graph (no transaction preprocessing)
 mean hub-mediated X distance, exact-type clustered shares, inverse-power attenuation
 balanced directed Katz centrality and distance-tempered establishment scores
@@ -544,6 +544,9 @@ sigma run pasig --no-median-gap
 
 # Run Gap refinement serially (same results as the four-worker limit)
 sigma run pasig --median-gap-workers 1
+
+# Start the stage 12 Voronoi grid at 100 m instead of 50 m (refinement still runs)
+sigma run pasig --voronoi-resolution 100
 
 # Change the X distance-decay exponent (default 1.0)
 sigma run pasig --x-distance-decay-lambda 0.5
@@ -908,7 +911,7 @@ The 5 km buffered road network is an **internal analytical object**. Final GIS p
 
 ### 1.7 Network-constrained clustering
 
-Classified establishments are snapped to the road network (stage 7) and clustered separately for each sector by network HDBSCAN* (stage 8): each sector may form one or more geographically distinct clusters. For generated hierarchies, a sector with no retained cluster can be merged into a broader sector (zero-cluster roll-up, stage 9). Each retained cluster is then tested once by network Gap k-medoids and split into road-medoid children where the Gap statistic supports it (stage 10). Every final cluster receives a network 1-median center (stage 11) and a network Voronoi territory (stage 12).
+Classified establishments are snapped to the road network (stage 7) and clustered separately for each sector by network HDBSCAN* (stage 8): each sector may form one or more geographically distinct clusters. For generated hierarchies, a sector with no retained cluster can be merged into a broader sector (zero-cluster roll-up, stage 9). Each retained cluster is then tested once by network Gap k-medoids and split into road-medoid children where the Gap statistic supports it (stage 10). Every final cluster receives a network 1-median center (stage 11) and a network Voronoi territory (stage 12). The territory polygons are rendered on a grid that starts at 50 m and is halved until at most 0.5 % of the area changes owner between successive grids, within a 1,000,000-cell budget and five refinements.
 
 Relevant stages:
 
@@ -1200,7 +1203,7 @@ sigma run quezon_city
 sigma status quezon_city
 ```
 
-For a **newly loaded area**, the default economic selection is hierarchical PSA 2018 IO240/IO80/IO16 (areas without a recorded selection use IO80). The other defaults are `transaction_preprocessing=none`, the full positive directed technical-coefficient graph, managed Geofabrik roads, network-first spatial methods with documented fallbacks, deterministic PSIC classification during `load`, balanced directed Katz centrality, and no LLM requirement. Generated hierarchies use zero-cluster roll-up after HDBSCAN*, every economy uses single-pass network Gap refinement with up to four worker processes, and network X uses both clustered-sector shares and mean hub-mediated road separation before Katz centrality.
+For a **newly loaded area**, the default economic selection is hierarchical PSA 2018 IO240/IO80/IO16 (areas without a recorded selection use IO80). The other defaults are `transaction_preprocessing=none`, the full positive directed technical-coefficient graph, managed Geofabrik roads, network-first spatial methods with documented fallbacks, deterministic PSIC classification during `load`, balanced directed Katz centrality, and no LLM requirement. Generated hierarchies use zero-cluster roll-up after HDBSCAN*, every economy uses single-pass network Gap refinement with up to four worker processes, Voronoi territories start on a 50 m grid that is refined until ownership converges, and network X uses both clustered-sector shares and mean hub-mediated road separation before Katz centrality.
 
 ---
 
@@ -1379,7 +1382,7 @@ Available options:
 --io80-column NAME
 --io16-column NAME
 --allow-single-cluster
---voronoi-resolution FLOAT
+--voronoi-resolution FLOAT       start grid spacing for stage 12, metres (default 50)
 --force
 --json
 ```
@@ -1400,13 +1403,18 @@ The default spatial policy is **network-first with graceful Euclidean fallback**
 clustering:  network HDBSCAN EOM -> network HDBSCAN leaf (EOM exception only) -> Euclidean HDBSCAN EOM by road component
 refinement:  network Gap k-medoids on each eligible retained cluster (one pass)
 1-median:    network 1-median -> Euclidean centroid -> road/network snap fallback
-Voronoi:     network Voronoi -> finer network retries -> planar Euclidean Voronoi fallback
+Voronoi:     network Voronoi on a 50 m grid (coarser only to fit 1,000,000 cells)
+             -> halve the grid and compare until <= 0.5% of the area changes owner,
+                the cell budget is reached, or 5 refinements are made; keep the finest valid surface
+             -> planar Euclidean Voronoi fallback only if the sector has no valid network surface
 ```
 
 Fallback is automatic, not an opt-in CLI mode.  Verbose progress and managed diagnostics
 record recoveries.  If both the network method and its fallback fail for one independent
 type/cluster, SIGMA skips that unit where downstream invariants permit and continues with
 the remaining viable units.
+
+The Voronoi grid is refined even when the first grid succeeds, because a valid grid is not evidence that the polygons no longer depend on the spacing. `--voronoi-resolution` sets the start spacing only. `spatial.partitions/partition_diagnostics.json` records the spacing kept for each sector (`surface_resolution`) and one terminal event per sector with a network surface (`converged_resolution`, `retain_last_valid_network_resolution` or `max_refinements_reached`), so a non-empty event list is normal. In large study areas the cell budget allows fewer refinements: with the default budget, a bounding box larger than about 625 km² cannot be refined below 50 m, and its surface is kept without a convergence check. See [Network Voronoi](docs/book/content/methods/voronoi.md).
 
 ---
 
@@ -1472,7 +1480,7 @@ Available options:
 --min-cluster-size INTEGER
 --min-samples INTEGER
 --allow-single-cluster
---voronoi-resolution FLOAT
+--voronoi-resolution FLOAT       start grid spacing for stage 12, metres (default 50)
 --force
 --json
 ```
@@ -1519,7 +1527,7 @@ Available options:
 --median-gap-seed INTEGER        base seed (20261105)
 --median-gap-workers 1-4         maximum worker processes (default: 4)
 --allow-single-cluster
---voronoi-resolution FLOAT
+--voronoi-resolution FLOAT       start grid spacing for stage 12, metres (default 50)
 --centrality-method VALUE        katz (default) or eigenvector
 --centrality-direction VALUE     compatibility option; balanced Katz uses both directions
 --x-distance-decay-lambda FLOAT  X distance-decay exponent (default 1.0)

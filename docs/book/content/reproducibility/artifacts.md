@@ -55,7 +55,7 @@ Suppose only the Katz attenuation parameter changes. Area, source, places, roads
 
 Conversely, changing `vertex_digits` invalidates road topology and propagates through every network-dependent spatial and analysis stage.
 
-Other examples: switching Gap refinement on or off, or changing its settings, invalidates `spatial.clusters` and everything downstream; changing `--median-gap-workers` invalidates nothing, because the worker count is not part of any recipe and 1 to 4 workers give identical results; changing `--route-geometry` invalidates only `export.bundle`; switching the zero-cluster roll-up on or off changes the economy definition and the analysed places, so roads and loaded sources are reused while every stage from spatial points onward is recomputed.
+Other examples: switching Gap refinement on or off, or changing its settings, invalidates `spatial.clusters` and everything downstream; changing `--median-gap-workers` invalidates nothing, because the worker count is not part of any recipe and 1 to 4 workers give identical results; changing `--route-geometry` invalidates only `export.bundle`; changing `--voronoi-resolution` (the start spacing of the stage 12 grid) invalidates `spatial.partitions` and everything downstream but reuses clusters and centers; switching the zero-cluster roll-up on or off changes the economy definition and the analysed places, so roads and loaded sources are reused while every stage from spatial points onward is recomputed.
 
 This dependency-local invalidation is the practical reason the workflow is represented as a DAG rather than a monolithic script.
 

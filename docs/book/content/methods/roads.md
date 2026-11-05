@@ -52,4 +52,4 @@ Shortest paths use Dijkstra's algorithm through SciPy. The clustering branch per
 
 ## Why a projected CRS is essential
 
-The road geometry determines arc lengths, clustering radii, center objectives, Voronoi attachment, X-edge road distance, and point-center distance. These quantities must therefore be computed in a projected linear CRS. Managed area-mode roads use metre-based UTM, so parameters such as the default 5,000 m HDBSCAN ceiling and 500 m Voronoi grid have their intended physical meaning.
+The road geometry determines arc lengths, clustering radii, center objectives, Voronoi attachment, X-edge road distance, and point-center distance. These quantities must therefore be computed in a projected linear CRS. Managed area-mode roads use metre-based UTM, so parameters such as the default 5,000 m HDBSCAN ceiling and 50 m Voronoi start grid have their intended physical meaning.
