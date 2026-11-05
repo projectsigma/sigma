@@ -7,27 +7,29 @@ parts:
       - file: content/intro/explorer
       - file: content/workflow/end_to_end
       - file: content/workflow/notation
-  - caption: Geospatial ecosystem construction
+  - caption: "Places and sectors (stages 1–5, sigma load)"
     chapters:
       - file: content/methods/places
-      # sigma-augment-docs-v1:begin:toc
-      - file: content/methods/augmentation
       - file: content/methods/shadow_classification
-      # sigma-augment-docs-v1:end:toc
+      - file: content/methods/hierarchical
+      - file: content/methods/augmentation
+  - caption: "Roads, clusters and territories (stages 6–12, sigma run)"
+    chapters:
       - file: content/methods/roads
       - file: content/methods/hdbscan
+      - file: content/methods/iterative_rollup
       - file: content/methods/network_gap_medians
       - file: content/methods/centers
       - file: content/methods/voronoi
-  - caption: Economic and spatial-economic network
+  - caption: "Economy, graph X and scores (stages 13–17)"
     chapters:
       - file: content/methods/economy
-      - file: content/methods/hierarchical
       - file: content/methods/x_graph
       - file: content/methods/centrality
       - file: content/methods/scoring
-  - caption: Reproducibility and interpretation
+  - caption: Publication, reproducibility and interpretation
     chapters:
+      - file: content/methods/routing
       - file: content/reproducibility/artifacts
       - file: content/reproducibility/storage
       - file: content/reference/defaults

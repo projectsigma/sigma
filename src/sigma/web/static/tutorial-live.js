@@ -182,7 +182,9 @@
     const economyName = economyDisplayName(economy);
     const routePresentation = meta.route_mode === 'browser'
       ? 'Routes are reconstructed on demand by the browser Web Worker from the published routing graph and checked against numeric X distances.'
-      : 'This bundle uses published precomputed shortest-path geometries rather than browser-native routing.';
+      : meta.route_mode === 'precomputed'
+        ? 'This bundle uses published precomputed shortest-path geometries rather than browser-native routing.'
+        : 'This bundle does not record its route publication mode; browser routing or precomputed paths cannot be inferred from the missing field.';
     const number = n => fmt(n);
     const sampleParam = new URLSearchParams(location.search).get('node');
     const initial = sampleParam && nodeMap.get(sampleParam);
@@ -198,11 +200,14 @@
     const edgeInfo = node => (adjacent.get(idStr(node && node.id)) || []).slice().sort((x,y) =>
       (Number(y.coefficient) || 0) - (Number(x.coefficient) || 0));
     // SIGMA_DOCS_20261104_LIVE_ROLLUP: metadata-backed, never guessed from examples.
-    const rollupParentCount = meta.sectors.filter(s => Array.isArray(s.rollup_children) &&
-      s.rollup_children.some(c => c.rolled_up === true)).length;
-    const rollupRunNote = rollupParentCount
-      ? ` Derived roll-up breakdowns are published for ${rollupParentCount} effective sector${rollupParentCount === 1 ? '' : 's'}; original tags are for provenance and point presentation only.`
-      : '';
+    const rolledUpParents = meta.sectors.filter(s => Array.isArray(s.rollup_children) &&
+      s.rollup_children.some(c => c.rolled_up === true));
+    const rollupDetailAvailable = meta.profile === 'local' &&
+      meta.sectors.every(s => Array.isArray(s.rollup_children));
+    const rollupRunNote = rolledUpParents.length
+      ? ` Derived roll-up breakdowns are published for ${rolledUpParents.length} effective sector${rolledUpParents.length === 1 ? '' : 's'}; original tags are for provenance and point presentation only.`
+      : rollupDetailAvailable ? ' The local sector breakdown shows no rolled-up sectors.'
+        : ' Roll-up details are not published in this bundle, so its roll-up status is unknown.';
     const topSectors = [...meta.sectors].sort((x, y) => (y.points || 0) - (x.points || 0))
       .slice(0, 3).map(s => `${sectorDisplay(s).name}: ${number(s.points)} places`).join(' · ');
     $('live-title').textContent = `${area} · ${economyName}`;
@@ -292,6 +297,53 @@
         if (idx === 0) return note(`The current ${area} bundle contains ${c('points')} canonical establishments across ${number(meta.sectors.length)} economic types. Its individual OSM and Overture source records are not exposed here.`, 'Published output; not raw source counts');
         if (idx <= 3) return note('Record candidate distances, fuzzy-name matching decisions, and canonical-source pairs are not exported to Explorer. The figure is a worked illustration, not a reconstruction of actual matching.', 'Intermediate provenance must be examined in the SIGMA pipeline outputs');
         return note(`${here}: ${number(s?.points)} establishments in this published economy. ${number(counts.unassigned_points)} establishments across the entire area have no assigned X node.`, 'Published sector assignments and node membership');
+      }
+      if (section === 'evidence') {
+        if (idx === 0) return note('Explorer does not publish the administrative-office audit. In the published pois.parquet, admin_activity_status, admin_activity_reason and admin_original_psic record each change.', 'Worked example with invented names');
+        if (idx === 1) return note(`${here} is one of ${number(meta.sectors.length)} sectors in this run. Candidate IO sets and tag statuses are in pois.parquet (economy_candidate_io240, economy_status), not in this browser bundle.`, 'Published sector list; candidate sets are not exported to Explorer');
+        return note('Ownership decisions are recorded in pois.parquet as institution_promotion_status, institution_evidence_basis and institution_evidence_reference. The local Explorer exposes selected sector-basis evidence, but not the full registry match, promotion trace or source references.', 'Inspect workspace pois.parquet for complete ownership provenance; public bundles omit individual establishments');
+      }
+      if (section === 'hierarchy') {
+        const sparse = meta.sectors.some(s => sparseSectorCode(s.code).includes(':')) || /hierarch|rollup/i.test(economy);
+        if (!sparse) return note(`This run uses ${number(meta.sectors.length)} sectors of a fixed economy (${economyName}). Stage 5 builds area sectors only for a generated hierarchy (the default of sigma load).`, 'From the published sector codes');
+        const forms = {detailed: 0, io80Residual: 0, io80: 0, io16Residual: 0, io16: 0, other: 0};
+        for (const s of meta.sectors) {
+          const code = sparseSectorCode(s.code);
+          if (/^\d+:\d+:\d+$/.test(code)) forms.detailed++;
+          else if (/^\d+:\d+:o$/.test(code)) forms.io80Residual++;
+          else if (/^\d+:\d+$/.test(code)) forms.io80++;
+          else if (/^\d+:o$/.test(code)) forms.io16Residual++;
+          else if (/^\d+$/.test(code)) forms.io16++;
+          else forms.other++;
+        }
+        if (idx === 0) return note(`This run uses ${number(meta.sectors.length)} sectors: ${forms.detailed} detailed (X:Y:Z), ${forms.io80Residual} IO80 residuals (X:Y:o), ${forms.io80} whole IO80 (X:Y), ${forms.io16Residual} IO16 residuals (X:o) and ${forms.io16} whole IO16 (X)${forms.other ? `, plus ${forms.other} with another code form` : ''}.`, 'Counted from the published sector codes');
+        if (idx === 1) return note('The coarse-place policy and the parents kept whole are recorded in the hierarchy audit.json of the workspace, not in this bundle.', 'The figure uses invented counts');
+        return note(`Explorer publishes derived X links and coefficients, not the aggregated transaction table. Current economic specification: ${economyName}.`, 'Consult the economy artifacts for the full table');
+      }
+      if (section === 'handoff') return note('The bundle does not record whether the handoff was reviewed or augmented. See places/augmentations.json and the aug_<source>__ columns in the workspace.', 'Worked example with invented records');
+      if (section === 'rollup') {
+        const parents = rolledUpParents;
+        if (!parents.length) {
+          const status = rollupDetailAvailable
+            ? 'The published local sector breakdown shows no rolled-up sectors.'
+            : 'A roll-up breakdown is unavailable in this bundle; whether roll-up occurred is unknown.';
+          return note(idx === 0 ? `${here}: ${number(s?.points)} classified places and ${number(clusterCount)} published clusters. ${status}` : status,
+            rollupDetailAvailable ? 'From published local sector metadata' : 'Missing roll-up details are not evidence that roll-up did not occur');
+        }
+        const first = parents[0];
+        const moved = first.rollup_children.filter(c => c.rolled_up === true);
+        return note(`${parents.length} effective sector${parents.length === 1 ? '' : 's'} received rolled-up sectors. Example: ${sectorDisplay(first).code} now also holds ${moved.map(c => `${sparseSectorCode(c.code)} (${number(c.places)} places)`).join(', ')}.`, 'Original codes are provenance only; the effective sector is used for clustering, X and scores');
+      }
+      if (section === 'gap') return note(`${here} has ${number(clusterCount)} final clusters in this run (${c('clusters')} in total). The HDBSCAN* parent label (hdbscan_cluster) and median_gap_audit.json are in the clustering artifact, not in the browser bundle.`, 'Final clusters only; the Gap decision per cluster is audited in the workspace');
+      if (section === 'routes') {
+        if (idx === 0) return note(example ? `A published X link of this cluster: road distance ${fmt(example.distance, 1)} ${meta.distance_unit || ''}, weight ${frac(example.weight)}.` : 'No incident X link is available for this cluster.', routePresentation);
+        if (idx === 1) return note(meta.route_mode === 'browser'
+          ? `This bundle has a compact routing graph (privacy: ${meta.routing_graph_privacy || 'not recorded'}).`
+          : meta.route_mode === 'precomputed'
+            ? 'This bundle declares precomputed route geometries from the GeoPackage paths layer.'
+            : 'Route mode is not recorded in this bundle; consult the workspace run metadata for the publication method.',
+          'Route publication does not change X weights or scores');
+        return note(routePresentation, 'Select a link in Explorer to request its route');
       }
       if (section === 'roads') {
         if (idx === 0) return note(`${c('roads')} road features appear in this bundle (${meta.has_roads ? 'road layer included' : 'road layer omitted'}); distances use ${meta.distance_unit || 'unspecified units'}. The exact center-to-center X distances are published; ${routePresentation}`, 'Visual road feature count, not graph-vertex count');

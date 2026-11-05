@@ -34,10 +34,11 @@ The workflow rebuilds when `docs/book/`, `src/sigma/`, `pyproject.toml`, or the 
 
 `docs/book/_toc.yml` defines the navigation. The book is organized as:
 
-- Start here: quickstart, full workflow, notation;
-- Geospatial ecosystem construction: places, roads, HDBSCAN*, centers, network Voronoi;
-- Economic and spatial-economic network: IO economy, X graph, balanced Katz, point scoring;
-- Reproducibility and interpretation: artifact recipes, defaults, outputs, method lineage; and
+- Start here: overview, quickstart, Explorer and Under the Hood, the 17-stage workflow, notation;
+- Places and sectors (stages 1–5, `sigma load`): places, institutional activity and ownership evidence, hierarchical economy, augmentation;
+- Roads, clusters and territories (stages 6–12, `sigma run`): roads and snapping, network HDBSCAN*, zero-cluster roll-up, network Gap k-medoids, 1-median centers, network Voronoi;
+- Economy, graph X and scores (stages 13–17): IO economy, X graph, balanced Katz, establishment scoring;
+- Publication, reproducibility and interpretation: route publication, artifact recipes and savepoints, storage, defaults, outputs, method lineage; and
 - consolidated references.
 
 The mathematical pages describe the implementation rather than a hypothetical design. Recovery paths and SIGMA-specific rules are labeled explicitly.

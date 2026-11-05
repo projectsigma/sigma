@@ -1,4 +1,6 @@
-# Balanced sender-receiver Katz centrality
+# Balanced sender-receiver Katz centrality (stages 15–16)
+
+*Pipeline stages 15–16 of 17 · `sigma run`. Under the Hood computes the balanced Katz scores live on the worked X example (sections “Stage 15” and “Stage 16”).*
 
 Canonical SIGMA centrality preserves the full directed X graph and asks a node to be important in **both** directions: it should be able to receive weighted influence through incoming structure and to send influence through outgoing structure.
 
@@ -92,8 +94,8 @@ The exact geometric-mean-and-one-final-L2 rule is a **SIGMA construction**. The 
 
 Normalizing $K^{in}$ and $K^{out}$ separately would inject two graph-wide scale transformations before combination. SIGMA instead preserves their common Katz parameterization, combines the raw magnitudes, and applies one final normalization. This makes the implemented formula exactly the one shown above.
 
-## Edge cases and legacy alternative
+## Edge cases and the eigenvector alternative
 
 Only strictly positive finite X weights enter canonical Katz; negative or non-finite weights are rejected and zero edges are absent from support.
 
-The previous eigenvector mode remains explicit. It first forms the positive-weight **undirected projection** of X, summing reciprocal weights, then computes weighted eigenvector centrality. It is retained for compatibility, not as the canonical model.
+The eigenvector mode (`--centrality-method eigenvector`, used by the legacy `--equivalent` profile) is explicit only. It first forms the positive-weight **undirected projection** of X, summing reciprocal weights, then computes weighted eigenvector centrality. It is retained for compatibility, not as the canonical model.

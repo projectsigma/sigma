@@ -182,35 +182,3 @@ html[data-theme="dark"] {
 /* sigma-explorer-tutorial-polish-20261027-v2: tidy long run-sector choices. */
 #live-title {overflow-wrap:anywhere;}
 .live-chooser select {text-overflow:ellipsis;}
-
-
-/* sigma-under-the-hood-current-run-hierarchy-3a-20261102-v1: native animated explainer. */
-.sigma-hier3a { max-width:1240px; margin:0 auto; padding-block:30px 48px; }
-.sigma-hier3a-head { max-width:75ch; }
-.sigma-hier3a h2 {font-size:clamp(22px,2.5vw,31px); margin:8px 0 10px;line-height:1.22;}
-.sigma-hier3a-head > p:last-child { color:var(--muted);font-size:14px;line-height:1.6; }
-.sigma-hier3a-scene {display:grid;grid-template-columns:minmax(0,1fr) 30px minmax(0,1fr) 30px minmax(0,1fr);align-items:stretch;gap:8px;margin:19px 0 14px;}
-.sigma-hier3a-step {background:var(--plate);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0;box-shadow:0 3px 12px rgba(37,64,48,.025);}
-.sigma-hier3a-label {font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--teal);margin-bottom:13px;}
-.sigma-hier3a-tiles {display:flex;gap:8px;flex-wrap:wrap;align-items:center;min-height:73px;}
-.sigma-hier3a-tiles span,.sigma-hier3a-chain span {display:inline-flex;border:1px solid var(--line);border-radius:8px;padding:8px 11px;background:var(--teal-soft);font-weight:650;font-size:13px;white-space:nowrap;}
-.sigma-hier3a-tiles span:nth-child(2) {background:var(--gold-soft);}
-.sigma-hier3a-chain {display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-height:73px;}
-.sigma-hier3a-chain span:not(:last-child)::after {content:' › ';margin-left:6px;color:var(--muted);}
-.sigma-hier3a-step small {display:block;margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45;}
-.sigma-hier3a-arrow {align-self:center;justify-self:center;font-size:27px;font-weight:700;color:var(--teal);animation:sigma-hier-flow 3s ease-in-out infinite;}
-.sigma-hier3a-result .sigma-hier3a-fine {animation:sigma-hier-fine 3s ease-in-out infinite;}
-.sigma-hier3a-result .sigma-hier3a-other {animation:sigma-hier-other 3s ease-in-out infinite;}
-@keyframes sigma-hier-flow {0%,100%{opacity:.35;transform:translateX(-4px)}45%{opacity:1;transform:translateX(4px)}}
-@keyframes sigma-hier-fine {0%,20%,100%{opacity:.55;transform:translateY(3px)}40%,70%{opacity:1;transform:translateY(0)}}
-@keyframes sigma-hier-other {0%,40%,100%{opacity:.55;transform:translateY(3px)}65%,85%{opacity:1;transform:translateY(0)}}
-.sigma-hier3a-hint,.sigma-hier3a-foot {color:var(--muted);font-size:13px;line-height:1.6;}
-.sigma-hier3a-hint code {color:var(--ink);font-size:12px;}
-.sigma-hier3a-policies {display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0;}
-.sigma-hier3a-policies > div {padding:15px 17px;border:1px solid var(--line);border-radius:10px;background:var(--plate);}
-.sigma-hier3a-policies > div:first-child {border-left:4px solid var(--teal);}
-.sigma-hier3a-policies > div:nth-child(2) {border-left:4px solid var(--gold);}
-.sigma-hier3a-policies b {font-size:13px;}
-.sigma-hier3a-policies p {font-size:13px;line-height:1.55;color:var(--muted);margin:8px 0 0;}
-@media(max-width:860px){.sigma-hier3a-scene {grid-template-columns:1fr;}.sigma-hier3a-arrow {transform:rotate(90deg);animation:none;}.sigma-hier3a-policies{grid-template-columns:1fr;}}
-@media(prefers-reduced-motion:reduce){.sigma-hier3a *{animation:none !important;}}

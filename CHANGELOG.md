@@ -15,11 +15,11 @@
 - Added ownership evidence (policy ownership-v2, tightened after review) for public/private education and health pairs.
 - Added a per-row level-consistency guard (`LEVEL_CONFLICT`, `DERIVED_FROM_IO240`, `DERIVED_FROM_IO80`)
   and an `io_mapping_provisional` flag.
-- Hierarchical economy: new default `coarse_policy="contain"` assigns a coarse place only to a sector that
+- Hierarchical economy: optional `coarse_policy="contain"` assigns a coarse place only to a sector that
   contains all of its IO240 candidates and keeps a parent whole when more than `max_straddle_share`
-  (default 0.25) of its places would straddle the split. The legacy residual rule remains as
-  `coarse_policy="residual"`. Newly configured profiles use containment; historical profiles
-  without a saved policy keep the legacy residual policy to avoid silent migration.
+  (default 0.25) of its places would straddle the split. The default is `coarse_policy="residual"`
+  (`DEFAULT_COARSE_POLICY`); `contain` is used only when a profile selects it explicitly, and profiles
+  without a saved policy use residual.
 - `tagging_consistency` checks every IO240 parent link. The Explorer shows a "Sector basis" for each place.
 - Targeted second-pass corrections: disjoint IO240 candidate sets become explicit conflicts rather
   than parent fallbacks; generic education/health ownership cues no longer imply ownership;

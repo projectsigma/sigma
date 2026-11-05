@@ -104,6 +104,10 @@ Delete only identified indexes when SIGMA is idle. Do not remove the initialized
 managed national PBF, `source-index.json`, source manifests, or completed
 prepared-OSM/Overture snapshots as a blanket storage-cleanup measure.
 
+## Resumable savepoints
+
+Interrupted long stages keep verified work units under `<workspace>/state/savepoints/` (see {ref}`Reproducibility <resumable-savepoints-inside-long-stages>`). A successful stage commit clears them; an abandoned run can leave them behind. `sigma storage prune` does not remove `state/savepoints/`; review that folder only while SIGMA is idle, and never remove the savepoints of a run that is still active.
+
 ## Scope and limitations
 
 These commands manage storage **locally**; they do not commit, push, or delete

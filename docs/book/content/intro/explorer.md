@@ -1,6 +1,6 @@
 # SIGMA Explorer: interactive maps and cluster networks
 
-SIGMA Explorer is a **browser visualizer for a completed SIGMA analysis**. It uses the same published establishments, spatial cluster polygons, X-network nodes and directed links, and shortest-road-path geometries that you can inspect in QGIS. It does **not** run SIGMA's classification, clustering, economic, or scoring algorithms again.
+SIGMA Explorer is a **browser visualizer for a completed SIGMA analysis**. It uses the same published establishments, spatial cluster polygons, X-network nodes and directed links that you can inspect in QGIS, and it draws shortest road routes between linked cluster centers on request from a compact published routing graph. It does **not** run SIGMA's classification, clustering, economic, or scoring algorithms again.
 
 ## Launch a local explorer
 
@@ -21,18 +21,15 @@ sigma view pasig --refresh
 
 If you have already run the analysis, you need only `sigma view pasig`.
 
-Explorer's **Under the Hood** tutorial (from the Explorer header) explains the
-canonical sequence from loaded hierarchical tags through K=0 roll-up,
-HDBSCAN, **default-on network Gap refinement with four worker processes**,
-final network 1-medians, network Voronoi and X scoring. The explanations are
-worked examples, not a per-run guarantee: for the actual run, inspect its
-configuration and `median_gap_audit.json` in the clustering artifact. An old
-Explorer bundle may predate these defaults. `sigma view AREA --fast` changes
-only its static website assets, not the underlying analytical results.
+## Under the Hood
+
+**Under the Hood** (from the Explorer header) explains the whole pipeline in its 17 stages, each with a worked, interactive example: matching, the administrative-office rule and the ownership evidence ladder, area sectors and coarse-place policies, review and augmentation, road graph and snapping, HDBSCAN*, zero-cluster roll-up, **default-on network Gap refinement with up to four worker processes** (illustrated interactively in the browser; computed by SIGMA during `run`), network 1-medians, network Voronoi, coefficients, graph X, balanced Katz, establishment scores, and browser route publication. A “Current SIGMA run” panel and a note under every step show what the opened bundle publishes for that stage (for example its sector codes, rolled-up sectors, final cluster counts and route mode).
+
+The worked examples are illustrations, not a per-run guarantee: for the actual run, inspect `run.json`, `rollup_audit.json` and `median_gap_audit.json`. A bundle built from an earlier analysis shows the defaults of the analysis that produced it; rebuild it with `sigma view AREA --refresh` after a new `sigma run`. `sigma view AREA --fast` changes only static website assets, not the underlying analytical results.
 
 ### Fast website-only changes
 
-When you are changing only Explorer/Guided Tutorial **HTML, CSS, JavaScript, images, logo or favicon**, update an *existing* Explorer bundle without recreating its graph, route geometries, polygons or establishment tiles:
+When you are changing only Explorer or Under the Hood **HTML, CSS, JavaScript, images, logo or favicon**, update an *existing* Explorer bundle without recreating its graph, routing data, polygons or establishment tiles:
 
 ```powershell
 sigma view pasig --fast
@@ -48,7 +45,7 @@ sigma view quezon_city --fast
 1. Pan and zoom the geographic map. Establishments are colored by economic type, with cluster partitions, centers, optional roads, and the analysis boundary as geographic context.
 2. Select an establishment or cluster center. An establishment inherits its assigned `(type, cluster)` X node; it **does not** have its own firm-level supply-chain links.
 3. Inspect incoming, outgoing, or combined connections, and increase the neighborhood depth from direct connections to two steps or the reachable neighborhood. Direction choices govern **neighborhood discovery**; the diagram retains the directed relationships among the displayed nodes.
-4. Use theater view and fit-to-graph when a network is too crowded. Inspect edge attributes and highlight center-to-center shortest paths (reconstructed in the browser by default, precomputed only by explicit option). Incoming routes are dashed blue and outgoing routes solid red.
+4. Use theater view and fit-to-graph when a network is too crowded. Inspect edge attributes and highlight center-to-center shortest paths (drawn in the browser on request by default, precomputed only by explicit option). Incoming routes are dashed blue and outgoing routes solid red.
 
 **Interpretation matters:** A directed X edge represents a *modeled spatial-economic link* grounded in IO technical coefficients, overlapping cluster partitions, and routable road-network separation. It is **not verified trade between two specific establishments**. The displayed X edge weight is **not** just the coefficient divided by the
 center-to-center road distance. It is
@@ -68,17 +65,16 @@ sourcing relationship. The routing graph itself is undirected. See
 
 For large views, Explorer can switch to density shading rather than loading more than 150,000 establishments at once. The network view is capped at 300 nodes and 1,500 directed edges per selection and marks truncated displays. Neither cap modifies the original SIGMA outputs.
 
-<!-- sigma-docs-20261104-v1:begin -->
 ## Fixed industry colors, rolled-up sectors, and contextual inspection
 
-SIGMA now uses a **fixed 336-sector color specification** (16 broad, 80
+SIGMA uses a **fixed 336-sector color specification** (16 broad, 80
 intermediate, 240 detailed industries). `X:Y:Z`, `X:Y`, and `X` use their
-specified canonical colors, also available by legacy source-sector codes;
+specified canonical colors, also available by tiered source-sector codes;
 residual `o` sectors inherit the corresponding parent color. Palette changes
 are visual only and cannot change an X weight or a SIGMA score.
 
 For generated hierarchical economies, the normal run performs **post-clustering
-zero-cluster roll-up** by default. Expanding an affected sector in the local
+zero-cluster roll-up** (stage 9) by default. Expanding an affected sector in the local
 Explorer shows original sector tags, counts, and separate point-visibility
 checkboxes. A moved establishment can retain the fixed color of its *original*
 industry, but the effective rolled-up sector remains its analytical X type.
@@ -104,7 +100,6 @@ Custom alternatives. `sigma view AREA --fast` updates UI assets only; when
 new analytical output, catalog, or per-point original-tag data are needed,
 use a validated normal/full Explorer refresh instead. Updating one existing
 bundle's small metadata file does not automatically update tiles or analytics.
-<!-- sigma-docs-20261104-v1:end -->
 
 ## Export a browser bundle
 
@@ -121,6 +116,6 @@ Bundles are static website files; serve them over HTTP, not with `file://`. `sig
 
 Use the generated `<area>.qgz` when you need normal GIS tooling and detailed layer inspection. Use **Explorer** to start from a mapped establishment and navigate its **cluster-level X neighborhood** interactively. Both are views of published SIGMA products, not alternate analytical engines.
 
-Explorer principally reads `sigma_points.parquet`, `sigma_X_nodes.csv`, `sigma_X_edges.csv`, and the `clusters` and `paths` layers of `sigma_spatial_outputs.gpkg`; optional published roads, boundary, metadata, and manifest add map context and integrity checks. More detail is available in the repository's [SIGMA Explorer guide](https://github.com/projectsigma/sigma/blob/main/SIGMA_EXPLORER.md) and [Reading outputs](../reference/outputs.md).
+Explorer principally reads `sigma_points.parquet`, `sigma_X_nodes.csv`, `sigma_X_edges.csv`, the `clusters` layer of `sigma_spatial_outputs.gpkg`, and either `sigma_routing_graph.bin` (default browser routing) or the GeoPackage `paths` layer (precomputed mode); optional published roads, boundary, metadata, and manifest add map context and integrity checks. See [Route publication](../methods/routing.md). More detail is available in the repository's [SIGMA Explorer guide](https://github.com/projectsigma/sigma/blob/main/SIGMA_EXPLORER.md) and [Reading outputs](../reference/outputs.md).
 
-The previous `--ui-only` spelling remains supported as an alias for `--fast`.
+`--ui-only` is accepted as an alias for `--fast`.

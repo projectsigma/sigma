@@ -8,8 +8,8 @@ Of 1,955 rows captured: 1,329 `Private HEI` are marked private, 533 `SUC` + 91 `
 
 ## Integration
 
-The bundled `unifast_hei_ra10931.csv.gz` is loaded through `UniFASTIndex` and layered with the existing QC reference and BEIS basic-school index. The index returns `UNIFAST_NAME_ONLY_PROVISIONAL`, `UNIFAST_NAME_REGION_PROVISIONAL`, `UNIFAST_TYPE_REVIEW` or appropriate conflict statuses, not `EXACT_EXTERNAL_ID`. Existing verified links, upstream PSIC, IO candidates, ownership- and location-conflict safeguards remain unchanged.
+The bundled `unifast_hei_ra10931.csv.gz` is loaded through `UniFASTIndex` (stage 4) and layered with the QC reference and the BEIS basic-school index. The index returns `UNIFAST_NAME_ONLY_PROVISIONAL`, `UNIFAST_NAME_REGION_PROVISIONAL`, `UNIFAST_TYPE_REVIEW` or appropriate conflict statuses, not `EXACT_EXTERNAL_ID`. It does not override verified links, upstream PSIC, IO candidates, or the ownership- and location-conflict safeguards.
 
-The PhilHealth-only national runtime CSV (`SIGMA_HOME/references/institution_national_v1.csv`) remains **125 hospitals only**, unchanged. The 30,364-school BEIS snapshot remains byte-for-byte unchanged. The four QC verified hospital links remain unchanged. The reference fingerprint incorporates the packaged UniFAST bytes for future classification invalidation, but this patch performs no `sigma load`, classification, network, clustering, Voronoi, or scoring run.
+The PhilHealth-only national runtime CSV (`SIGMA_HOME/references/institution_national_v1.csv`) contains **125 hospitals only**, and the BEIS snapshot is a separate 30,364-school file. The four QC verified hospital links are workspace-specific. The reference fingerprint includes the packaged UniFAST bytes, so a change to this file invalidates `places.classified` and everything downstream at the next `sigma load`.
 
-To use newly available reference candidates in a future load, a deliberate `sigma load` operation is required; no active IO tag changes during installation. For a public code release, retain the source attribution and perform the project's normal release-data review.
+Reference candidates affect IO tags only through a deliberate `sigma load`. For a public code release, keep the source attribution and perform the project's normal release-data review.

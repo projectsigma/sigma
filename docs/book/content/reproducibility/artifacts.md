@@ -16,12 +16,12 @@ A recipe records:
 
 The recipe is canonicalized to JSON and hashed with SHA-256. Output files are themselves hashed. The resulting artifact identity therefore binds requested computation to both the recipe and the actual produced files.
 
-<!-- sigma-docs-20261104-v1:begin -->
 ## Roll-up and Explorer presentation provenance
 
 A generated hierarchical analysis can retain a baseline catalog and a
 separately identified, provenance-checked **iterative roll-up derived
-Economy**. The resulting run's declared Economy ID, classified POIs, X
+economy** (stage 9) under `hierarchical/iterative_rollup/<recipe-hash>/`, with a
+`rollup_manifest.json` of file hashes that is verified before reuse. The resulting run's declared Economy ID, classified POIs, X
 nodes, polygon partition ownership and published outputs must agree before
 its Explorer data are considered current. The original sector tag is kept
 separately from the effective sector used by the model.
@@ -32,15 +32,30 @@ spatial or scoring artifacts. `sigma view AREA --fast` copies only frontend
 assets into an already-owned Explorer; it does **not** refresh sector
 metadata or tile contents. A separately guarded, local metadata-only
 migration can update small provenance/color metadata for an existing verified
-bundle without regenerating route geometries. A full `sigma view` refresh is
+bundle without regenerating its routing data or tiles. A full `sigma view` refresh is
 needed when genuinely changed underlying published data must be reflected.
-<!-- sigma-docs-20261104-v1:end -->
+
+(resumable-savepoints-inside-long-stages)=
+## Resumable savepoints inside long stages
+
+A stage artifact is reusable only after it has been committed completely. Long stages additionally keep **savepoints**, durable work units under `<workspace>/state/savepoints/<stage>/<recipe-fingerprint>-<code-signature>/`, so that an interrupted run resumes instead of starting the stage again:
+
+| Stage | Work unit |
+|---|---|
+| `spatial.clusters` | one sector: final memberships, cluster IDs, summary, trace and recovery events |
+| `spatial.partitions` | one sector: completed partitions and fallback events |
+| `analysis.x` | one source sector: X edges, disconnected-pair diagnostics and omitted self-edges (no route geometry) |
+| `export.bundle` | the completed GeoPackage and the completed QGIS project |
+
+A unit is reused only when its manifest exists, its stage, recipe fingerprint and implementation-code signature agree, and every file matches its recorded SHA-256 hash and length. The manifest is written last, by atomic replacement, so a partial or corrupt unit is recomputed. Savepoints are cleared once the stage artifact is committed. They never override validated upstream artifact identities, and they change no formula or output schema. See [`docs/SIGMA_SAVEPOINTS.md`](https://github.com/projectsigma/sigma/blob/main/docs/SIGMA_SAVEPOINTS.md).
 
 ## Selective invalidation
 
 Suppose only the Katz attenuation parameter changes. Area, source, places, roads, clusters, centers, partitions, economy, and X can remain reusable because their recipes do not depend on that parameter. `analysis.centrality` changes, and `analysis.scores` changes because it depends on centrality.
 
 Conversely, changing `vertex_digits` invalidates road topology and propagates through every network-dependent spatial and analysis stage.
+
+Other examples: switching Gap refinement on or off, or changing its settings, invalidates `spatial.clusters` and everything downstream; changing `--median-gap-workers` invalidates nothing, because the worker count is not part of any recipe and 1 to 4 workers give identical results; changing `--route-geometry` invalidates only `export.bundle`; switching the zero-cluster roll-up on or off changes the economy definition and the analysed places, so roads and loaded sources are reused while every stage from spatial points onward is recomputed.
 
 This dependency-local invalidation is the practical reason the workflow is represented as a DAG rather than a monolithic script.
 
@@ -62,15 +77,3 @@ For safe previews, retention rules, and command examples, see
 Artifact reproducibility answers: **“Can I recreate the same computation from the same identified inputs and code contract?”** It does not by itself answer: **“Was this the right modeling assumption?”**
 
 The method chapters therefore pair every artifact with the assumptions that generated it: source matching thresholds, road topology, HDBSCAN horizon, center objective, Voronoi resolution, IO preprocessing, X weighting, centrality, and score tempering.
-
-
-## Recovery within expensive stages
-
-In addition to immutable stage artifacts, clustering and Voronoi can persist a
-completed economic type, Network X can persist a completed source type and each
-25,000-edge route-geometry batch, and export can persist completed GeoPackage
-and QGIS project files. These are **temporary recovery savepoints**, not
-immutable scientific outputs. SIGMA checks the stage recipe and each savepoint
-file's SHA-256 before reuse; incomplete writes are recomputed. Successful
-artifact commit clears recovery data. See
-[Savepoint scope and limitations](../../../SIGMA_SAVEPOINTS.md).

@@ -1,13 +1,8 @@
-> **Historical implementation note (before PR #29, November 5, 2026).**
-> This page describes the earlier per-edge route-file Explorer architecture.
-> Current default exports use numerical X plus browser-native on-demand shortest
-> paths in a Web Worker. The route-file/cache statements below apply only to
-> historical or explicit precomputed-route bundles; they are not the current
-> canonical routing method. See [Explorer](book/content/intro/explorer.md).
+# Explorer interaction latency safeguards
 
-# Explorer interaction latency patch (v1)
+These safeguards are part of the browser Explorer's `app.js` and its regression tests. SIGMA's economic graph, directed Network X, road distances, spatial partitions, clustering parameters, establishment scores, and saved data are not affected.
 
-This change affects only the browser Explorer's `app.js` and its regression tests. SIGMA's economic graph, directed Network X, road routes, spatial partitions, clustering parameters, establishment scores, and saved data remain unchanged.
+Explorer has two route sources. In the default **browser route mode**, a Web Worker reconstructs a displayed route on request from the compact routing graph and keeps up to 256 routes in its cache (see [Explorer](book/content/intro/explorer.md) and [Route publication](book/content/methods/routing.md)). In a bundle built with `--route-geometry precomputed`, Explorer reads route files instead; the route-file cache below applies only to that mode.
 
 ## Behavior
 
@@ -17,14 +12,12 @@ This change affects only the browser Explorer's `app.js` and its regression test
 - Old establishment points are cleared when the map enters a different geographic tile set. The accepted tile signature is invalidated during the transition so quick pan-back cannot leave the source empty. Existing asynchronous `tileEpoch` validation prevents stale tiles reappearing.
 - The 20-depth route palettes are reapplied only when switching theme, not on every selection. The layout for cluster icons is applied once per emphasis refresh rather than twice.
 - Reciprocal LineString route equivalence uses direct coordinate comparisons instead of allocating full JSON representations. The original exact-geometry semantics remain.
-- Expanded route files are cached in an LRU with at most 96 entries. Route files are no longer also pinned forever in the general JSON cache. The limit is **by count**, not by bytes; unusually large routes can still require considerable memory.
+- In precomputed-route bundles, expanded route files are cached in an LRU with at most 96 entries and are not pinned in the general JSON cache. The limit is **by count**, not by bytes; unusually large routes can still require considerable memory.
 
 ## Limitations and safe follow-up
 
-This deliberately preserves the 60 depth-specific route MapLibre layers and existing Cytoscape concentric layout. It does not alter the Explorer data format, tile size, map visual hierarchy, click scope, network limits, three-color route direction scheme, or GeoJSON geometry precision. The change should be assessed with browser Performance and Memory panels under cold and warm cache, rapid clicks, dense multiring networks, and panning.
+Explorer keeps 60 depth-specific route MapLibre layers and a Cytoscape concentric layout. These safeguards do not alter the Explorer data format, tile size, map visual hierarchy, click scope, network limits, route direction scheme, or GeoJSON geometry precision. Assess changes with the browser Performance and Memory panels under cold and warm cache, rapid clicks, dense multiring networks, and panning.
 
-## Installation
+## Updating the interface
 
-Apply via `apply_explorer_latency.py --repo <repo> --dry-run`, then `--apply --test`. Installer refuses missing anchors, validates JS syntax when Node.js is installed, checks source file again before writing, saves a backup under Downloads, and neither switches branches nor alters workspace data.
-
-Update only static Explorer assets with `sigma view quezon_city --ui-only --port 8766` after applying; this does not rebuild SIGMA analytical outputs. Restart any existing server when testing new JS. If the port is in use, SIGMA selects another free one.
+`sigma view quezon_city --fast --port 8766` copies static Explorer assets into an existing bundle without rebuilding SIGMA analytical outputs. Restart any existing server when testing new JavaScript. If the port is in use, SIGMA selects another free one.

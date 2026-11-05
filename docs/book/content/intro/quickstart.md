@@ -33,12 +33,11 @@ sigma load pasig
 sigma run pasig
 ```
 
-`sigma load` acquires and reconciles OSM/Overture establishments, classifies them,
-and writes the editable `places/places.parquet` handoff. Without `--io-level` or
+`sigma load` runs stages 1–5: it acquires and reconciles OSM/Overture establishments, classifies their activity, attaches IO tags and ownership evidence, and writes the editable `places/places.parquet` handoff. `sigma run` runs stages 6–17 and publishes the results. Without `--io-level` or
 `--economy`, it also builds a **per-area hierarchical PSA 2018 economy** from
 the packaged IO240 reference: exact IO240 sectors where supported, with IO80,
-IO16, and residual groups elsewhere. New hierarchical profiles use
-`coarse_policy=residual` and `min_places=5`; they are recorded under the SIGMA
+IO16, and residual groups elsewhere. The hierarchical settings
+(`coarse_policy=residual`, `min_places=5`) are recorded under the SIGMA
 data directory and the area selection is recorded in `economy-selection.json`.
 To choose a fixed national resolution instead, use one of:
 
@@ -51,47 +50,37 @@ sigma load pasig --io-level 240
 These are alternatives to, not additional steps after, the default load.
 Fixed IO240 retains only exact IO240 tags as assigned establishments. A custom
 `--economy` is also supported and is mutually exclusive with `--io-level`.
-`sigma run` follows the selection made by `sigma load`; **existing unselected
-legacy IO80 workspaces are not silently converted to hierarchy**. See
+`sigma run` follows the selection made by `sigma load`; **a workspace without a recorded selection keeps IO80 and is not silently converted to a hierarchy**. See
 [Hierarchical economy](../methods/hierarchical.md) and the
 [load selection guide](https://github.com/projectsigma/sigma/blob/main/docs/SIGMA_LOAD_PORTABILITY.md).
 
-<!-- sigma-docs-20261104-v1:begin -->
-### Default zero-cluster roll-up at `sigma run`
+### Zero-cluster roll-up at `sigma run` (stage 9)
 
-For a newly generated **hierarchical** area, `sigma run pasig` now attempts
-residual-first iterative roll-up only for economic sectors with **zero
-retained HDBSCAN clusters**, accepting valid coarsening under its positive
-net-retention rule. This is distinct from the `sigma load` hierarchy's
-`min_places=5` support rule. To keep precisely the baseline hierarchy:
+For a generated **hierarchical** area, `sigma run pasig` merges a sector into an existing residual only when the sector has **zero retained HDBSCAN* clusters** and the merge strictly increases the number of retained establishments. This is separate from the `min_places=5` support rule of `sigma load`: a sector that ends with only 5–9 places passes that rule but cannot form a cluster under the default HDBSCAN* settings. To keep exactly the stage 5 sectors:
 
 ```bash
 sigma run pasig --no-iterative-rollup
 ```
 
-To request the same default explicitly, use
-`sigma run pasig --iterative-rollup`. Fixed `--io-level 16`, `80`, `240`
-and custom economies are not rolled up implicitly. Re-running can change
-analytical results, so use these switches intentionally; displaying an
-already-published run does not trigger clustering.
-<!-- sigma-docs-20261104-v1:end -->
+`sigma run pasig --iterative-rollup` requests the default explicitly. Fixed `--io-level 16`, `80`, `240` and custom economies are not rolled up. Rerunning with a different switch changes analytical results; displaying an already-published run does not trigger clustering.
 
 The ordinary selected-economy run uses:
 
 - `transaction_preprocessing=none` and the full positive directed technical-coefficient graph;
 - deterministic PSIC classification at `load` (not again at `run`);
 - managed Geofabrik roads;
-- type-wise road-network HDBSCAN* (unrefined results determine hierarchical K=0 roll-up);
-- **default-on, single-pass Gap k-medoid refinement** of retained clusters using **four worker processes**;
-- network-node 1-median cluster centers, freshly computed for accepted child clusters;
-- network-Voronoi surface partitions;
-- X weights based on technical coefficients, both clustered-sector shares, and mean hub-mediated road distance;
-- balanced sender-receiver weighted Katz; and
-- establishment distance tempering `lambda = 0.15`.
+- type-wise road-network HDBSCAN* (stage 8; its unrefined results decide the hierarchical K=0 roll-up of stage 9);
+- **default-on, single-pass Gap k-medoid refinement** of retained clusters using **up to four worker processes** (stage 10);
+- network-node 1-median cluster centers, computed for every final cluster (stage 11);
+- network-Voronoi surface partitions (stage 12);
+- X weights based on technical coefficients, both clustered-sector shares, and mean hub-mediated road distance (stages 13–14);
+- balanced sender-receiver weighted Katz (stages 15–16);
+- establishment distance tempering `lambda = 0.15` (stage 17); and
+- browser route publication: a compact routing graph, with routes drawn on request (`--route-geometry precomputed` writes all routes at export instead).
 
 Use `sigma run pasig --no-median-gap` to compare the original HDBSCAN
 partition, or `--median-gap-workers 1` to use the same refinement serially.
-Legacy `--equivalent` runs remain unrefined unless Gap is explicitly enabled.
+The legacy `--equivalent` profile stays unrefined unless Gap is explicitly enabled.
 [Gap refinement](../methods/network_gap_medians.md) gives the selection rule,
 search limits and auditing fields. These switches change the requested run,
 not an already-published Explorer bundle.
@@ -102,7 +91,6 @@ immutable artifact cannot be overwritten with different output bytes.
 Use `sigma view pasig --refresh` to rebuild only the browser bundle. These are
 different operations.
 
-<!-- sigma-augment-docs-v1:begin:quickstart -->
 ### Optional: add user-supplied places after `sigma load`
 
 To combine an existing loaded area with a registry or another CSV/Parquet source, run `sigma augment` **after** `sigma load` and **before** `sigma run`:
@@ -115,7 +103,6 @@ sigma run quezon_city
 ```
 
 `--check` validates the input and previews matches without writing. Required columns are `source_id`, `name`, `lon`, `lat`; optional `io16`, `io80`, and `io240` columns allow explicit hierarchical IO classification, and arbitrary extra fields are preserved for later use. See [Augment user-provided places](../methods/augmentation.md) for the complete contract and conflict handling.
-<!-- sigma-augment-docs-v1:end:quickstart -->
 
 ## 4. Inspect the published results
 
@@ -147,8 +134,8 @@ explicit decision that may sacrifice older-run reproducibility. See the
 A useful way to audit a result is to follow this sequence:
 
 1. verify the selected area and exact boundary;
-2. inspect source counts and canonical-place matching diagnostics;
-3. inspect PSIC/economy classification and any human-reviewed point file;
+2. inspect source counts and canonical-place matching diagnostics, including any augmentation source;
+3. inspect PSIC classification, administrative-office changes (`admin_activity_status`), ownership evidence (`institution_promotion_status`), area sectors (`economy_status`, `economy_review_required`) and any human-reviewed point file;
 4. inspect road snapping and disconnected components;
 5. inspect baseline HDBSCAN cluster/noise and adaptive-distance diagnostics;
 6. for generated hierarchies, inspect K=0 roll-up decisions, original/effective sectors, then `median_gap_audit.json` and final child IDs;
