@@ -73,6 +73,19 @@ and [Under the Hood](src/sigma/web/static/tutorial.html). The published
 it does not publish your local establishment data.
 <!-- sigma-docs-20261104-v1:end -->
 
+## Optional network Gap k-medoids refinement
+
+Run `sigma run quezon_city --median-gap --refresh` to opt into a second-stage
+network-distance partition of each retained HDBSCAN cluster. Gap statistic
+one-standard-error model selection determines the number of network medoids
+(up to the configured search bound), and all original members are assigned
+to their nearest selected medoid. The default is **off**. There is **no cluster
+invalidation**; HDBSCAN noise stays noise. Original cluster IDs, per-cluster
+Gap values and approximation flags are retained in the clustering artifact.
+Hierarchy roll-up still uses original HDBSCAN counts. See [methodological
+specification](docs/book/content/methods/network_gap_medians.md), also
+included in the GitHub Pages Jupyter Book.
+
 ## Objectives
 
 The main objective of SIGMA is to enable the design of **ecosystem-specific MSME acquisition strategies** by identifying spatially concentrated business systems, estimating how those systems are connected, and ranking influential businesses within them.

@@ -24,6 +24,7 @@ from sigma.stages import StageSpec
 from sigma.savepoints import StageSavepoints  # SIGMA_RESUMABLE_SAVEPOINTS_V1
 from sigma.transport._sparse_solver import SparseRoadSolver
 from sigma.transport.network import AugmentedNetwork, RoadNetwork, SnappedPoints
+from .network_gap import NetworkGapConfig, refine_clusters_by_gap
 from sigma.transport.roads import FileRoadSource, GeofabrikRoadSource, RoadSource, validate_road_frame
 from sigma.workspace import SigmaWorkspace
 
@@ -63,6 +64,11 @@ class SpatialRunConfig:
     hdbscan_core_truncation_tolerance: float = 0.01
     hdbscan_stability_tolerance: float = 1e-12
     hdbscan_max_neighbor_pairs: int = 20_000_000
+    median_gap_refinement: bool = False
+    median_gap_max_k: int = 6
+    median_gap_replicates: int = 10
+    median_gap_max_sites: int = 64
+    median_gap_seed: int = 20261105
 
     # Preserve Engine fallback policy: network Voronoi is primary, coarse network
     # partitions are refined, and planar Euclidean Voronoi is the default recovery path.
@@ -265,7 +271,10 @@ class SpatialPipeline:
         cfg = self.config
         return ArtifactRecipe.build(
             "spatial.clusters",
-            implementation_version="network-hdbscan-step1-v2-default-euclidean-fallback" + MANAGED_TABLES_VERSION,
+            implementation_version=(
+                "network-hdbscan-step1-v2-default-euclidean-fallback"
+                if not cfg.median_gap_refinement else "network-hdbscan-median-gap-v1"
+            ) + MANAGED_TABLES_VERSION,
             dependencies=deps,
             parameters={
                 "vertex_digits": cfg.vertex_digits,
@@ -284,6 +293,12 @@ class SpatialPipeline:
                 "hdbscan_max_neighbor_pairs": cfg.hdbscan_max_neighbor_pairs,
                 "euclidean_fallback": True,
                 "continue_on_error": True,
+                **({"median_gap_max_k": cfg.median_gap_max_k,
+                    "median_gap_replicates": cfg.median_gap_replicates,
+                    "median_gap_max_sites": cfg.median_gap_max_sites,
+                    "median_gap_seed": cfg.median_gap_seed,
+                    "median_gap_min_members": cfg.min_cluster_size}
+                   if cfg.median_gap_refinement else {}),
             },
         )
 
@@ -478,6 +493,57 @@ class SpatialPipeline:
             events=events,
             savepoints=StageSavepoints(self.workspace.root, recipe.stage, recipe.fingerprint),
         )
+        median_gap_audit = []
+        if self.config.median_gap_refinement:
+            # Refinement occurs after HDBSCAN. Reuse exact snap positions; insert
+            # only the retained observations as road vertices, as later stages do.
+            clustered["hdbscan_cluster"] = clustered["cluster"].astype(np.int64)
+            kept = retained_points(clustered)
+            if not kept.empty:
+                source_pos = kept["_sparse_source_pos"].to_numpy(np.int64, copy=False)
+                road = RoadNetwork.from_sparse_graph(
+                    context.graph, points.crs, vertex_digits=self.config.vertex_digits)
+                sparse_snaps = context.snaps.subset(source_pos)
+                snapped = SnappedPoints(
+                    pd.DataFrame({
+                        "source_pos": np.arange(len(kept), dtype=np.int64),
+                        "edge_pos": context.edge_id[source_pos],
+                        "edge_id": context.edge_id[source_pos],
+                        "offset": sparse_snaps.offset,
+                        "snap_distance": sparse_snaps.snap_distance,
+                        "snapped_geometry": list(shapely.points(sparse_snaps.snapped_xy)),
+                    }), road.crs)
+                augmented = road.augment(snapped, progress=self.progress)
+                prepared = kept.reset_index(drop=True).copy()
+                prepared["network_node"] = augmented.point_node
+                new_labels, median_gap_audit = refine_clusters_by_gap(
+                    prepared, augmented,
+                    NetworkGapConfig(
+                        max_k=self.config.median_gap_max_k,
+                        replicates=self.config.median_gap_replicates,
+                        max_sites=self.config.median_gap_max_sites,
+                        seed=self.config.median_gap_seed,
+                        min_members=self.config.min_cluster_size,
+                    ), progress=self.progress)
+                clustered.iloc[
+                    source_pos, clustered.columns.get_loc("cluster")
+                ] = new_labels
+            refined_per_type = (
+                clustered.loc[clustered.cluster >= 0, ["type", "cluster"]]
+                .drop_duplicates().groupby("type").size().to_dict())
+            for row in clustered.attrs.get("clustering_summary", []):
+                row["hdbscan_n_clusters"] = row.get("n_clusters")
+                row["n_clusters"] = int(refined_per_type.get(row["type"], 0))
+            write.output("median_gap_audit.json").write_text(
+                json.dumps({"method": "network-gap-kmedoids-v1",
+                            "reference": "uniform_road_vertices_in_demand_bbox",
+                            "config": {"max_k": self.config.median_gap_max_k,
+                                       "replicates": self.config.median_gap_replicates,
+                                       "max_sites": self.config.median_gap_max_sites,
+                                       "seed": self.config.median_gap_seed,
+                                       "min_members": self.config.min_cluster_size},
+                            "clusters": median_gap_audit},
+                           sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
         write_geoframe(clustered, write.output("clustered.parquet"))
         save_sparse_context(
             context,
@@ -522,6 +588,9 @@ class SpatialPipeline:
                 str(row.get("distance_status")) == "failed_skipped" for row in summaries
             ),
             "max_snap_distance_observed": float(context.snaps.snap_distance.max(initial=0.0)),
+            "median_gap_refinement": bool(self.config.median_gap_refinement),
+            "median_gap_new_clusters": int(sum(max(0, row["selected_k"] - 1)
+                for row in median_gap_audit)),
         }, {"events": stable_audit(events)}
 
     @staticmethod

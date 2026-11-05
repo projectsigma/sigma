@@ -36,6 +36,7 @@ source.geofabrik_pbf + area.boundary ──> transport.roads
 transport.roads + places.classified ───> spatial.points
 spatial.points + transport.roads ──────> spatial.clusters
 spatial.clusters ──────────────────────> spatial.centers
+    └─ optional network Gap k-medoids refinement inside spatial.clusters
 spatial.clusters + spatial.centers ────> spatial.point_distances
 spatial.clusters + spatial.centers + area.boundary ──> spatial.partitions
 ```

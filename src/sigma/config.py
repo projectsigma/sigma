@@ -57,6 +57,11 @@ class SpatialConfig:
     hdbscan_core_truncation_tolerance: float = 0.01
     hdbscan_stability_tolerance: float = 1e-12
     hdbscan_max_neighbor_pairs: int = 20_000_000
+    median_gap_refinement: bool = False
+    median_gap_max_k: int = 6
+    median_gap_replicates: int = 10
+    median_gap_max_sites: int = 64
+    median_gap_seed: int = 20261105
     voronoi_resolution: float = 500.0
     voronoi_max_cells: int = 1_000_000
     voronoi_refine_factor: float = 0.5

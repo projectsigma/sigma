@@ -16,6 +16,7 @@ parts:
       - file: content/methods/roads
       - file: content/methods/hdbscan
       - file: content/methods/centers
+      - file: content/methods/network_gap_medians
       - file: content/methods/voronoi
   - caption: Economic and spatial-economic network
     chapters:

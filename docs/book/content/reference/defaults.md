@@ -45,6 +45,10 @@ This CLI default is an **economy/workspace-specific policy**. It is not a
 |---|---:|
 | `vertex_digits` | 11 |
 | `min_cluster_size` | 5 |
+| Network Gap k-medoids refinement | **off** (opt in with `sigma run --median-gap`) |
+| Network Gap maximum tested k | 6 |
+| Network Gap reference draws | 10 |
+| Network Gap fitted observations per HDBSCAN cluster | 64 maximum |
 | `min_samples` | `None` → cluster size |
 | cluster selection | `eom` |
 | allow single cluster | `False` |
