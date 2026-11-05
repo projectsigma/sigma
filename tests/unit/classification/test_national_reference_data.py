@@ -15,4 +15,8 @@ def test_hospital_only_snapshot():
  assert sum(r.ownership=="private" for r in records)==62
  assert all(r.id_kind=="publication_row" for r in records)
  manifest=json.loads((DATA/"national_reference_hospitals_v10.json").read_text())
- assert hashlib.sha256(p.read_bytes()).hexdigest()==manifest["hospital_csv_sha256"]
+ # The manifest hashes the canonical LF Git bytes, not checkout-specific CRLF.
+ raw = p.read_bytes()
+ canonical = raw.replace(b"\r\n", b"\n")
+ assert b"\r" not in canonical, "unexpected bare carriage return in hospital CSV"
+ assert hashlib.sha256(canonical).hexdigest()==manifest["hospital_csv_sha256"]

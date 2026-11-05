@@ -121,7 +121,7 @@ def apply_administrative_activity(frame: pd.DataFrame, *, taxonomy: Any) -> pd.D
         r"(?i)health\s+department|regional\s+office|division\s+office|"
         r"department\s+of\s+(?:health|education)|\bdoh\b|\bdeped\b|"
         r"health\s+office|education\s+department", regex=True)
-    policy_node = taxonomy.get(ADMIN_PSIC)  # Fail closed if the reference lacks it.
+    policy_node = None  # Resolve only when a reassignment needs the reference.
     for idx, row in out.loc[candidate].iterrows():
         decision, reason = classify_administrative_function(row)
         if decision == "NONE":
@@ -137,6 +137,8 @@ def apply_administrative_activity(frame: pd.DataFrame, *, taxonomy: Any) -> pd.D
             # Do not pretend the evidence proves a more precise subclass.
             out.at[idx, "admin_activity_status"] = "CONFIRMED"
             continue
+        if policy_node is None:
+            policy_node = taxonomy.get(ADMIN_PSIC)  # Fail closed for actual reassignments.
         out.at[idx, "admin_original_psic"] = original["psic_code"]
         out.at[idx, "psic_code"] = ADMIN_PSIC
         out.at[idx, "psic_level"] = policy_node.level

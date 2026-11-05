@@ -46,7 +46,12 @@ def test_fast_conflicts_with_refresh(monkeypatch, tmp_path, option):
 
 def test_help_lists_both_flags():
     from sigma.cli import app
-    result = CliRunner().invoke(app, ["view", "--help"])
-    assert result.exit_code == 0, result.output
-    assert "--fast" in result.output
-    assert "--ui-only" in result.output
+    result = CliRunner().invoke(
+        app, ["view", "--help"], env={"COLUMNS": "200", "NO_COLOR": "1"}
+    )
+    # Verify both option names without depending on Rich/ANSI presentation.
+    from click import unstyle
+    output = unstyle(result.output)
+    assert result.exit_code == 0, output
+    assert "--fast" in output
+    assert "--ui-only" in output

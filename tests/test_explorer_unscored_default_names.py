@@ -45,5 +45,7 @@ def test_map_tile_loading_requires_explicit_opt_in():
     assert 'unscoredCandidates = classifiedOnly;' in loader
     assert "setData('points', {type: 'FeatureCollection', features: scoredFeatures})" in loader
     sync = js.split('  function syncUnscoredOverlay() {', 1)[1].split('  function applyEmphasis()', 1)[0]
-    assert "control && control.checked && !control.disabled && !network" in sync
+    assert "const general = Boolean(!network && control && control.checked && !control.disabled);" in sync
+    assert "const context = Boolean(network && linked && linked.checked && !linked.disabled);" in sync
+    assert "const enabled = general || context;" in sync
     assert "setData('unscored-points'" in sync

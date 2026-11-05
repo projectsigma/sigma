@@ -5,3 +5,6 @@ src/sigma/resources/classification/**/*.parquet binary
 src/sigma/resources/classification/**/*.xlsx binary
 # Checksum-controlled national IO240 reference package (load portability patch v4).
 src/sigma/resources/economy/psa_2018_io240/** text eol=lf
+
+# Keep the checksum-controlled PhilHealth snapshot byte-stable on Windows.
+data/references/institution_national_v1_20261104.csv text eol=lf

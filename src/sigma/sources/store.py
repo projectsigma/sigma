@@ -6,7 +6,7 @@ import json
 import os
 import re
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
@@ -115,8 +115,8 @@ class SourceRef:
     size: int
     path: Path
     version: str | None = None
-    selection: Mapping[str, object] = MappingProxyType({})
-    metadata: Mapping[str, object] = MappingProxyType({})
+    selection: Mapping[str, object] = field(default_factory=lambda: MappingProxyType({}))
+    metadata: Mapping[str, object] = field(default_factory=lambda: MappingProxyType({}))
     managed: bool = False
     is_directory: bool = False
     manifest_path: Path | None = None
