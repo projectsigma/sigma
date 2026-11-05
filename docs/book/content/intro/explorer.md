@@ -81,14 +81,22 @@ industry, but the effective rolled-up sector remains its analytical X type.
 Expanding or hiding children does **not** create child clusters or recompute
 network scores. See [Hierarchical economy](../methods/hierarchical.md).
 
-There are two distinct opt-in unclustered displays. Outside a selected network,
-the existing classified/unscored overlay can show establishments with no X
-membership. When a scored cluster or place is selected, **Unclustered within
-highlighted partitions** shows only unclustered establishments with a matching
-effective sector lying inside the *published* Voronoi partition of the focus
-or one of the linked clusters. Focus opacity is `0.96`; depth `d` opacity is
-`0.90 / sqrt(d)`. This is spatial context, **not** a membership or score
-assignment. The public-profile Explorer does not expose establishment points.
+There are two independent, opt-in displays for classified establishments without a cluster.
+Both start off and draw hollow circles with no SIGMA score. **Show unscored sectors** reveals
+establishments of zero-cluster sectors only while no network is selected.
+**Show unclustered for scored sectors** reveals all eligible unclustered places of
+scored sectors without a selection; with a scored establishment or cluster selected,
+it shows only points lying in
+the *published* focus and linked Voronoi polygons **of the point's own effective sector**.
+The subset follows the Depth, Links, Strongest and sector-visibility settings. Hollow-circle
+size follows the smallest scored point of the effective sector, falling back to the smallest
+scored point overall in a zero-cluster sector. Their opacity does not fade with network depth.
+This is geographic context, **not** assignment of HDBSCAN membership, X links or a score.
+The public-profile Explorer does not expose establishment points.
+
+The local selected-establishment details show a PSIC code and its title when available;
+source-provided titles take precedence over the bundled PSIC Rev. 5 taxonomy. The browser
+does not infer a classification from a missing title.
 
 Hovering a visible cluster-center triangle while a selection is active
 transiently outlines just that cluster's existing Voronoi polygon in its

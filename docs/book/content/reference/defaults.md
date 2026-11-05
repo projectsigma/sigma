@@ -17,7 +17,7 @@ These are the main defaults, grouped by pipeline stage. Most are fields of `Sigm
 | Built-in sector colors | exact 336-color lookup (16/80/240); `o` residuals use the parent color |
 | Explorer Strongest selector | 3 links per explored cluster |
 | Explorer original roll-up children | collapsed initially; filter establishment points only |
-| Explorer contextual unclustered overlay | off until chosen; focus 0.96, depth `d`: `0.90/sqrt(d)` |
+| Explorer unclustered overlays | two independent opt-ins, both initially off; scored-sector points use selected matching-sector Voronoi polygons; hollow circle sized by sector scored minimum (global fallback); no depth-based opacity |
 | Explorer hovered center outline | display only, in sector color, when a selection is active |
 
 The stage 5 settings live in `<SIGMA_HOME>/hierarchical-defaults.json` (written by the first hierarchical `sigma load`; change them with `sigma economy hierarchical-configure`). The roll-up default is a CLI policy for generated hierarchies, not a `SigmaConfig` constant. Gap refinement, in contrast, is a `SigmaConfig` default that applies to every selected economy except the legacy `--equivalent` profile. Neither changes HDBSCAN*'s `min_cluster_size=5`.
