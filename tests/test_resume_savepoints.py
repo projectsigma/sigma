@@ -89,19 +89,25 @@ def test_voronoi_completed_type_reused(tmp_path: Path, monkeypatch):
     network = SimpleNamespace(crs="EPSG:3857")
     calls = []
     def compute(*args, **kwargs):
-        calls.append(1)
+        attempt_resolution = float(args[3])
+        calls.append(attempt_resolution)
         return gpd.GeoDataFrame({"type": ["A"], "cluster": [0],
                                  "surface_method": ["network"],
-                                 "surface_resolution": [1.]},
+                                 "surface_resolution": [attempt_resolution]},
                   geometry=[Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])], crs=network.crs)
     monkeypatch.setattr(module, "surface_partition_for_type", compute)
     store = StageSavepoints(tmp_path, "spatial.partitions", "recipe")
     first = module.all_surface_partitions(network, points, boundary, 1.,
                      euclidean_fallback=False, savepoints=store)
+    # Initial execution legitimately computes two resolutions to check
+    # convergence.  Resuming must not recompute either resolution.
+    assert calls == [1.0, 0.5]
     second = module.all_surface_partitions(network, points, boundary, 1.,
                      euclidean_fallback=False, savepoints=store)
-    assert len(calls) == 1
+    assert calls == [1.0, 0.5]
     assert first.geometry.iloc[0].equals(second.geometry.iloc[0])
+    assert float(first.surface_resolution.iloc[0]) == 0.5
+    assert float(second.surface_resolution.iloc[0]) == 0.5
 
 
 def test_network_x_source_type_restored_without_route_solving(tmp_path: Path):

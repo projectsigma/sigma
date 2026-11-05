@@ -292,7 +292,7 @@ def _config(
     cluster_selection_method: str = "eom",
     allow_single_cluster: bool = False,
     hdbscan_max_distance: float = 5000.0,
-    voronoi_resolution: float = 500.0,
+    voronoi_resolution: float = 50.0,
     voronoi_max_cells: int = 1_000_000,
     centrality_method: str | None = None,
     centrality_direction: str = "incoming",
@@ -516,7 +516,7 @@ def run_command(
     median_gap_workers: int = typer.Option(4, "--median-gap-workers", min=1, max=4,
         help="Independent spawn processes for network Gap refinement (1-4; default 4)."),
     allow_single_cluster: bool = typer.Option(False, "--allow-single-cluster"),
-    voronoi_resolution: float = typer.Option(500.0, "--voronoi-resolution"),
+    voronoi_resolution: float = typer.Option(50.0, "--voronoi-resolution"),
     centrality_method: str | None = typer.Option(
         None, "--centrality-method",
         help="Centrality method: katz (canonical default) or eigenvector (legacy undirected projection).",
@@ -890,7 +890,7 @@ def spatial_run(
     io80_column: str | None = typer.Option(None, "--io80-column"),
     io16_column: str | None = typer.Option(None, "--io16-column"),
     allow_single_cluster: bool = typer.Option(False, "--allow-single-cluster"),
-    voronoi_resolution: float = typer.Option(500.0, "--voronoi-resolution"),
+    voronoi_resolution: float = typer.Option(50.0, "--voronoi-resolution"),
     force: bool = typer.Option(False, "--force"),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
@@ -1374,7 +1374,7 @@ def analysis_run(
     min_cluster_size: int = typer.Option(5, "--min-cluster-size"),
     min_samples: int | None = typer.Option(None, "--min-samples"),
     allow_single_cluster: bool = typer.Option(False, "--allow-single-cluster"),
-    voronoi_resolution: float = typer.Option(500.0, "--voronoi-resolution"),
+    voronoi_resolution: float = typer.Option(50.0, "--voronoi-resolution"),
     force: bool = typer.Option(False, "--force"),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:

@@ -90,8 +90,20 @@ def test_c11_managed_partitions_match_engine_c0_geometry_and_public_schema(tmp_p
         }
         for row in golden["partitions"]
     ]
+    # Golden polygons and areas remain unchanged; convergence changes
+    # only the chosen raster resolution in this exact fixture.
+    assert {row["surface_resolution"] for row in expected_diag} == {1.0}
+    for row in expected_diag:
+        row["surface_resolution"] = 0.5
     assert diagnostics["partitions"] == expected_diag
-    assert diagnostics["events"] == []
+    # Do not silently ignore the refinement audit.
+    assert len(diagnostics["events"]) == 1
+    event = diagnostics["events"][0]
+    assert event["action"] == "converged_resolution"
+    assert event["status"] == "converged"
+    assert event["requested_resolution"] == 1.0
+    assert event["used_resolution"] == 0.5
+    assert event["changed_owner_area_fraction"] <= 0.005
 
 
 def test_partitions_depend_on_centers_for_default_euclidean_fallback(tmp_path):

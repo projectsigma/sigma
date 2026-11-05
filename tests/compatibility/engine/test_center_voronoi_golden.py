@@ -109,5 +109,9 @@ def test_c0_network_partitions_match():
         }
         for row in parts.itertuples(index=False)
     ]
-    assert actual == golden["partitions"]
+    # Preserve the C0 historical golden geometry.  A successful 1 m grid
+    # is now compared with 0.5 m, and the finer equal-geometry result wins.
+    assert {row["surface_resolution"] for row in golden["partitions"]} == {1.0}
+    expected = [dict(row, surface_resolution=0.5) for row in golden["partitions"]]
+    assert actual == expected
     assert float(parts.geometry.area.sum()) == golden["partition_area_total"]
