@@ -39,6 +39,9 @@ from scipy.sparse.csgraph import dijkstra
 
 from sigma.transport.network import AugmentedNetwork
 
+# Fraction of sector territory permitted to change ownership between successive grids.
+VORONOI_CONVERGENCE_TOLERANCE = 0.005
+
 
 @dataclass(frozen=True)
 class NetworkVoronoi:
@@ -618,6 +621,81 @@ def euclidean_surface_partition_for_type(
     )
 
 
+def _grid_cell_count(bounds: tuple[float, float, float, float], resolution: float) -> int:
+    """Exact candidate-grid count used by _grid, before geometry allocation."""
+    if not np.isfinite(resolution) or resolution <= 0:
+        raise ValueError("Voronoi surface resolution must be finite and positive")
+    x0, y0, x1, y1 = bounds
+    nx = max(1, int(np.ceil((x1 - x0) / resolution)))
+    ny = max(1, int(np.ceil((y1 - y0) / resolution)))
+    return nx * ny
+
+
+def _budgeted_start_resolution(
+    bounds: tuple[float, float, float, float],
+    requested: float,
+    max_cells: int,
+) -> tuple[float, int, bool]:
+    """Start at requested resolution; coarsen only when the grid exceeds its cap.
+
+    If a doubled resolution fits, bisect the bounded interval *without building
+    polygons* to find the finest feasible spacing to within ~0.025% of the
+    coarsening bracket.  This prevents choosing 100m when ~55m already fits.
+    Returns (feasible_resolution, candidate_cell_count, was_coarsened).
+    """
+    if isinstance(max_cells, bool) or not isinstance(max_cells, int) or max_cells < 1:
+        raise ValueError("Voronoi max_cells must be a positive integer")
+    requested = float(requested)
+    cells = _grid_cell_count(bounds, requested)
+    if cells <= max_cells:
+        return requested, cells, False
+    low = requested  # over budget
+    high = requested
+    for _ in range(64):
+        high *= 2.0
+        if not np.isfinite(high):
+            raise ValueError("Voronoi resolution coarsening exceeded finite range")
+        if _grid_cell_count(bounds, high) <= max_cells:
+            break
+        low = high
+    else:
+        raise RuntimeError("Voronoi grid cap cannot be satisfied after bounded coarsening")
+    # The minimum feasible resolution may lie strictly between 50 and 100,
+    # or between later doublings. Avoid the full-grid cost of probing it.
+    for _ in range(12):
+        mid = (low + high) / 2.0
+        if _grid_cell_count(bounds, mid) <= max_cells:
+            high = mid
+        else:
+            low = mid
+    return high, _grid_cell_count(bounds, high), True
+
+
+def _partition_change_fraction(
+    previous: gpd.GeoDataFrame,
+    current: gpd.GeoDataFrame,
+) -> float:
+    """Fraction of a sector's territory whose cluster ownership changed.
+
+    Every surface is a complete, non-overlapping partition of the same boundary.
+    Summing same-cluster intersections thus counts the area that retained its
+    owner; dividing by previous total area yields a scale-independent measure.
+    Comparing individual cluster geometries prevents an unchanged union of all
+    polygons from being mistaken for convergence.
+    """
+    prior = previous.set_index("cluster", verify_integrity=True).sort_index()
+    newer = current.set_index("cluster", verify_integrity=True).sort_index()
+    if not prior.index.equals(newer.index):
+        raise ValueError("Voronoi refinement changed the set of retained cluster labels")
+    a = prior.geometry.to_numpy()
+    b = newer.geometry.to_numpy()
+    total = float(np.sum(shapely.area(a)))
+    if not np.isfinite(total) or total <= 0:
+        raise ValueError("Voronoi convergence comparison has non-positive surface area")
+    unchanged = float(np.sum(shapely.area(shapely.intersection(a, b))))
+    return float(np.clip(1.0 - unchanged / total, 0.0, 1.0))
+
+
 def all_surface_partitions(
     network: AugmentedNetwork,
     points: gpd.GeoDataFrame,
@@ -637,10 +715,12 @@ def all_surface_partitions(
 ) -> gpd.GeoDataFrame:
     """Render partitions for every retained economic type with graceful fallback.
 
-    Network Voronoi is attempted first.  A coarse grid is retried at progressively finer
-    resolutions.  After those network attempts are exhausted, ordinary planar Voronoi is
-    attempted using one final cluster center per site.  Only if that also fails is a type
-    skipped in ``continue_on_error`` mode.
+    Each sector starts at the requested 50m spacing. If that violates the
+    cell cap, bounded geometric coarsening finds the finest feasible grid.
+    Otherwise, attempts refine until changed-owner area converges or a guard
+    is reached. A valid network surface is never discarded merely because
+    finer grids fail. Euclidean fallback is attempted only if no network
+    surface succeeds.
     """
     if not (0 < float(refine_factor) < 1):
         raise ValueError("Voronoi refine_factor must be between 0 and 1")
@@ -657,6 +737,9 @@ def all_surface_partitions(
     if euclidean_fallback and centers is None:
         raise ValueError("Euclidean Voronoi fallback requires cluster centers")
 
+    # Shared projected boundary bounds; grid candidate counts are exact.
+    # Avoid allocating cells for spacing values that exceed the cap.
+    grid_bounds = _boundary_geometry(boundary, network.crs).bounds if auto_refine else None
     parts: list[gpd.GeoDataFrame] = []
     cache: dict = {}  # shared by all types and attempts; see surface_partition_for_type
     groups = list(points.groupby("type", sort=True))
@@ -706,14 +789,86 @@ def all_surface_partitions(
         if progress is not None:
             progress(f"voronoi: starting type {position:,}/{total_types:,} {type_text!r}")
 
-        attempt_resolution = float(resolution)
+        requested_resolution = float(resolution)
         part = None
         last_error: Exception | None = None
         network_attempts = 0
+        # First search in the COARSER direction if the requested 50m grid
+        # violates the cell cap. Compute candidate counts without allocating
+        # grid geometries; then bisect the budget boundary to avoid needless
+        # loss of precision (e.g. choosing 100m if 55m fits).
+        if auto_refine:
+            assert grid_bounds is not None
+            attempt_resolution, initial_count, coarsened = _budgeted_start_resolution(
+                grid_bounds, requested_resolution, max_cells
+            )
+            if coarsened:
+                if progress is not None:
+                    progress(
+                        f"voronoi: type {type_text!r}: initial resolution "
+                        f"{requested_resolution:g} exceeds max_cells={max_cells:,}; "
+                        f"coarsened to finest budget-feasible resolution "
+                        f"{attempt_resolution:.6g} ({initial_count:,} candidate cells)"
+                    )
+                if events is not None:
+                    events.append({
+                        "stage": "voronoi", "type": type_text, "cluster": None,
+                        "status": "adjusted", "action": "coarsened_grid_budget",
+                        "attempt": 0, "requested_resolution": requested_resolution,
+                        "used_resolution": float(attempt_resolution),
+                        "candidate_cells": int(initial_count), "max_cells": int(max_cells),
+                        "error": None,
+                    })
+        else:
+            attempt_resolution = requested_resolution
+
+        # After the first feasible spacing, refine whenever possible. Even a
+        # successful first surface is compared against a finer one; the first
+        # success is not taken as evidence of geometric convergence.
         for attempt in range(max_refinements + 1):
-            network_attempts = attempt + 1
+            # Check the exact grid cost BEFORE allocating cells. A finer level
+            # can exceed the budget even though an earlier level succeeded.
+            if auto_refine and _grid_cell_count(grid_bounds, attempt_resolution) > max_cells:
+                last_error = ValueError(
+                    f"Voronoi resolution {attempt_resolution:g} requires "
+                    f"{_grid_cell_count(grid_bounds, attempt_resolution):,} candidate cells, "
+                    f"above max_cells={max_cells:,}"
+                )
+                if part is None:
+                    if progress is not None:
+                        progress(
+                            f"voronoi: WARNING type {type_text!r}: {last_error}; "
+                            "no valid network surface fits the grid budget"
+                        )
+                    if events is not None:
+                        events.append({
+                            "stage": "voronoi", "type": type_text, "cluster": None,
+                            "status": "bounded", "action": "grid_budget_cluster_conflict",
+                            "attempt": network_attempts,
+                            "requested_resolution": requested_resolution,
+                            "used_resolution": None, "error": str(last_error),
+                        })
+                else:
+                    used = float(part["surface_resolution"].iloc[0])
+                    if progress is not None:
+                        progress(
+                            f"voronoi: type {type_text!r}: cannot refine to "
+                            f"{attempt_resolution:g} ({last_error}); "
+                            f"retaining valid network resolution={used:g}"
+                        )
+                    if events is not None:
+                        events.append({
+                            "stage": "voronoi", "type": type_text, "cluster": None,
+                            "status": "bounded", "action": "retain_last_valid_network_resolution",
+                            "attempt": network_attempts,
+                            "requested_resolution": requested_resolution,
+                            "used_resolution": used, "error": str(last_error),
+                        })
+                break
+
+            network_attempts += 1
             try:
-                part = surface_partition_for_type(
+                candidate = surface_partition_for_type(
                     network,
                     group,
                     boundary,
@@ -722,33 +877,12 @@ def all_surface_partitions(
                     progress=progress,
                     cache=cache,
                 )
-                if attempt > 0:
-                    if progress is not None:
-                        progress(
-                            f"voronoi: type {type_text!r}: recovered after {attempt} "
-                            "refinement(s); "
-                            f"using resolution={attempt_resolution:g}"
-                        )
-                    if events is not None:
-                        events.append(
-                            {
-                                "stage": "voronoi",
-                                "type": type_text,
-                                "cluster": None,
-                                "status": "recovered",
-                                "action": "refined_resolution",
-                                "attempt": attempt + 1,
-                                "requested_resolution": float(resolution),
-                                "used_resolution": float(attempt_resolution),
-                                "error": str(last_error) if last_error is not None else None,
-                            }
-                        )
-                break
             except (ValueError, RuntimeError, MemoryError) as exc:
                 last_error = exc
                 coarse = "too coarse" in str(exc).lower()
-                can_refine = auto_refine and coarse and attempt < max_refinements
-                if can_refine:
+                # A missing-cluster failure benefits from refinement. Other
+                # failures are not assumed to be resolution-sensitive.
+                if auto_refine and coarse and attempt < max_refinements:
                     next_resolution = attempt_resolution * float(refine_factor)
                     if progress is not None:
                         progress(
@@ -757,7 +891,75 @@ def all_surface_partitions(
                         )
                     attempt_resolution = next_resolution
                     continue
+                # Preserve the most recent valid network result, regardless
+                # of why the finer attempt failed.
+                if part is not None:
+                    used = float(part["surface_resolution"].iloc[0])
+                    if progress is not None:
+                        progress(
+                            f"voronoi: type {type_text!r}: finer resolution "
+                            f"{attempt_resolution:g} failed ({exc}); "
+                            f"retaining valid network resolution={used:g}"
+                        )
+                    if events is not None:
+                        events.append({
+                            "stage": "voronoi", "type": type_text, "cluster": None,
+                            "status": "bounded", "action": "retain_last_valid_network_resolution",
+                            "attempt": network_attempts,
+                            "requested_resolution": requested_resolution,
+                            "used_resolution": used, "error": str(exc),
+                        })
                 break
+
+            if part is None:
+                part = candidate
+                # When the first grid lost a cluster and a finer one worked,
+                # retain the legacy diagnostic for this recovery.
+                if last_error is not None and attempt > 0:
+                    if events is not None:
+                        events.append({
+                            "stage": "voronoi", "type": type_text, "cluster": None,
+                            "status": "recovered", "action": "refined_resolution",
+                            "attempt": network_attempts,
+                            "requested_resolution": requested_resolution,
+                            "used_resolution": float(attempt_resolution),
+                            "error": str(last_error),
+                        })
+            else:
+                changed = _partition_change_fraction(part, candidate)
+                part = candidate  # Always retain the finer valid surface.
+                if progress is not None:
+                    progress(
+                        f"voronoi: type {type_text!r}: compared resolution "
+                        f"{attempt_resolution:g}; changed-owner area={changed:.6%} "
+                        f"(tolerance={VORONOI_CONVERGENCE_TOLERANCE:.6%})"
+                    )
+                if changed <= VORONOI_CONVERGENCE_TOLERANCE:
+                    if events is not None:
+                        events.append({
+                            "stage": "voronoi", "type": type_text, "cluster": None,
+                            "status": "converged", "action": "converged_resolution",
+                            "attempt": network_attempts,
+                            "requested_resolution": requested_resolution,
+                            "used_resolution": float(attempt_resolution),
+                            "changed_owner_area_fraction": changed,
+                            "convergence_tolerance": VORONOI_CONVERGENCE_TOLERANCE,
+                            "error": None,
+                        })
+                    break
+
+            if not auto_refine or attempt >= max_refinements:
+                if auto_refine and events is not None:
+                    events.append({
+                        "stage": "voronoi", "type": type_text, "cluster": None,
+                        "status": "bounded", "action": "max_refinements_reached",
+                        "attempt": network_attempts,
+                        "requested_resolution": requested_resolution,
+                        "used_resolution": float(attempt_resolution),
+                        "error": None,
+                    })
+                break
+            attempt_resolution *= float(refine_factor)
 
         if part is None and euclidean_fallback:
             if progress is not None:

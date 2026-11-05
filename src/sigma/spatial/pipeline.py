@@ -36,7 +36,7 @@ from .clustering import (
     retained_points,
 )
 from .point_input import Classification, PointInputInfo, prepare_point_input
-from .voronoi import all_surface_partitions
+from .voronoi import VORONOI_CONVERGENCE_TOLERANCE, all_surface_partitions
 from .snap_context import load_sparse_context, save_sparse_context, validate_point_alignment
 
 
@@ -72,9 +72,9 @@ class SpatialRunConfig:
     median_gap_workers: int = 4
 
     # Preserve Engine fallback policy: network Voronoi is primary, coarse network
-    # partitions are refined, and planar Euclidean Voronoi is the default recovery path.
+    # partitions are refined to convergence, and planar Euclidean is the recovery path.
     # If both methods fail for one independent type, that type is skipped and recorded.
-    voronoi_resolution: float = 500.0
+    voronoi_resolution: float = 50.0
     voronoi_max_cells: int = 1_000_000
     voronoi_refine_factor: float = 0.5
     voronoi_max_refinements: int = 5
@@ -333,7 +333,7 @@ class SpatialPipeline:
         cfg = self.config
         return ArtifactRecipe.build(
             "spatial.partitions",
-            implementation_version="network-voronoi-step4-v3-default-euclidean-fallback" + MANAGED_TABLES_VERSION,
+            implementation_version="network-voronoi-step4-v5-50m-bidirectional-convergence" + MANAGED_TABLES_VERSION,
             dependencies=deps,
             parameters={
                 "resolution": cfg.voronoi_resolution,
@@ -341,6 +341,7 @@ class SpatialPipeline:
                 "auto_refine": True,
                 "refine_factor": cfg.voronoi_refine_factor,
                 "max_refinements": cfg.voronoi_max_refinements,
+                "convergence_tolerance": VORONOI_CONVERGENCE_TOLERANCE,
                 "euclidean_fallback": True,
                 "continue_on_error": True,
             },
