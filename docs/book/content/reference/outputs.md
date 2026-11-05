@@ -55,7 +55,7 @@ worked examples as a substitute for the run-specific audit.
 
 ## Partitions (stage 12)
 
-`surface_method` distinguishes `network_voronoi` from `euclidean_voronoi_fallback`. `surface_resolution` records the rendering resolution actually used.
+The fields below are not in the published partition files; they are in `partition_diagnostics.json` of the `spatial.partitions` artifact. There, `surface_method` distinguishes `network_voronoi` from `euclidean_voronoi_fallback`, and `surface_resolution` records the grid spacing of the surface that was kept: the finest valid network grid, so a sector that converged at its first comparison reports 25 m rather than the 50 m start. Its `events` list records, for each sector, whether the spacing converged, was limited by the cell budget or by the refinement limit, or fell back; a non-empty list is normal. See {ref}`Voronoi diagnostics <voronoi-spacing-audit>`.
 
 ## Economic graph (stage 13)
 

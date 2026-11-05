@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — Network Voronoi grid convergence (stage 12)
+
+- The default start spacing of the Voronoi grid is now 50 m (`--voronoi-resolution`, `SpatialConfig.voronoi_resolution`, `SpatialRunConfig.voronoi_resolution`); it was 500 m. The legacy `--equivalent` profile uses the same start.
+- Before building any cell, SIGMA counts the candidate cells over the bounding box of the study boundary. If the start spacing needs more than `voronoi_max_cells` (1,000,000), it doubles the spacing and bisects 12 times toward the finest budget-feasible spacing (event `coarsened_grid_budget`).
+- A successful grid no longer ends refinement. Each sector is halved and rendered again until the changed-owner area fraction between successive valid surfaces is at most 0.005 (`converged_resolution`), the next grid would exceed the cell budget, a finer rendering fails (`retain_last_valid_network_resolution`), or five refinements are made (`max_refinements_reached`). The finest valid network surface is kept; a failure at a finer spacing does not discard it. Euclidean fallback runs only when a sector has no valid network surface; a cluster that gets no cell at a spacing whose finer grid exceeds the budget is recorded as `grid_budget_cluster_conflict`.
+- `surface_resolution` now reports the spacing of the kept (finest valid) surface, and `partition_diagnostics.json` contains one terminal event per sector with a network surface, so a clean run no longer has an empty event list.
+- The `spatial.partitions` recipe records `convergence_tolerance`, and its implementation version changed (`network-voronoi-step4-v5-50m-bidirectional-convergence`). Existing workspaces recompute stage 12 and the later stages on the next `sigma run`; clusters and centers are reused. Stage 12 takes longer than before.
+- Documentation: the Network Voronoi method page (grid spacing, changed-owner area, cell-budget limits, diagnostics), defaults, outputs, README, CLI reference and Under the Hood describe the new rule.
+
 ## Unreleased — IO tagging review fixes
 
 - IO tagging below PSIC groups: added `io/psic_rev5_io240_refinement.csv` (280 draft rows that narrow

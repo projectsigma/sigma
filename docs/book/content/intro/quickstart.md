@@ -72,7 +72,7 @@ The ordinary selected-economy run uses:
 - type-wise road-network HDBSCAN* (stage 8; its unrefined results decide the hierarchical K=0 roll-up of stage 9);
 - **default-on, single-pass Gap k-medoid refinement** of retained clusters using **up to four worker processes** (stage 10);
 - network-node 1-median cluster centers, computed for every final cluster (stage 11);
-- network-Voronoi surface partitions (stage 12);
+- network-Voronoi surface partitions on a grid that starts at 50 m and is refined until the territories stop changing, within a cell budget (stage 12);
 - X weights based on technical coefficients, both clustered-sector shares, and mean hub-mediated road distance (stages 13–14);
 - balanced sender-receiver weighted Katz (stages 15–16);
 - establishment distance tempering `lambda = 0.15` (stage 17); and

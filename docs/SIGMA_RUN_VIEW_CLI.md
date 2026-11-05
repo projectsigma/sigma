@@ -42,7 +42,7 @@ The existing artifact store is *immutable by recipe*. A refresh can be rejected 
 | `--median-gap-seed INT` | 20261105; deterministic random seed |
 | `--iterative-rollup` / `--no-iterative-rollup` | Stage 9; automatic K=0 roll-up for generated hierarchies only; explicit override |
 | `--allow-single-cluster` | `False`; permit selection of a single cluster where supported |
-| `--voronoi-resolution FLOAT` | `500.0`; partition-resolution parameter |
+| `--voronoi-resolution FLOAT` | `50.0`; start grid spacing (metres) for stage 12 partitions. Each sector is then refined by halving until at most 0.5 % of the area changes owner, the 1,000,000-cell budget is reached, or 5 refinements are made; the finest valid surface is kept. Coarser than this value only if the start grid exceeds the budget |
 | `--centrality-method METHOD` | `katz` (default) or `eigenvector` (legacy) |
 | `--centrality-direction DIRECTION` | `incoming` (default) or `outgoing`; compatibility-only, ignored by current Katz and eigenvector implementations |
 | `--x-distance-decay-lambda FLOAT` | `1.0`; exponent for inverse-distance attenuation of X edges |
