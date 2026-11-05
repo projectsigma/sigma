@@ -42,12 +42,22 @@ def test_refinement_never_changes_membership_or_economic_type(monkeypatch):
 
 
 def test_run_help_exposes_median_gap_options():
+    from typer.main import get_command
     from typer.testing import CliRunner
     from sigma.cli import app
-    response = CliRunner().invoke(app, ["run", "--help"], env={"NO_COLOR":"1", "COLUMNS":"220"})
+
+    response = CliRunner().invoke(app, ["run", "--help"], env={"NO_COLOR": "1"})
     assert response.exit_code == 0, response.output
-    assert "--median-gap" in response.output
-    assert "--median-gap-workers" in response.output
+
+    # Rich help formatting (including ANSI and wrapping) varies by Typer version.
+    # Test the registered Click options rather than the rendered terminal text.
+    run_command = get_command(app).commands["run"]
+    registered_options = {
+        option
+        for parameter in run_command.params
+        for option in (*parameter.opts, *parameter.secondary_opts)
+    }
+    assert {"--median-gap", "--no-median-gap", "--median-gap-workers"} <= registered_options
 
 
 def test_configuration_rejects_missing_model_comparisons():
