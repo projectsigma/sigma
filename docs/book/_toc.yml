@@ -12,11 +12,12 @@ parts:
       - file: content/methods/places
       # sigma-augment-docs-v1:begin:toc
       - file: content/methods/augmentation
+      - file: content/methods/shadow_classification
       # sigma-augment-docs-v1:end:toc
       - file: content/methods/roads
       - file: content/methods/hdbscan
-      - file: content/methods/centers
       - file: content/methods/network_gap_medians
+      - file: content/methods/centers
       - file: content/methods/voronoi
   - caption: Economic and spatial-economic network
     chapters:

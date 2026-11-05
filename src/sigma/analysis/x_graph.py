@@ -1,11 +1,15 @@
 """Spatial instantiation of a directed economic graph as cluster-level network ``X``.
 
 This is the C14 generalization of Engine's proven ``spatial_graph`` kernel.  The
-spatial mechanics are intentionally retained: sector relationships instantiate
-only where type-specific Voronoi partitions overlap with positive area, road
-separation is exact shortest-path distance between network centers, and X edge
-weight is the inverse-power road-distance definition
-``technical_coefficient / max(road_distance_in_metres, 1) ** x_distance_decay_lambda``.
+canonical numerical X model instantiates sector relationships only where
+type-specific Voronoi partitions overlap with positive area and centers are
+road-connected. Its edge weight is the positive direct technical coefficient
+multiplied by both clusters' shares among retained establishments of their
+exact sectors, then attenuated by inverse-power mean hub-mediated road
+distance (center-to-center shortest path plus both clusters' mean member-to-
+1-median radii). The `include_paths=False` managed execution computes
+numerical distances without materializing path geometries; browser routes
+are reconstructed on demand by the export/Explorer layer.
 
 Unlike the legacy Engine kernel, neither the sector graph nor X is required to
 be acyclic.  Reciprocal economic relationships therefore remain reciprocal X

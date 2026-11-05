@@ -81,15 +81,24 @@ The ordinary selected-economy run uses:
 - `transaction_preprocessing=none` and the full positive directed technical-coefficient graph;
 - deterministic PSIC classification at `load` (not again at `run`);
 - managed Geofabrik roads;
-- type-wise road-network HDBSCAN*;
-- network-node 1-median cluster centers;
+- type-wise road-network HDBSCAN* (unrefined results determine hierarchical K=0 roll-up);
+- **default-on, single-pass Gap k-medoid refinement** of retained clusters using **four worker processes**;
+- network-node 1-median cluster centers, freshly computed for accepted child clusters;
 - network-Voronoi surface partitions;
 - X weights based on technical coefficients, both clustered-sector shares, and mean hub-mediated road distance;
 - balanced sender-receiver weighted Katz; and
 - establishment distance tempering `lambda = 0.15`.
 
-Use `sigma run pasig --refresh` to recompute downstream analysis from loaded
-places without deliberately reloading sources or reclassifying establishments.
+Use `sigma run pasig --no-median-gap` to compare the original HDBSCAN
+partition, or `--median-gap-workers 1` to use the same refinement serially.
+Legacy `--equivalent` runs remain unrefined unless Gap is explicitly enabled.
+[Gap refinement](../methods/network_gap_medians.md) gives the selection rule,
+search limits and auditing fields. These switches change the requested run,
+not an already-published Explorer bundle.
+
+Use `sigma run pasig --refresh` only when downstream recomputation is actually
+needed from loaded places; it does not reclassify establishments. A matching
+immutable artifact cannot be overwritten with different output bytes.
 Use `sigma view pasig --refresh` to rebuild only the browser bundle. These are
 different operations.
 
@@ -115,7 +124,7 @@ sigma status pasig
 sigma view pasig
 ```
 
-`view` opens **[SIGMA Explorer](explorer.md)**, a local browser map synchronized with the directed cluster network and exact road paths. The analysis is not rerun. For traditional GIS inspection, open `pasig.qgz` in the workspace output directory. To generate a portable static bundle, use `sigma export-web pasig`; `--public` omits establishment-level records but still requires publication review.
+`view` opens **[SIGMA Explorer](explorer.md)**, a local browser map synchronized with the directed cluster network. In the default browser-routing mode, a Web Worker reconstructs exact center-to-center road paths on demand and validates their lengths against published X distances. Only explicit `sigma run AREA --route-geometry precomputed` creates per-edge GIS route geometries at export. The analysis is not rerun. For traditional GIS inspection, open `pasig.qgz` in the workspace output directory. To generate a portable static bundle, use `sigma export-web pasig`; `--public` omits establishment-level records but still requires publication review.
 
 The artifact DAG means a repeated run does not blindly rerun every computation. A stage is reused when the recipe fingerprint and stored files still match the requested inputs, parameters, source identities, and implementation version.
 
@@ -141,11 +150,12 @@ A useful way to audit a result is to follow this sequence:
 2. inspect source counts and canonical-place matching diagnostics;
 3. inspect PSIC/economy classification and any human-reviewed point file;
 4. inspect road snapping and disconnected components;
-5. inspect HDBSCAN cluster/noise and adaptive-distance diagnostics;
-6. inspect `center_method` and `surface_method` for fallbacks;
-7. inspect the effective transaction table and technical coefficients;
-8. inspect X-edge overlap, road distance, and weight;
-9. inspect `katz_in_raw`, `katz_out_raw`, and final centrality; and
-10. inspect establishment distance tempering and final `sigma_score`.
+5. inspect baseline HDBSCAN cluster/noise and adaptive-distance diagnostics;
+6. for generated hierarchies, inspect K=0 roll-up decisions, original/effective sectors, then `median_gap_audit.json` and final child IDs;
+7. inspect `center_method` and `surface_method` for fallbacks;
+8. inspect the effective transaction table and technical coefficients;
+9. inspect X-edge overlap, road distance, and weight;
+10. inspect `katz_in_raw`, `katz_out_raw`, and final centrality; and
+11. inspect establishment distance tempering and final `sigma_score`.
 
 The remainder of this book explains why each item exists and how it is computed.

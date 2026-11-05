@@ -189,17 +189,17 @@ def write_outputs_description(
         "            type, cluster, cluster_no, cluster_id.",
         "  nodes     Point representation of network X nodes in EPSG:4326. Key fields:",
         "            type, cluster_no, lat, lon, in_degree, out_degree, centrality.",
-        "  paths     Exact shortest road-network route used for every connected X edge.",
-        "            Key fields: from_type/from_cluster and to_type/to_cluster, road_distance,",
-        "            technical_coefficient, and edge_weight. Geometry is the actual route,",
-        "            not a straight or curved schematic chord.",
+        "  paths     Center-to-center road routes only when --route-geometry precomputed",
+        "            is selected. The default browser mode leaves this layer empty and",
+        "            publishes sigma_routing_graph.bin for on-demand browser routes.",
+        "            Numerical X weights and road distances are identical in both modes.",
         "",
         "OTHER OUTPUTS",
         "-------------",
         "sigma_points.parquet: canonical analyzed establishment layer combining cluster "
         "assignment, center distance, directed Katz components, balanced centrality, and sigma_score.",
-        "sigma_network_centers.parquet: exact network 1-median for each retained [type, cluster].",
-        "sigma_partitions.parquet: native-CRS Step-4 cluster polygons; also represented "
+        "sigma_network_centers.parquet: final network-node 1-median (or labeled recovery) for each [type, cluster].",
+        "sigma_partitions.parquet: final WGS84 cluster polygons; also represented "
         "in the GeoPackage.",
         "sigma_economic_graph.csv: canonical effective directed economic edges; legacy equivalent profiles publish sigma_io_dag.csv.",
         "sigma_X_nodes.csv: tabular X nodes and centrality.",
@@ -214,7 +214,7 @@ def write_outputs_description(
         f"Scored points: {number('scored_points')}",
         f"Represented economic types: {number('represented_types')}",
         f"Clusters / X nodes: {number('x_nodes')}",
-        f"X edges / shortest-road paths: {number('x_edges')}",
+        f"Numerical X edges (route geometry optional): {number('x_edges')}",
         f"Disconnected overlap pairs omitted from X: {number('disconnected_overlap_pairs')}",
         "Clusters per type (min / median / max): "
         f"{number('clusters_min_per_type')} / {number('clusters_median_per_type')} / "

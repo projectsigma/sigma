@@ -1,6 +1,11 @@
 # Network HDBSCAN*: discovering localized ecosystems
 
-Optional [network Gap k-medoids refinement](network_gap_medians.md) occurs **after** HDBSCAN and preserves HDBSCAN noise. It is off by default.
+Canonical [network Gap k-medoid refinement](network_gap_medians.md) occurs
+**after** retained HDBSCAN cluster extraction, is **on by default**, and
+preserves HDBSCAN noise. In a generated hierarchical run the original,
+unrefined HDBSCAN cluster counts determine K=0 residual-first roll-up
+*before* final-sector Gap refinement. Explicit `--no-median-gap` restores
+unrefined clusters; legacy `--equivalent` remains unrefined by default.
 
 SIGMA clusters establishments **separately for each economic type**. The clustering model is HDBSCAN*, but its pairwise distance is shortest-path distance on the supplied road network rather than Euclidean distance.
 

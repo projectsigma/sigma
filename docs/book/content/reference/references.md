@@ -40,6 +40,12 @@ Hobby, J. D. (1999). **Practical segment intersection with finite precision outp
 
 Hopcroft, J., & Tarjan, R. (1973). **Algorithm 447: Efficient algorithms for graph manipulation.** *Communications of the ACM*, 16(6), 372–378.
 
+## Gap-statistic selection and k-medoids
+
+Tibshirani, R., Walther, G., & Hastie, T. (2001). **Estimating the number of clusters in a data set via the gap statistic.** *Journal of the Royal Statistical Society: Series B*, 63(2), 411–423. [doi:10.1111/1467-9868.00293](https://doi.org/10.1111/1467-9868.00293)
+
+Kaufman, L., & Rousseeuw, P. J. (1990). **Finding Groups in Data: An Introduction to Cluster Analysis.** Wiley. The SIGMA implementation uses approximate greedy BUILD plus PAM-style SWAP on road-network distances with a network-specific reference null, not the canonical Euclidean Gap formulation.
+
 ## Network location and centers
 
 Daskin, M. S. (2013). **Network and Discrete Location: Models, Algorithms, and Applications** (2nd ed.). Wiley. [doi:10.1002/9781118537015](https://doi.org/10.1002/9781118537015)

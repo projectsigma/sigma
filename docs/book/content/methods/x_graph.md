@@ -45,44 +45,47 @@ it is not necessarily an unbiased estimator of that distance. The sums are
 **averaged**, so larger clusters are not penalized solely for having more
 establishments. Disconnected center pairs remain omitted as before.
 
-## Weight-only reruns and cached routes
+## Numerical Network X versus geographical route publication
 
-SIGMA checks the active immutable `analysis.x` artifact before recalculating X.
-If **all spatial routing and economic graph dependencies match** and only the
-X distance-decay/scoring recipe changed, SIGMA reads the old edge distances
-and unchanged route WKB from the validated GeoParquet artifact. It then
-recomputes `effective_road_distance`, `edge_weight`, Katz centrality, and point
-scores. It does **not** reconstruct shortest paths or route geometries.
+The canonical `analysis.x` stage (PR #29) performs **numerical** modeling:
+positive-area Voronoi overlap plus an IO coefficient produces a candidate
+cluster-level edge; exact shortest-road **distances** between final
+network-node 1-medians qualify it. The kernel uses mean hub-mediated
+separation and both exact-type clustered-establishment shares. The managed
+X computation calls the road distance-only solver, with `include_paths=False`.
+It does not generate route predecessors, polyline geometry or per-edge route
+files. The authoritative analytical fields are the immutable
+`analysis.x/x_edges.csv` and published `sigma_X_edges.csv`.
 
-The new `analysis.x` artifact contains a **hard link** to the original
-immutable `x_paths.parquet` rather than a rewritten copy, and a small
-`x_paths_overlay.json` manifest. The **authoritative current** coefficients,
-effective distances and edge weights are in its `x_edges.csv`. The supported
-`AnalysisPipeline.load_x()` reader checks source/target row identity and
-applies the current values to the GeoDataFrame on load. **Do not read numeric
-edge attributes straight from the hardlinked raw GeoParquet**, which retains
-the prior artifact's numeric values. Published GeoPackages are written through
-`load_x()` and have current edge weights. The artifact is independently
-checksummed and continues to work if the older artifact directory is pruned.
-Its provenance records `x_route_geometry_reused_from`. When spatial or
-economic graph inputs change, the existing full route-construction path runs.
-When a matched route artifact is malformed, the shortcut fails explicitly
-rather than silently reuse wrong routes or initiate a long reroute.
+For compatibility the numerical artifact may still contain
+`x_paths.parquet`, but in the current canonical numerical path it is an
+**empty GeoParquet placeholder**, not a second source of X edge geometry or
+weights. A retained legacy helper named `_reuse_x_routes_for_weight_only_change`
+and `x_paths_overlay.json` handling exist in source for earlier artifacts,
+but the current `_exec_x` no longer calls that route-reuse shortcut. Do not
+describe hardlinked route files or route geometry reuse as the canonical X
+pipeline. A new X recipe reuses matching numeric artifacts or computes the
+necessary distances under normal immutable-artifact rules; changing a
+spatial dependency requires numerical X reevaluation.
 
-The geometry bytes are **not rewritten** for weight-only changes on a
-filesystem that supports hard links (e.g. NTFS). A hardlink failure stops the
-run safely: SIGMA never falls back to an expensive copy or reroute. The new
-edge CSV, Katz, scores and exported GeoPackage still need some free space.
-For a forced rerun of the **same** recipe after a hardlink/overlay-based
-weight update, SIGMA re-executes the numerical weighting from the validated
-saved edge distances, reproducing the same overlay, provenance and artifact
-identity without rerouting. A forced rerun of an ordinary, full-route X artifact
-continues to use the full-routing implementation. This prevents a
-**same-workspace forced-rerun collision**, but does not make raw GeoParquet
-bytes canonical across independent workspaces with different cache histories;
-compare current numerical outputs via `load_x()`.
-To change only `distance_tempering` or Katz parameters, the existing stage
-graph reuses `analysis.x` entirely.
+**Route geometry is a downstream export choice**:
+
+- `sigma run AREA` / `--route-geometry browser` (**default**) publishes the
+  compact `sigma_routing_graph.bin` and X-center routing IDs. SIGMA Explorer's
+  Web Worker computes geographic shortest paths **on request**, with a
+  distance-parity check against the stored numerical `road_distance`. No
+  per-edge route file is generated for all X links.
+- `sigma run AREA --route-geometry precomputed` materializes each X edge's
+  actual center-to-center route **during export** and writes it into the
+  published GeoPackage `paths` layer. The same numerical X weights and Katz
+  scores apply; the browser mode's paths layer is empty by design.
+
+Routes are shortest geographical paths from one cluster center to another,
+not the **mean hub-mediated** effective separation used in weighting.
+Uncertainty from the road graph (undirected routing, topology and coverage)
+applies in either mode. A browser reconstruction can follow a different
+*equal-length* shortest path if ties occur; distance parity, rather than
+path-coordinate identity, is the enforced numerical contract.
 
 ## Edge weight
 
@@ -98,11 +101,12 @@ $$
 
 The 1-metre floor is the preexisting distance-kernel convention; it is **not**
 applied to the observed distances. The established positive-area Voronoi-overlap
-rule continues to govern whether an X edge exists. `road_distance` and the
-actual `road_path` remain the unchanged **center-to-center route**;
-`effective_road_distance` is the derived mean hub-mediated distance used only
-for edge attenuation. The route geometry is **not** claimed to have the
-`effective_road_distance` length.
+rule continues to govern whether an X edge exists. `road_distance` remains the actual numerical **center-to-center shortest
+road distance**. The default X artifact contains **no per-edge route
+geometry**; an on-demand browser path or explicitly precomputed export path
+represents that center-to-center route. `effective_road_distance` is the
+derived mean hub-mediated separation used for edge attenuation, not a
+route-polyline length.
 
 For a retained cluster $A$ in exact economic type $s(A)$, $N_A$ is its
 number of clustered establishments and $N_{s(A)}$ is the sum of the clustered

@@ -21,6 +21,15 @@ sigma view pasig --refresh
 
 If you have already run the analysis, you need only `sigma view pasig`.
 
+Explorer's **Under the Hood** tutorial (from the Explorer header) explains the
+canonical sequence from loaded hierarchical tags through K=0 roll-up,
+HDBSCAN, **default-on network Gap refinement with four worker processes**,
+final network 1-medians, network Voronoi and X scoring. The explanations are
+worked examples, not a per-run guarantee: for the actual run, inspect its
+configuration and `median_gap_audit.json` in the clustering artifact. An old
+Explorer bundle may predate these defaults. `sigma view AREA --fast` changes
+only its static website assets, not the underlying analytical results.
+
 ### Fast website-only changes
 
 When you are changing only Explorer/Guided Tutorial **HTML, CSS, JavaScript, images, logo or favicon**, update an *existing* Explorer bundle without recreating its graph, route geometries, polygons or establishment tiles:
@@ -39,7 +48,7 @@ sigma view quezon_city --fast
 1. Pan and zoom the geographic map. Establishments are colored by economic type, with cluster partitions, centers, optional roads, and the analysis boundary as geographic context.
 2. Select an establishment or cluster center. An establishment inherits its assigned `(type, cluster)` X node; it **does not** have its own firm-level supply-chain links.
 3. Inspect incoming, outgoing, or combined connections, and increase the neighborhood depth from direct connections to two steps or the reachable neighborhood. Direction choices govern **neighborhood discovery**; the diagram retains the directed relationships among the displayed nodes.
-4. Use theater view and fit-to-graph when a network is too crowded. Inspect edge attributes and highlight computed X-edge road paths in the map. Incoming routes are dashed blue and outgoing routes solid red.
+4. Use theater view and fit-to-graph when a network is too crowded. Inspect edge attributes and highlight center-to-center shortest paths (reconstructed in the browser by default, precomputed only by explicit option). Incoming routes are dashed blue and outgoing routes solid red.
 
 **Interpretation matters:** A directed X edge represents a *modeled spatial-economic link* grounded in IO technical coefficients, overlapping cluster partitions, and routable road-network separation. It is **not verified trade between two specific establishments**. The displayed X edge weight is **not** just the coefficient divided by the
 center-to-center road distance. It is
@@ -47,10 +56,13 @@ center-to-center road distance. It is
 Here `effective_road_distance` equals the center-to-center shortest-road
 distance **plus the two clusters' mean establishment-to-1-median road
 distances**; each share counts that cluster's establishments relative to all
-retained clustered establishments of the same exact economic type. The
-published route geometry and `road_distance` still describe the actual
-**center-to-center** shortest road route, not the effective hub-mediated
-quantity. Neither edge weight nor direction proves a transaction or local
+retained clustered establishments of the same exact economic type. The numerical `road_distance` describes the actual **center-to-center**
+shortest road separation, not the effective hub-mediated quantity. Under the
+default `--route-geometry browser`, Explorer reconstructs displayed shortest
+road paths from a published compact routing graph and checks each against
+that numerical distance; a route geometry is **not** stored with every X
+edge. Explicit `--route-geometry precomputed` materializes GIS routes at
+export, without changing the numerical X graph. Neither edge weight nor direction proves a transaction or local
 sourcing relationship. The routing graph itself is undirected. See
 [The X graph](../methods/x_graph.md) for the exact equation and limitations.
 

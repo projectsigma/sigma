@@ -6,6 +6,7 @@ This page summarizes the methodological foundations of the analytical workflow a
 |---|---|---|
 | Road shortest paths | Dijkstra (1959); SciPy (Virtanen et al., 2020) | Projected road representation, shared-vertex topology, batched routing, and validity checks. |
 | Network clustering | HDBSCAN* (Campello et al., 2013, 2015); network-space clustering (Yiu & Mamoulis, 2004; Wang et al., 2019) | Bounded sparse-neighborhood search, adaptive-radius diagnostics, deterministic tie handling, and fallback procedures. |
+| Post-HDBSCAN Gap refinement | Gap statistic and one-standard-error selection (Tibshirani, Walther & Hastie, 2001); Partitioning Around Medoids (Kaufman & Rousseeuw, 1990) | **Canonical default** on retained HDBSCAN clusters; adapted road-vertex bounding-rectangle null, observed-site candidate medoids, seeded sampling (max 64), up to 10 reference draws, `k≤6`, validity guard, exact bounded Dijkstra, vectorized SWAP, deterministic four-process execution; single pass (nonrecursive). |
 | Cluster centers | Network median and location theory (Hakimi, 1964, 1965; Handler & Mirchandani, 1979; Kariv & Hakimi, 1979) | Road-node candidate restriction for network-median selection, with centroid recovery where required. |
 | Network territories | Graph and network Voronoi methods (Erwig, 2000; Hakimi, Labbé & Schmeichel, 1992; Okabe et al., 2008; Okabe & Sugihara, 2012) | Grid-based boundary rendering, spatial refinement, and Euclidean fallback where network partitioning is unavailable. |
 | Input-output coefficients | Standard input-output coefficient convention, $a_{ij}=z_{ij}/x_j$ | Economy-data configuration and validation procedures. |
@@ -31,7 +32,10 @@ The fixed palette (16 + 80 + 240 sector colors), original child-point
 visibility, contextual unclustered markers, and the hovered Voronoi outline
 are **browser/QGIS representation choices**. They must not be confused with
 network HDBSCAN membership, Voronoi ownership, national IO coefficients, or
-observed economic relationships.
+observed economic relationships. The roll-up decision precedes the Gap
+post-clustering pass; Gap children do not revise the K=0 roll-up criterion.
+The fitted medoids are candidates for splitting only: final centers are
+recomputed by the subsequent exact network-node 1-median stage.
 <!-- sigma-docs-20261104-v1:end -->
 
 ## Implementation notes

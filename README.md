@@ -73,18 +73,46 @@ and [Under the Hood](src/sigma/web/static/tutorial.html). The published
 it does not publish your local establishment data.
 <!-- sigma-docs-20261104-v1:end -->
 
-## Optional network Gap k-medoids refinement
+## Default network Gap k-medoids refinement
 
-Run `sigma run quezon_city --median-gap --refresh` to opt into a second-stage
-network-distance partition of each retained HDBSCAN cluster. Gap statistic
-one-standard-error model selection determines the number of network medoids
-(up to the configured search bound), and all original members are assigned
-to their nearest selected medoid. The default is **off**. There is **no cluster
-invalidation**; HDBSCAN noise stays noise. Original cluster IDs, per-cluster
-Gap values and approximation flags are retained in the clustering artifact.
-Hierarchy roll-up still uses original HDBSCAN counts. See [methodological
-specification](docs/book/content/methods/network_gap_medians.md), also
-included in the GitHub Pages Jupyter Book.
+The canonical `sigma run AREA` now runs **network HDBSCAN*** followed by
+**Gap Statistic-guided k-medoid refinement** (four worker processes by default)
+for eligible retained clusters. The Gap stage uses exact road shortest-path
+distances, up to 10 reference draws, 64 sampled establishments and `k=6`, with
+the one-standard-error rule. It preserves HDBSCAN noise, and accepted children
+receive a newly computed **network-node 1-median** each before Voronoi, X,
+Katz centrality and point scoring. This is a **single pass**, not recursive
+subdivision. Some original clusters remain unsplit (`k=1`).
+
+The order matters for generated hierarchies: `sigma load` builds the baseline
+IO240/IO80/IO16 partition; baseline HDBSCAN `K=0` results determine whether
+residual-first iterative roll-up is admissible. Only after that decision does
+Gap refinement operate on retained clusters of the effective economic sectors.
+A successful nonzero-cluster sector is not eligible for automatic roll-up.
+The original economic tag and original HDBSCAN cluster remain auditable; an
+accepted Gap child becomes a final `(type, cluster)` X node. The pipeline
+never interprets these nodes as individual verified supplier relationships.
+
+```powershell
+sigma run quezon_city                                # canonical Gap + four workers
+sigma run quezon_city --no-median-gap                # original HDBSCAN only
+sigma run quezon_city --median-gap-workers 1         # same Gap method, serial
+sigma run quezon_city --no-iterative-rollup          # preserve baseline sector partition
+```
+
+Legacy `--equivalent` retains the historical unrefined configuration unless
+Gap is explicitly requested. Fixed IO-level/custom runs do not implicitly
+apply hierarchical roll-up, but canonical Gap refinement still applies.
+The original cluster labels and per-parent model-selection outcomes are
+recorded in `spatial.clusters` (`hdbscan_cluster` and `median_gap_audit.json`).
+The audit distinguishes the one-SE stopping decision from hitting the `k=6`
+search ceiling. Splitting a cluster does not guarantee that its sector's
+combined Voronoi territory shrinks or its Katz score becomes less concentrated.
+
+See [Gap method](docs/book/content/methods/network_gap_medians.md),
+[Hierarchical economy](docs/book/content/methods/hierarchical.md),
+[End-to-end workflow](docs/book/content/workflow/end_to_end.md), and
+[Under the Hood](src/sigma/web/static/tutorial.html).
 
 ## Objectives
 
@@ -507,15 +535,17 @@ sigma run pasig
 The ordinary default is intentionally opinionated:
 
 ```text
-managed Geofabrik road network
-network-first clustering with graceful Euclidean fallback
-network 1-median with fallback
-network Voronoi with refinement + planar fallback
-PSA 2018 IO80
-full directed IO graph
-transaction preprocessing = none
-balanced directed Katz centrality
-QGIS/GeoParquet publication in EPSG:4326
+managed Geofabrik road network (undirected, metre-based)
+area-specific hierarchical PSA 2018 IO240/80/16 economy for newly loaded areas
+network HDBSCAN EOM; network leaf recovery on error; Euclidean recovery if needed
+K=0 residual-first roll-up for generated hierarchical economies, before Gap
+single-pass network Gap k-medoids on retained HDBSCAN clusters (default, 4 workers)
+final network-node 1-median for every retained/refined cluster
+network Voronoi partitions with resolution refinement + planar fallback
+full positive directed IO technical-coefficient graph (no transaction preprocessing)
+mean hub-mediated X distance, exact-type clustered shares, inverse-power attenuation
+balanced directed Katz centrality and distance-tempered establishment scores
+QGIS/GeoParquet and browser-native route publication (precomputed optional)
 ```
 
 The economic graph is **not forced into a DAG** by default. Positive directed IO relationships, reciprocal edges, and cycles are retained. Optional fast MWAS+RAS preprocessing is available only when explicitly requested.
@@ -1048,52 +1078,50 @@ The software does not prescribe a specific bank product. Instead, it provides th
 
 # End-to-End SIGMA Workflow
 
-The complete conceptual workflow is:
+The complete **canonical area-mode** workflow separates source preparation,
+economic-sector decisions, numerical analysis, and presentation. Conditional
+steps are annotated; the same immutable artifacts may be reused across runs.
 
 ```text
-Select Philippine area
-        ↓
-Resolve exact boundary
-        ↓
-Ensure shared Geofabrik Philippines PBF
-        ↓
-Acquire OSM places + Overture Places
-        ↓
-Reconcile duplicate observations
-        ↓
-Canonical place list
-        ↓
-PSIC classification
-        ↓
-PSIC → IO/economy mapping
-        ↓
-────────────────────────────────────────────
-HUMAN MSME REVIEW BOUNDARY
-Review GeoParquet externally
-Remove irrelevant/non-MSME establishments
-Preserve IDs, geometry, CRS, PSIC/economy fields
-────────────────────────────────────────────
-        ↓
-Extract managed Geofabrik roads
-        ↓
-Network-constrained clustering by economic type
-        ↓
-Cluster centers + point distances + partitions
-        ↓
-Directed input-output economic graph
-        ↓
-Cluster-to-cluster structural link inference (X graph)
-        ↓
-Centrality / Network Influence Score
-        ↓
-Point-level distance-tempered influence score
-        ↓
-GIS + tables + paths + manifests
-        ↓
-Strategic interpretation:
-priority zones, anchor MSMEs, ecosystem links,
-acquisition sequencing, product-bundle design
+sigma init: shared Geofabrik OSM and area boundary
+    │
+sigma load: OSM + Overture → reconcile → PSIC → IO candidates
+    │
+    ├─ optional post-load augmentation / human review of places handoff
+    └─ baseline sparse IO240/80/16 sector partition (new area default)
+    │
+managed undirected roads → snap → network HDBSCAN per sector
+    │                             └─ EOM → leaf on exception → Euclidean fallback
+    │
+    ├─ generated hierarchy only: original sectors with K=0 retained clusters
+    │    → try residual-first iterative roll-up → rebuild effective economy
+    │    → verify unrefined HDBSCAN counts for effective sectors
+    └─ otherwise keep original economy / clusters
+    │
+network Gap k-medoids (one pass, default ON, 4 workers)
+    │   └─ split eligible retained HDBSCAN clusters; noise remains noise
+    ↓
+final clusters → independent full-network 1-medians → point distances
+    │                                              └─ network Voronoi partitions
+    │
+effective technical coefficients + positive-area overlap + center routing
+    ↓
+numerical X: coefficients × both clustered-sector shares / mean hub distance^λ
+    ↓
+balanced incoming/outgoing Katz → distance-tempered establishment scores
+    ↓
+GIS/CSV/GeoParquet export → browser-native on-demand routes (default)
+                        └─ precomputed path geometry by explicit option only
+    ↓
+sigma view: Explorer map / Under the Hood (read-only presentation)
 ```
+
+The managed `analysis.x` artifact computes and stores **numerical** center
+separations and X weights without generating shortest-path geometries. With
+the default `--route-geometry browser`, a compact routing graph is published
+and Explorer reconstructs routes when requested. Explicit
+`--route-geometry precomputed` generates geographical route paths at export.
+Neither visualization mode changes the numerical X graph or its scores.
 
 ---
 

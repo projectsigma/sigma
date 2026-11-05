@@ -1,6 +1,6 @@
 # `sigma run` and `sigma view`: CLI reference
 
-This reference describes the command signatures in `projectsigma/sigma` as inspected on **1 November 2026**, including `run --refresh` and the new `view --fast` alias for `--ui-only`. These CLI changes do not themselves alter the analytical formulas.
+This reference reflects the canonical area workflow after merged PRs #24–31 on **5 November 2026**. The ordinary run uses generated-hierarchy K=0 roll-up when eligible, default-on network Gap k-medoids with four workers, and numerical X with browser-native route publication; `view --fast` remains a UI-only alias for `--ui-only`. Use actual `sigma run --help` for any later version.
 
 ## Mental model
 
@@ -34,12 +34,20 @@ The existing artifact store is *immutable by recipe*. A refresh can be rejected 
 | `--mwas-method VALUE` | `fast` by default; only applies together with `--equivalent` |
 | `--min-cluster-size INT` | `5`; HDBSCAN minimum cluster size |
 | `--min-samples INT` | Unspecified by default; HDBSCAN core-density parameter |
+| `--median-gap` / `--no-median-gap` | Enabled by default for canonical runs; disabled by default for legacy `--equivalent` unless explicitly enabled |
+| `--median-gap-workers INT` | Four worker processes by default; choose 1–4 |
+| `--median-gap-max-k INT` | 6 candidate medoids maximum per original retained HDBSCAN cluster; not recursive |
+| `--median-gap-replicates INT` | 10 reference draws |
+| `--median-gap-max-sites INT` | At most 64 establishments sampled per parent for Gap fitting |
+| `--median-gap-seed INT` | 20261105; deterministic random seed |
+| `--iterative-rollup` / `--no-iterative-rollup` | Automatic K=0 roll-up for generated hierarchies only; explicit override |
 | `--allow-single-cluster` | `False`; permit selection of a single cluster where supported |
 | `--voronoi-resolution FLOAT` | `500.0`; partition-resolution parameter |
 | `--centrality-method METHOD` | `katz` (default) or `eigenvector` (legacy) |
 | `--centrality-direction DIRECTION` | `incoming` (default) or `outgoing`; compatibility-only, ignored by current Katz and eigenvector implementations |
 | `--x-distance-decay-lambda FLOAT` | `1.0`; exponent for inverse-distance attenuation of X edges |
 | `--distance-tempering FLOAT` | `0.15`; score-distance tempering |
+| `--route-geometry {browser,precomputed}` | `browser` by default; only changes downstream route publication, never numerical X weights |
 | `--refresh` **(patch)** | Recompute *the downstream analytical stages* from already loaded places; reuse place-source and transport-road preparation |
 | `--force` | Legacy behavior: recompute `analysis.scores`; may reuse cached predecessors |
 | `--json` | Print machine-readable result metadata |
@@ -120,6 +128,22 @@ For changes to classification/tagging inputs and rules, first run `sigma load AR
 The previous `--ui-only` spelling remains supported as an alias for `--fast`.
 
 
-## Network Gap k-medoids refinement (opt-in)
+## Network Gap k-medoids refinement (canonical default)
 
-`sigma run AREA --median-gap --refresh` enables an optional, audited post-HDBSCAN network k-medoids split selected by a Gap-statistic one-standard-error criterion. Defaults: max k 6, 10 reference draws, 64 fit observations per parent, fixed seed. Flags: `--no-median-gap`, `--median-gap-max-k`, `--median-gap-replicates`, `--median-gap-max-sites`, `--median-gap-seed`. It never invalidates clusters or reallocates HDBSCAN noise. See [Network Gap method](../docs/book/content/methods/network_gap_medians.md).
+Normal `sigma run AREA` applies **one Gap-statistic-guided k-medoid pass**
+after HDBSCAN extraction and after any generated-hierarchy K=0 roll-up.
+Retained clusters alone are eligible, with four parallel processes, up to
+k=6, 10 reference draws, up to 64 fitted observations, and deterministic
+seed 20261105. Accepted children are assigned by exact road distance; their
+own full-network 1-medians are computed downstream. HDBSCAN noise stays
+noise. The process is not recursive. `--no-median-gap` restores the unrefined
+HDBSCAN partition, and `--median-gap-workers 1` runs serially; `--equivalent`
+remains unrefined unless explicitly overridden.
+
+The numerical `analysis.x` computation has no requirement for route geometry.
+The CLI defaults to `--route-geometry browser`: the exporter publishes a
+compact graph for on-demand shortest-path reconstruction inside Explorer.
+Use `--route-geometry precomputed` to materialize GIS route geometries
+explicitly. Both modes retain the same X distance and edge weight values.
+See [Network Gap method](book/content/methods/network_gap_medians.md) and
+[Network X](book/content/methods/x_graph.md).

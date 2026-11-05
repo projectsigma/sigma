@@ -25,8 +25,11 @@ migrating it. See [Hierarchical economy](../methods/hierarchical.md).
 | Explorer contextual unclustered overlay | Off until opted into; focused 0.96, depth `d`: `0.90/sqrt(d)` |
 | Explorer hovered center outline | Display-only, in sector color, when a selection is active |
 
-This CLI default is an **economy/workspace-specific policy**. It is not a
-`SigmaConfig` constant and does not change HDBSCAN's `min_cluster_size=5`.
+The **iterative roll-up** default is an economy/workspace-specific
+CLI policy, not a `SigmaConfig` constant. In contrast, Gap refinement is a
+canonical `SigmaConfig`/spatial pipeline default, independent of the
+selected IO level (except the legacy `--equivalent` profile). Neither
+changes HDBSCAN's `min_cluster_size=5`.
 <!-- sigma-docs-20261104-v1:end -->
 
 ## Places
@@ -45,7 +48,9 @@ This CLI default is an **economy/workspace-specific policy**. It is not a
 |---|---:|
 | `vertex_digits` | 11 |
 | `min_cluster_size` | 5 |
-| Network Gap k-medoids refinement | **off** (opt in with `sigma run --median-gap`) |
+| Network Gap k-medoids refinement | **on** (canonical; `--no-median-gap` disables; legacy `--equivalent` off) |
+| Network Gap worker processes | **4** (configurable 1–4) |
+| Network Gap passes | **1** per retained original HDBSCAN cluster (no recursion) |
 | Network Gap maximum tested k | 6 |
 | Network Gap reference draws | 10 |
 | Network Gap fitted observations per HDBSCAN cluster | 64 maximum |
