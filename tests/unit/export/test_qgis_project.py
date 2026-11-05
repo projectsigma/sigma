@@ -18,13 +18,13 @@ def test_canonical_io80_palette_is_fixed_unique_and_uses_requested_labels():
     styles = build_sector_styles(_catalog())
     assert len(styles) == 80
     assert len({style.color_hex for style in styles.values()}) == 80
-    assert styles["1"].color_hex == "#A0BF43"
+    assert styles["1"].color_hex == "#57AF2F"
     assert styles["1"].display == "01 - Palay"
-    assert styles["21"].color_hex == "#262626"
-    assert styles["35"].color_hex == "#00B4EC"
-    assert styles["53"].color_hex == "#EE7815"
+    assert styles["21"].color_hex == "#5C4C3A"
+    assert styles["35"].color_hex == "#9C79D3"
+    assert styles["53"].color_hex == "#CF690A"
     assert styles["53"].display == "53 - Construction"
-    assert styles["80"].color_hex == "#77697B"
+    assert styles["80"].color_hex == "#E47594"
     assert styles["80"].display == "80 - Other services"
 
 
@@ -179,8 +179,10 @@ def test_write_qgis_project_uses_wgs84_fixed_palette_labels_and_requested_order(
         option = symbol.find("layer/Option/Option[@name='color']")
         assert option is not None
         colors.append(option.attrib["value"])
-    assert colors[0].startswith("160,191,67,255")  # #A0BF43
-    assert colors[1].startswith("238,120,21,255")  # #EE7815
+    for actual, code in zip(colors, ("1", "53"), strict=True):
+        hex_color = styles[code].color_hex
+        rgb = tuple(int(hex_color[i:i + 2], 16) for i in (1, 3, 5))
+        assert actual == f"{rgb[0]},{rgb[1]},{rgb[2]},255"
 
     partition_layers = [
         layer for layer in root.findall(".//projectlayers/maplayer")

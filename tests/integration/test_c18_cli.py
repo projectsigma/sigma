@@ -152,6 +152,7 @@ def test_full_run_command_delegates_to_sigma_run_without_cli_orchestration(monke
         outputs = {"sigma_manifest.json": run_manifest}
 
     class FakeJob:
+        economy = SimpleNamespace(provenance={"metadata": {}})
         places_path = tmp_path / "ws" / "places" / "places.parquet"
 
         def run(self, *, force=False):
@@ -193,6 +194,7 @@ def test_full_run_cli_refresh_recomputes_managed_analysis(monkeypatch, tmp_path:
         outputs = {"sigma_manifest.json": run_manifest}
 
     class FakeJob:
+        economy = SimpleNamespace(provenance={"metadata": {}})
         places_path = tmp_path / "ws" / "places" / "places.parquet"
 
         def refresh(self):
@@ -246,6 +248,7 @@ def test_full_run_cli_accepts_explicit_eigenvector_centrality(monkeypatch, tmp_p
         outputs = {"sigma_manifest.json": run_manifest}
 
     class FakeJob:
+        economy = SimpleNamespace(provenance={"metadata": {}})
         places_path = tmp_path / "ws" / "places" / "places.parquet"
 
         def run(self, *, force=False):
@@ -273,6 +276,7 @@ def test_full_run_cli_defaults_to_managed_geofabrik_roads(monkeypatch, tmp_path:
         outputs = {"sigma_manifest.json": run_manifest}
 
     class FakeJob:
+        economy = SimpleNamespace(provenance={"metadata": {}})
         places_path = tmp_path / "ws" / "places" / "places.parquet"
 
         def run(self, *, force=False):
@@ -301,6 +305,7 @@ def test_full_run_cli_can_select_managed_geofabrik_roads(monkeypatch, tmp_path: 
         outputs = {"sigma_manifest.json": run_manifest}
 
     class FakeJob:
+        economy = SimpleNamespace(provenance={"metadata": {}})
         places_path = tmp_path / "ws" / "places" / "places.parquet"
 
         def run(self, *, force=False):
@@ -415,6 +420,7 @@ def test_quiet_suppresses_default_timed_progress(monkeypatch, tmp_path: Path):
         outputs = {"sigma_manifest.json": run_manifest}
 
     class FakeJob:
+        economy = SimpleNamespace(provenance={"metadata": {}})
         places_path = tmp_path / "ws" / "places" / "places.parquet"
         def run(self, *, force=False):
             return FakeResult()
@@ -476,6 +482,7 @@ def test_run_without_workspace_uses_same_initialized_area_workspace(monkeypatch,
         outputs = {"sigma_manifest.json": run_manifest}
 
     class FakeJob:
+        economy = SimpleNamespace(provenance={"metadata": {}})
         def __init__(self, workspace):
             self.places_path = Path(workspace) / "places" / "places.parquet"
         def run(self, *, force=False):

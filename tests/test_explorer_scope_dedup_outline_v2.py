@@ -18,7 +18,8 @@ def test_scored_layer_never_draws_unscored_points_twice():
     layer = span(s, "map.addLayer({id: 'establishments'", '    // Assign browser-only icon identifiers')
     assert "filter: ['!=', ['get', 'unclustered'], true]" in layer
     emphasis = span(s, '  function applyEmphasis() {', '  function updatePartitions() {')
-    assert "map.setFilter('establishments', ['all', ['!=', ['get', 'unclustered'], true], notHidden()]);" in emphasis
+    assert "map.setFilter('establishments', ['all', ['!=', ['get', 'unclustered'], true]," in emphasis
+    assert "notHidden(), sigmaOriginalFilter()]);" in emphasis
     assert "map.setFilter('establishments', notHidden());" not in emphasis
 
 
@@ -29,14 +30,17 @@ def test_unscored_layer_is_only_unscored_and_opt_in():
     assert "visibility: 'none'" in layer
     assert "filter: ['==', ['get', 'unclustered'], true]" in layer
     assert "'icon-image': ['get', 'unscored_icon']" in layer
-    assert "Boolean(control && control.checked && !control.disabled && !network)" in s
+    assert "Boolean(!network && control && control.checked && !control.disabled)" in s
+    assert "Boolean(network && linked && linked.checked && !linked.disabled)" in s
+    assert "const enabled = general || context;" in s
 
 def test_map_clicks_and_hover_are_scoped():
     s = source()
     assert 'function selectableMapFeature(feature)' in s
     assert "feature.layer.id === 'unclustered-establishments') return false" in s
     assert 'network.ring.has(String(id))' in s
-    assert 'const scopedPlaces = places.filter(selectableMapFeature);' in s
+    assert "const scopedPlaces = places.filter(feature =>" in s
+    assert "feature.layer.id !== 'selected-center' && selectableMapFeature(feature));" in s
     assert 'const f = hits.find(selectableMapFeature);' in s
 
 

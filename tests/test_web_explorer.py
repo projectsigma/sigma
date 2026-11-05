@@ -144,7 +144,7 @@ def test_bundle_has_directed_pairs_exact_paths_and_tiled_points(published: Path,
 
     meta = _json(dest / "data/metadata.json")
     sectors = {s["code"]: s for s in meta["sectors"]}
-    assert sectors["54"]["color"] == "#AE2B64"  # same IO80 color as the QGIS project
+    assert sectors["54"]["color"] == "#BA220C"  # same IO80 color as the QGIS project
     assert sectors["54"]["label"] == "54 - Wholesale trade"
     assert meta["distance_unit"] == "m"
     assert meta["has_roads"] and meta["has_boundary"]

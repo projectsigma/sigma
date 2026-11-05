@@ -17,7 +17,9 @@ def test_unscored_layer_has_unambiguous_hollow_paint_and_initially_empty_filter(
 def test_redraw_never_removes_unscored_predicate_or_opt_in():
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     fn = js.split('function syncUnscoredOverlay() {', 1)[1].split('\n  }', 1)[0]
-    assert "control && control.checked && !control.disabled && !network" in fn
+    assert "const general = Boolean(!network && control && control.checked && !control.disabled);" in fn
+    assert "const context = Boolean(network && linked && linked.checked && !linked.disabled);" in fn
+    assert "const enabled = general || context;" in fn
     assert "setData('unscored-points'" in fn
     assert "visibility('unclustered-establishments', enabled)" in fn
     assert 'unscoredToggle.checked = false' in js

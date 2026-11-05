@@ -1,5 +1,6 @@
 """Focused activity-vs-ownership regression cases (no live sources)."""
 import pandas as pd
+import pytest
 from sigma.classification.administrative_activity import (
     ADMIN_PSIC, apply_administrative_activity, classify_administrative_function)
 from sigma.classification.ownership import ownership_evidence
@@ -69,3 +70,29 @@ def test_holy_spirit_not_private_merely_by_name():
 def test_explicit_school_remains_public():
     result = ownership_evidence({"name": "Quezon City National High School", "overture_category": "school"}, "education")
     assert result.side == "public"
+
+
+def test_admin_reference_not_required_without_reassignment():
+    class MissingTaxonomy:
+        def get(self, code):
+            raise KeyError(code)
+
+    ordinary = pd.DataFrame([{"name": "Neighborhood Grocery", "psic_code": "47111"}])
+    out = apply_administrative_activity(ordinary, taxonomy=MissingTaxonomy())
+    assert out.loc[0, "psic_code"] == "47111"
+    assert out.loc[0, "admin_activity_status"] == ""
+
+    already_admin = pd.DataFrame([{"name": "Quezon City Health Department", "psic_code": "84110"}])
+    out = apply_administrative_activity(already_admin, taxonomy=MissingTaxonomy())
+    assert out.loc[0, "psic_code"] == "84110"
+    assert out.loc[0, "admin_activity_status"] == "CONFIRMED"
+
+
+def test_admin_reference_remains_required_for_actual_reassignment():
+    class MissingTaxonomy:
+        def get(self, code):
+            raise KeyError(code)
+
+    candidates = pd.DataFrame([{"name": "Quezon City Health Department", "psic_code": "86101"}])
+    with pytest.raises(KeyError, match="84120"):
+        apply_administrative_activity(candidates, taxonomy=MissingTaxonomy())

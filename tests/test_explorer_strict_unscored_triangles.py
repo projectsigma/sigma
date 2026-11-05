@@ -12,7 +12,9 @@ def test_strictly_independent_sources_and_fail_closed_startup():
     assert "source: 'unscored-points'" in unscored
     assert "data: EMPTY()" in s.split("map.addSource('unscored-points'",1)[1].split(');',1)[0]
     assert "visibility: 'none'" in unscored
-    assert "const enabled = Boolean(control && control.checked && !control.disabled && !network)" in s
+    assert "const general = Boolean(!network && control && control.checked && !control.disabled);" in s
+    assert "const context = Boolean(network && linked && linked.checked && !linked.disabled);" in s
+    assert "const enabled = general || context;" in s
     assert "setData('unscored-points', {type: 'FeatureCollection', features: locations})" in s
     assert "setData('points', {type: 'FeatureCollection', features: scoredFeatures})" in s
     assert "filter: ['!=', ['get', 'unclustered'], true]" in scored
