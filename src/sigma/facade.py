@@ -241,7 +241,11 @@ class Sigma:
         areas_file: Path | str | None = None,
         progress=None,
         place_services: PlaceServices | None = None,
+        route_geometry: str = "browser",
     ):
+        if route_geometry not in {"browser", "precomputed"}:
+            raise ValueError("route_geometry must be browser or precomputed")
+        self.route_geometry = route_geometry
         self.config = config or SigmaConfig.default()
         self.economy = economy or Economy.default()
         self._psic = psic
@@ -306,6 +310,7 @@ class Sigma:
         config: SigmaConfig | None = None,
         label: str | None = None,
         progress=None,
+        route_geometry: str = "browser",
     ) -> "Sigma":
         if classification is not None:
             normalized = str(classification).strip().casefold()
@@ -322,7 +327,11 @@ class Sigma:
         root = Path(workspace).expanduser().resolve()
         identity = _custom_area_identity(boundary_path, boundary_layer, label)
 
+        if route_geometry not in {"browser", "precomputed"}:
+            raise ValueError("route_geometry must be browser or precomputed")
         self = cls.__new__(cls)
+        # SIGMA_BROWSER_ROUTING_V4_1_FACADE_INIT_FIX_20261105
+        self.route_geometry = route_geometry
         self.config = config
         self.economy = economy
         self._psic = None
@@ -377,6 +386,7 @@ class Sigma:
         source_store: Path | str | None = None,
         config: SigmaConfig | None = None,
         progress=None,
+        route_geometry: str = "browser",
     ) -> "Sigma":
         economy = economy or Economy.default()
         config = config or SigmaConfig.equivalent()
@@ -391,7 +401,11 @@ class Sigma:
             "roads_layer": roads_layer,
         }
         identity = hashlib.sha256(json.dumps(identity_payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        if route_geometry not in {"browser", "precomputed"}:
+            raise ValueError("route_geometry must be browser or precomputed")
         self = cls.__new__(cls)
+        # SIGMA_BROWSER_ROUTING_V4_1_FACADE_INIT_FIX_20261105
+        self.route_geometry = route_geometry
         self.config = config
         self.economy = economy
         self._psic = None
@@ -682,6 +696,7 @@ class Sigma:
                 self.workspace, analysis_pipeline=analysis, spatial_pipeline=spatial,
                 economy_pipeline=self._economy_pipeline(), place_pipeline=self._place_pipeline(),
                 compatibility=self.config.export.compatibility, unified=self.config.export.unified,
+                route_geometry=self.route_geometry,
                 progress=self.progress,
             )
             self._exports.planner.runtime = self._runtime_cache
@@ -930,3 +945,5 @@ class Sigma:
             stages.update(place.planner.status())
         stages.update(self._economy_pipeline().planner.status())
         return WorkflowStatus(stages)
+
+# SIGMA_BROWSER_ROUTING_V4_1_20261105

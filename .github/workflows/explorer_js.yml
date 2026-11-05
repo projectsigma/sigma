@@ -27,6 +27,8 @@ jobs:
         run: |
           node --check src/sigma/web/static/network-model.js
           node --check src/sigma/web/static/app.js
+          node --check src/sigma/web/static/route-worker.js
+          node --check tests/test_browser_routing_worker.js
           for test in tests/test_explorer_*.js; do
             node --check "$test"
           done
@@ -84,5 +86,8 @@ jobs:
           echo "::group::Interaction latency and route cancellation"
           node tests/test_explorer_latency.js || { echo "::error file=tests/test_explorer_latency.js::Explorer regression failed"; failures=$((failures + 1)); }
           echo "::endgroup::"
-          echo "Explorer JavaScript failures: $failures / 16"
+          echo "::group::Browser shortest-road routing worker"
+          node tests/test_browser_routing_worker.js || { echo "::error file=tests/test_browser_routing_worker.js::Browser routing regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "Explorer JavaScript failures: $failures / 17"
           if [ "$failures" -ne 0 ]; then exit 1; fi

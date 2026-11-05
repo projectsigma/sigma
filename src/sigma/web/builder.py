@@ -40,6 +40,7 @@ OPTIONAL_FILES = (
     "pois.parquet",
     "sigma_boundary.parquet",
     "sigma_roads.parquet",
+    "sigma_routing_graph.bin",
     "sigma_manifest.json",
 )
 BUNDLE_FORMAT = "sigma-explorer"
@@ -57,6 +58,7 @@ STATIC_FILES = (
     "sigma-tutorial-scrolly-refine.css",
     "tutorial-live.js",
     "app.js",
+    "route-worker.js",
     "establishment-finder.js",
     "network-model.js",
     "style.css",
@@ -486,6 +488,17 @@ def _build_unstaged_bundle(
     run_path = _input_path(source, "sigma_run_metadata.json", expected)
     run = json.loads(run_path.read_text(encoding="utf-8")) if run_path is not None else {}
     economy_id = _text(run.get("economy_id"))
+    browser_routes = run.get("route_mode") == "browser"
+    if browser_routes and run.get("routing_graph_privacy") != "base_vertices_and_x_centers_only":
+        # Fail closed for legacy v2 graphs: those expose all snapped establishments.
+        raise ValueError("Refusing unsafe browser graph: regenerate a v3 browser export")
+    if browser_routes:
+        graph_file = _input_path(source, "sigma_routing_graph.bin", expected)
+        if graph_file is None:
+            raise FileNotFoundError("Browser route mode requires current sigma_routing_graph.bin")
+        target = dest / "data/routing-graph.bin"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(graph_file, target)
 
     # ---- X nodes (authoritative cluster identities)
     node_table = pd.read_csv(
@@ -502,6 +515,8 @@ def _build_unstaged_bundle(
     for required in ("source_type", "source_cluster", "target_type", "target_cluster"):
         if required not in edge_table:
             raise ValueError(f"sigma_X_edges.csv is missing {required}")
+    if browser_routes and "routing_node" not in node_table:
+        raise ValueError("Browser route mode requires routing_node in sigma_X_nodes.csv")
     cluster_field = "cluster" if "cluster" in node_table else "cluster_no"
     if cluster_field not in node_table:
         raise ValueError("sigma_X_nodes.csv must have cluster or cluster_no")
@@ -519,7 +534,8 @@ def _build_unstaged_bundle(
             "lon": _float(row["lon"]), "lat": _float(row["lat"]),
             "in_degree": _int(row.get("in_degree")), "out_degree": _int(row.get("out_degree")),
             "centrality": _float(row.get("centrality")),
-            "members": 0, "route_file": None,
+            "members": 0, "route_file": (f"lazy:{nid}" if browser_routes else None),
+            **({"routing_node": int(row["routing_node"])} if browser_routes else {}),
         })
     node_by_id = {n["id"]: n for n in nodes}
 
@@ -543,73 +559,78 @@ def _build_unstaged_bundle(
         edges.append(edge)
         edge_by_pair[(u, v)] = edge
 
-    # ---- exact road paths from SIGMA's GeoPackage, never inferred chords
-    gpkg = source / "sigma_spatial_outputs.gpkg"
-    paths = _to_wgs84(pyogrio.read_dataframe(gpkg, layer="paths"), "GeoPackage layer 'paths'")
-    if len(paths) != len(edges):
-        raise ValueError("X edge CSV and GeoPackage 'paths' counts differ; possibly stale exports")
-    route_geometry: dict[tuple[str, str], Any] = {}
-    path_geoms = _rounded(paths.geometry.values) if len(paths) else np.empty(0, dtype=object)
-    for (u, v), geom in zip(
-        zip(paths["from_id"].map(_text), paths["to_id"].map(_text), strict=True),
-        path_geoms,
-        strict=True,
-    ):
-        if (u, v) not in edge_by_pair:
-            raise ValueError("GeoPackage paths and edge CSV refer to different X edges")
-        if geom is None or shapely.is_empty(geom):
-            raise ValueError("An X edge is missing exact route geometry")
-        route_geometry[(u, v)] = geom
-    if len(route_geometry) != len(edges):
-        raise ValueError("Not all X edges have corresponding path features")
-
-    # Preserve the exact independent path for EACH directed X edge. Shortest
-    # distance symmetry does not imply unique equal-cost route geometry.
-    related: dict[str, list[tuple[str, str, dict[str, Any]]]] = defaultdict(list)
-    for (u, v), edge in edge_by_pair.items():
-        related[u].append((u, v, edge))
-        if v != u:
-            related[v].append((u, v, edge))
+    # In browser mode there are no per-X-edge route files or cached geometries.
+    # The worker consumes data/routing-graph.bin only when a route is selected.
     route_bytes = 0
-    for nid, connections in related.items():
-        features: list[dict[str, Any]] = []
-        position: dict[tuple[str, str], int] = {}
-        # Outgoing edges first, so a reciprocal incoming edge can refer back to its partner.
-        for u, v, edge in sorted(connections, key=lambda item: (item[0] != nid, item[0], item[1])):
-            other = v if nid == u else u
-            geom = route_geometry[(u, v)]
-            properties = {
-                "other": other, "other_type": node_by_id[other]["type"],
-                "from": u, "to": v,
-                "direction": "outgoing" if nid == u else "incoming",
-                "coefficient": edge["coefficient"], "distance": edge["distance"],
-                "effective_distance": edge["effective_distance"],
-                "weight": edge["weight"],
-            }
-            partner = position.get((v, u))
-            # The reverse edge's path is stored only when it differs from the exact
-            # reverse of the forward path; the browser rebuilds it with reverse_of.
-            shared = (
-                partner is not None
-                and geom.geom_type == "LineString"
-                and route_geometry[(v, u)].geom_type == "LineString"
-                and shapely.equals_exact(geom, shapely.reverse(route_geometry[(v, u)]), tolerance=0)
-            )
-            if shared:
-                properties["reverse_of"] = partner
-            features.append({
-                "type": "Feature",
-                "properties": properties,
-                "geometry": None if shared else mapping(geom),
+    if not browser_routes:
+        # ---- exact road paths from SIGMA's GeoPackage, never inferred chords
+        gpkg = source / "sigma_spatial_outputs.gpkg"
+        paths = _to_wgs84(pyogrio.read_dataframe(gpkg, layer="paths"), "GeoPackage layer 'paths'")
+        if len(paths) != len(edges):
+            raise ValueError("X edge CSV and GeoPackage 'paths' counts differ; possibly stale exports")
+        route_geometry: dict[tuple[str, str], Any] = {}
+        path_geoms = _rounded(paths.geometry.values) if len(paths) else np.empty(0, dtype=object)
+        for (u, v), geom in zip(
+            zip(paths["from_id"].map(_text), paths["to_id"].map(_text), strict=True),
+            path_geoms,
+            strict=True,
+        ):
+            if (u, v) not in edge_by_pair:
+                raise ValueError("GeoPackage paths and edge CSV refer to different X edges")
+            if geom is None or shapely.is_empty(geom):
+                raise ValueError("An X edge is missing exact route geometry")
+            route_geometry[(u, v)] = geom
+        if len(route_geometry) != len(edges):
+            raise ValueError("Not all X edges have corresponding path features")
+
+        # Preserve the exact independent path for EACH directed X edge. Shortest
+        # distance symmetry does not imply unique equal-cost route geometry.
+        related: dict[str, list[tuple[str, str, dict[str, Any]]]] = defaultdict(list)
+        for (u, v), edge in edge_by_pair.items():
+            related[u].append((u, v, edge))
+            if v != u:
+                related[v].append((u, v, edge))
+        route_bytes = 0
+        for nid, connections in related.items():
+            features: list[dict[str, Any]] = []
+            position: dict[tuple[str, str], int] = {}
+            # Outgoing edges first, so a reciprocal incoming edge can refer back to its partner.
+            for u, v, edge in sorted(connections, key=lambda item: (item[0] != nid, item[0], item[1])):
+                other = v if nid == u else u
+                geom = route_geometry[(u, v)]
+                properties = {
+                    "other": other, "other_type": node_by_id[other]["type"],
+                    "from": u, "to": v,
+                    "direction": "outgoing" if nid == u else "incoming",
+                    "coefficient": edge["coefficient"], "distance": edge["distance"],
+                    "effective_distance": edge["effective_distance"],
+                    "weight": edge["weight"],
+                }
+                partner = position.get((v, u))
+                # The reverse edge's path is stored only when it differs from the exact
+                # reverse of the forward path; the browser rebuilds it with reverse_of.
+                shared = (
+                    partner is not None
+                    and geom.geom_type == "LineString"
+                    and route_geometry[(v, u)].geom_type == "LineString"
+                    and shapely.equals_exact(geom, shapely.reverse(route_geometry[(v, u)]), tolerance=0)
+                )
+                if shared:
+                    properties["reverse_of"] = partner
+                features.append({
+                    "type": "Feature",
+                    "properties": properties,
+                    "geometry": None if shared else mapping(geom),
+                })
+                position[(u, v)] = len(features) - 1
+            node = node_by_id[nid]
+            node["route_file"] = f"data/routes/{_slug(nid)}.geojson"
+            route_bytes += _json_dump(dest / node["route_file"], {
+                "type": "FeatureCollection", "features": features,
             })
-            position[(u, v)] = len(features) - 1
-        node = node_by_id[nid]
-        node["route_file"] = f"data/routes/{_slug(nid)}.geojson"
-        route_bytes += _json_dump(dest / node["route_file"], {
-            "type": "FeatureCollection", "features": features,
-        })
 
     # ---- cluster partitions
+    gpkg = source / "sigma_spatial_outputs.gpkg"
     partitions = _to_wgs84(pyogrio.read_dataframe(gpkg, layer="clusters"), "GeoPackage layer 'clusters'")
     label_hints: dict[str, str] = {}
     partition_features = []
@@ -896,6 +917,9 @@ def _build_unstaged_bundle(
         "has_boundary": bool(len(boundary)),
         "score_range": [float(finite.min()), float(finite.max())] if len(finite) else [None, None],
         "distance_unit": _distance_unit(run),
+        **({"route_mode": "browser",
+            "routing_graph_privacy": "base_vertices_and_x_centers_only"}
+           if browser_routes else {}),
         "created_at": _text(run.get("created_at")),
         "sigma_version": _text(run.get("sigma_version")),
         "warnings": warnings,
@@ -951,6 +975,16 @@ def refresh_web_assets(bundle_dir: Path | str, *, profile: str = "local") -> int
     installed_profile = "public" if marker.get("profile") == "public" else "local"
     if installed_profile != profile:
         raise ValueError("--ui-only refuses to change the existing bundle's privacy profile")
+    # Reject unsafe legacy browser binaries even in UI-only public refreshes.
+    if profile == "public":
+        privacy_meta = dest / "data" / "metadata.json"
+        if not privacy_meta.is_file():
+            raise FileNotFoundError("Public Explorer metadata is missing; rebuild the bundle")
+        published = json.loads(privacy_meta.read_text(encoding="utf-8"))
+        if (published.get("route_mode") == "browser" and
+                published.get("routing_graph_privacy") !=
+                "base_vertices_and_x_centers_only"):
+            raise ValueError("Unsafe legacy public routing graph: rebuild using v3")
     # Preflight all resources before writing anything. Static filenames are
     # package-controlled, not browser or user-supplied paths.
     assets = [(name, _static_file(name).read_bytes()) for name in STATIC_FILES]
@@ -1031,3 +1065,5 @@ def build_web_bundle(
 
 # sigma-explorer-all-sectors-and-hollow-places-20261028-v1
 # sigma-unscored-hidden-by-default-and-rowwise-names-20261029-v1
+
+# SIGMA_BROWSER_ROUTING_V4_1_20261105

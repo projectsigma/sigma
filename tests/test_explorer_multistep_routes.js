@@ -36,10 +36,10 @@ let output = null;
 const setData = (name, value) => {if(name==='routes') output=value;};
 const getRoutes = async name => ({type:'FeatureCollection', features:routeFiles.get(name)});
 const create = new Function('nodeIndex', 'getRoutes', 'setData', 'EMPTY', 'isNum',
-    'showError', 'routeEpoch', 'hoverEpoch', 'network', 'sigmaPerfEnabled',
+    'showError', 'routeEpoch', 'hoverEpoch', 'network', 'sigmaPerfEnabled', 'meta',
     `${js}\nreturn {showRoutes, sameRoadGeometry, routePairKey};`);
 const funcs = create(nodeIndex, getRoutes, setData, () => ({type:'FeatureCollection',features:[]}),
-  Number.isFinite, err => {throw err;}, 0, 0, network, false);
+  Number.isFinite, err => {throw err;}, 0, 0, network, false, {route_mode:'precomputed'});
 assert(funcs.sameRoadGeometry(geometry([0,0],[1,0]),geometry([1,0],[0,0])));
 assert(!funcs.sameRoadGeometry(geometry([0,0],[1,0]),geometry([1,1],[0,1])));
 (async () => {
