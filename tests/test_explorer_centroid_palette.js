@@ -14,7 +14,9 @@ function section(start, end) {
   assert(a >= 0 && b > a, `Missing source section: ${start}`);
   return source.slice(a, b);
 }
-const unscoredSource = section('  const unscoredSectorIcons = new Map();', '  function centerIconExpression() {');
+// Unclustered places now use MapLibre circles, not sector-specific canvas images.
+assert(source.includes("map.addLayer({id: 'unclustered-establishments', type: 'circle'"),
+  'Unclustered establishments must use native circle markers');
 const helperSource = section('  function centerIconExpression() {', '  // Selected cluster:');
 // Evaluate real original-sector filter and color logic inside isolated tests.
 const originalFilterSource = section('  function sigmaOriginalFilter() {',
@@ -78,7 +80,7 @@ const katzNodes = new Map([...sectors.keys()].map((code, i) =>
 const funcs = new Function('document', 'sectors', 'map', 'COLOR', 'centerIconByType',
   'linkedCenterIconByType', 'darkCenterIconByType', 'darkLinkedIconByType',
   'selectedIconByType', 'meta', 'isNum', 'sectorMatchPairs', 'EMPTY', 'nodeIndex',
-  `${paletteSource}\n${katzSource}\n${unscoredSource}\n${helperSource}\n${selectedSource}\n${layerSource}\ninitializeKatzCenterLimits();\nreturn {addLayers};`)(
+  `${paletteSource}\n${katzSource}\n${helperSource}\n${selectedSource}\n${layerSource}\ninitializeKatzCenterLimits();\nreturn {addLayers};`)(
   document, sectors, map, colors, centerIconByType, linkedCenterIconByType,
   darkCenterIconByType, darkLinkedIconByType, selectedIconByType,
   meta, isNum, sectorMatchPairs, EMPTY, katzNodes);
