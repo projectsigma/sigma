@@ -88,7 +88,7 @@ No source data must be restored. Standard cached artifacts can be reused.
 - A recovered establishment becomes part of a **broader sector** cluster, not
   evidence that its original fine industry forms a separate spatial agglomeration.
 - Sectors with a positive but small number of clusters are not altered.
-- Whole-parent merges are deliberately excluded from this first patch.
+- Whole-parent merges are deliberately excluded.
 - The procedure does **not** alter how X edges are weighted. Its new partition
   necessarily invalidates downstream cluster, Voronoi, economic and X artifacts;
   a complete updated SIGMA run can consume considerable disk and CPU.

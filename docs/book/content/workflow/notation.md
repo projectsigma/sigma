@@ -1,6 +1,6 @@
 # Notation
 
-The same symbols recur throughout the book.
+The same symbols recur throughout the book and in Under the Hood. Stage numbers refer to the [17-stage pipeline](end_to_end.md).
 
 | Symbol | Meaning |
 |---|---|
@@ -8,7 +8,10 @@ The same symbols recur throughout the book.
 | $d_R(u,v)$ | shortest-path length on the road graph |
 | $p$ | an observed establishment point |
 | $s(p)$ | its continuous snap position on the road network |
-| $t$ | economic type / sector code |
+| $t$ | economic type / sector code (after stage 5, or the effective code after stage 9) |
+| `X:Y:Z`, `X:Y:o`, `X:Y`, `X:o`, `X` | sparse sector codes of a generated hierarchy |
+| $M$ | sector membership matrix (sectors × IO240 industries) used for $MZM^\top$ and $Mx$ |
+| $K$ | number of retained HDBSCAN* clusters of one sector (stage 9 acts when $K=0$) |
 | $c$ | spatial cluster identifier within one type |
 | $n=(t,c)$ | one spatial-economic node of graph $X$ |
 | $Z=(z_{ij})$ | interindustry transaction matrix |
@@ -16,7 +19,9 @@ The same symbols recur throughout the book.
 | $A=(a_{ij})$ | technical-coefficient matrix |
 | $G_E$ | directed economic graph induced by positive $a_{ij}$ |
 | $X$ | directed spatial-economic cluster graph |
-| $W=(w_{uv})$ | weighted adjacency matrix of $X$ |
+| $W=(w_{uv})$ | weighted adjacency matrix of $X$ (not to be confused with $W_k$) |
+| $W_k$, $W^*_{k,b}$ | stage 10 k-medoid cost of the members and of reference draw $b$ |
+| $\mathrm{Gap}(k)$, $s_k$, $B$ | Gap statistic, its standard error, number of reference draws |
 | $m_A$ | network-node 1-median of cluster $A$ |
 | $r_A$ | mean shortest-road distance from establishments in $A$ to $m_A$ |
 | $D_{AB}$ | effective hub-mediated distance $r_A+d_R(m_A,m_B)+r_B$ |

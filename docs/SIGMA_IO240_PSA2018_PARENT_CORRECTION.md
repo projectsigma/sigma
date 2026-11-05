@@ -1,12 +1,10 @@
-# SIGMA — PSA 2018 IO240 parent-link correction (overlay for v4)
+# PSA 2018 IO240 parent links for industries 124–126
 
-## Problem
+## Rule
 
-The v4 national IO240 packager correctly refused to build because SIGMA's PR #17 parent reference and its PSIC–IO concordance assigned IO240 industries **124, 125 and 126** to IO80 **41**, while the actual published PSA 2018 I–O industry classification assigns them to IO80 **42**.
+SIGMA assigns IO240 industries **124, 125 and 126** to IO80 **42**, as the published PSA 2018 Input-Output Industry Classification does. An assignment by industry name or by ordinary PSIC relationships would place them under IO80 **41** (basic iron and steel), but names and PSIC relationships do not establish the parentage in the **specific 2018 input–output tables**. The official 2018 I–O classification is authoritative for aggregating those 2018 matrices.
 
-These are different reference frameworks: industry names and ordinary PSIC relationships alone do not establish the parentage in the **specific 2018 input–output tables**. The official 2018 I–O classification is authoritative for aggregating those 2018 matrices.
-
-| IO240 | Industry | SIGMA before repair | Official PSA 2018 |
+| IO240 | Industry | Name-based parent | Official PSA 2018 parent (used by SIGMA) |
 |---|---|---:|---:|
 | 123 | Basic iron and steel | 41 | 41 |
 | 124 | Casting/foundry of iron and steel | 41 | **42** |
@@ -14,42 +12,33 @@ These are different reference frameworks: industry names and ordinary PSIC relat
 | 126 | Non-ferrous metal casting | 41 | **42** |
 | 127 | Structural metal products | 42 | 42 |
 
-## Independent numerical validation
+## Numerical validation
 
-Using the archived, unmodified official **240-Industry Transaction Table, 2018.xlsx**, **80-Industry Transaction Table, 2018.xlsx**, and **2018 Input-Output Industry Classification_0.xlsx**, the 240×240 transactions were aggregated to 80×80 by the published memberships. All currency values are in **million Philippine pesos**.
+Using the unmodified official **240-Industry Transaction Table, 2018.xlsx**, **80-Industry Transaction Table, 2018.xlsx**, and **2018 Input-Output Industry Classification_0.xlsx**, the 240×240 transactions were aggregated to 80×80 by the published memberships. All currency values are in **million Philippine pesos**.
 
 | Membership | Sum of absolute 80×80 cell discrepancies | L1 discrepancy relative to total transactions | Absolute gross-output discrepancy, summed across 80 sectors |
 |---|---:|---:|---:|
 | Published PSA membership (124–126 → 42) | 1.13 × 10⁻⁹ | 6.19 × 10⁻¹⁷ | 5.34 × 10⁻⁹ |
-| Previous SIGMA membership (124–126 → 41) | 97,595.92 | 0.0053406 | 55,158.61 |
+| Name-based membership (124–126 → 41) | 97,595.92 | 0.0053406 | 55,158.61 |
 
-The published mapping reproduces both IO80 quantities to floating-point precision. The old reference does not. The original Excel files are **not** modified by this repair.
+The published mapping reproduces both IO80 quantities to floating-point precision; the name-based mapping does not.
 
-## Scope of the repair
+## Where the rule is recorded
 
-The overlay changes only:
-
-1. `io/io240_parents.csv`: three parent codes from `41` to `42`.
-2. `io/psic_2019_to_io_2018.csv`: division `24` recognizes both 41 and 42, while groups `242` (basic precious and non-ferrous metals) and `243` (casting) use 42; IO240 candidate sets and confidence fields remain unchanged.
-3. `classification/manifest.json`: recalculated SHA-256 and file sizes for those two versioned reference assets.
-4. `scripts/sigma_pack_io240_repo.py`: inversion of the obsolete 124–126 hard-coded regression guard (it now requires 42).
-5. `tests/economy/test_io240_packager.py` and `tests/economy/test_load_policy.py`: assertions reflect the published hierarchy.
-6. A narrowly scoped new regression test verifying reference agreement with the existing tagging and hierarchical code.
-
-**Unchanged:** `sigma load` logic, `sigma run`, `sigma init`, PSIC classification and ownership rules, hierarchical grouping and sparse code construction (`X:Y:Z`, `X:Y:o`), `contain` policy, spatial/network/scoring code, and all local workspaces.
+1. `src/sigma/resources/classification/io/io240_parents.csv`: parent `42` for IO240 124–126.
+2. `src/sigma/resources/classification/io/psic_2019_to_io_2018.csv`: PSIC division `24` recognizes both IO80 41 and 42 (IO240 candidates 123–126), while groups `242` (basic precious and non-ferrous metals; IO240 125) and `243` (casting; IO240 124 and 126) use IO80 42.
+3. `src/sigma/resources/classification/manifest.json`: SHA-256 and file sizes of those versioned reference assets.
+4. `scripts/sigma_pack_io240_repo.py`: a regression guard that requires parent 42 for 124–126.
+5. `tests/economy/test_io240_packager.py`, `tests/economy/test_load_policy.py` and `tests/economy/test_psa2018_parent_correction.py`: assertions of the published hierarchy.
 
 ### Consequences and limitations
 
-- Some establishments with exact 124–126 candidates can receive different IO80 parent identities after the next classification/rebuild. This is **intended correction of the reference**, not a new tagging method.
-- Previously generated sectors and their hashes are historical; do not silently reuse or overwrite them. New local typologies and network outputs must be rebuilt after the corrected national reference is validated.
-- The authoritative national IO240 package must pass **actual official workbook reconciliation**, not merely synthetic tests, before commit or area regeneration.
-- The repair does not imply that all PSIC (activity-based) groups and 2018 national I–O groups have identical boundaries.
+- An establishment with exact IO240 code 124, 125 or 126 belongs to IO80 42 (and IO16 03, manufacturing).
+- Area hierarchies and network outputs depend on the reference fingerprint, so a workspace built with a different parent table must be rebuilt rather than reused.
+- The national IO240 package must pass reconciliation against the actual official workbooks, not only synthetic tests, before it is committed or used to regenerate areas.
+- PSIC (activity-based) groups and 2018 national I–O groups do not always have identical boundaries.
 - The official 2018 I–O classification, rather than sector names inferred from PSIC divisions, governs transactions and gross-output aggregation.
 
 ## Source
 
-[Philippine Statistics Authority, 2018 Input-Output Accounts release (December 9, 2021)](https://psa.gov.ph/statistics/supply-and-use-input-output). Original XLSX files were already available in the ChatGPT file archive and bundled with SIGMA v4. The overlay does not download or search local drives for references.
-
-## Application
-
-Apply only **after** v4 is already applied, as in the log where the packager stopped at the first reference mismatch. Run `repair_sigma_io240_parents.py --repo PATH --dry-run`, then `--apply`, then rerun the v4 national packager with the archived XLSX inputs and run tests. A `--revert` option exists before the validated national IO240 package has been created; it refuses reversal after packaging to avoid breaking crosswalk provenance.
+[Philippine Statistics Authority, 2018 Input-Output Accounts release (December 9, 2021)](https://psa.gov.ph/statistics/supply-and-use-input-output). SIGMA does not download the workbooks or search local drives for them; see [SIGMA load portability](SIGMA_LOAD_PORTABILITY.md) for packaging the national IO240 reference.

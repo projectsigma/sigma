@@ -1,4 +1,6 @@
-# Economy: transactions, coefficients, and directed structure
+# Economy: transactions, coefficients, and directed structure (stage 13)
+
+*Pipeline stage 13 of 17 · `sigma run`. Under the Hood shows the table, the coefficients and the optional MWAS branch (section “Stage 13”).*
 
 SIGMA separates the economic data definition from the graph used in spatial-economic analysis.
 
@@ -6,33 +8,19 @@ SIGMA separates the economic data definition from the graph used in spatial-econ
 
 Let $Z=(z_{ij})$ be the intermediate transaction matrix. Row $i$ is the supplying sector and column $j$ is the purchasing/user sector. Values must be finite and nonnegative with aligned sector axes.
 
-The built-in `Economy.default()` and unselected legacy workspaces use PSA
-2018 IO80. However, the ordinary **new area CLI workflow** uses `sigma load
-AREA`, whose default selection is a per-area hierarchical IO240/IO80/IO16
-economy derived from the validated packaged PSA 2018 IO240 table. Explicit
-`--io-level 16`, `80`, or `240` selects a fixed national resolution instead;
-custom code/label/transaction systems remain supported with `--economy`.
-`economy-selection.json` records the choice, which `sigma run` subsequently
-respects. These are **different defaults for different entry points**, not
-interchangeable descriptions of the same area run.
+Which table is used depends on the area's selection, recorded by `sigma load` in `economy-selection.json` and followed by `sigma run`:
 
-<!-- sigma-docs-20261104-v1:begin -->
+- **default:** a per-area hierarchical IO240/IO80/IO16 economy (stage 5), aggregated from the validated packaged PSA 2018 IO240 table, and possibly rolled up further by stage 9;
+- `--io-level 16`, `80` or `240`: a fixed national resolution;
+- `--economy`: a custom code/label/transaction system.
+
+The Python API's `Economy.default()` and a workspace without a recorded selection use the PSA 2018 IO80 table. These are **different defaults for different entry points**, not interchangeable descriptions of the same area run.
+
 ## Derived hierarchical economies and colors
 
-`SIGMA load` records a **baseline** hierarchical partition. For a generated
-hierarchy, `sigma run AREA` may produce an **iteratively rolled-up derived
-Economy** if a baseline sector yields no retained HDBSCAN clusters. A
-`--no-iterative-rollup` run instead preserves the original baseline. The
-effective Economy ID governs how national transactions and outputs are
-aggregated; X edges and scores must correspond to that exact catalog. The
-original sector code remains auditable but is not an additional row/column
-in the effective IO matrix.
+`sigma load` records a **baseline** hierarchical partition (stage 5). For a generated hierarchy, `sigma run AREA` produces an **iteratively rolled-up derived economy** (stage 9) when a baseline sector yields no retained HDBSCAN* clusters and a residual merge is accepted; `--no-iterative-rollup` keeps the baseline. The effective economy ID governs how national transactions and outputs are aggregated ($M Z M^\top$, $M x$); X edges and scores correspond to that exact catalog. The original sector code remains auditable but is not an additional row or column of the effective IO matrix.
 
-The supplied 336-color palette is a stable mapping of official IO16, IO80
-and IO240 identifiers (and their sparse/legacy forms) to display colors.
-Residuals use their parent color. This palette is **not** an economic
-coefficient matrix and never changes the IO calculation.
-<!-- sigma-docs-20261104-v1:end -->
+The 336-color palette is a stable mapping of official IO16, IO80 and IO240 identifiers (and their sparse and tiered forms) to display colors. Residuals use their parent color. The palette is **not** an economic coefficient matrix and never changes the IO calculation.
 
 ## Technical coefficients
 

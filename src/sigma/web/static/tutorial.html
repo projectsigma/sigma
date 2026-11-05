@@ -5,7 +5,7 @@
 </head><body>
 <title>SIGMA, Step by Step</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="A scroll-through explanation of the SIGMA pipeline: places, roads, clusters, territories, input-output coefficients, graph X, Katz centrality, and establishment scores.">
+<meta name="description" content="A scroll-through explanation of the SIGMA pipeline in 17 stages: places, activity and ownership evidence, area sectors, roads, HDBSCAN*, zero-cluster roll-up, network Gap refinement, 1-medians, territories, input-output coefficients, graph X, Katz centrality, establishment scores, and browser routes.">
 <style>
 /* Layout: a two-column scroll story. Text steps on the left, a sticky map-plate figure on the right that redraws for each step.
    On phones the plate pins under the header and the steps scroll below it. Palette follows the SIGMA deck (ink, teal, blue, gold, rose). */
@@ -126,6 +126,9 @@ svg.fig{display:block;width:100%;height:auto;max-height:calc(100% - 40px);border
 input[type=range]{width:100%;min-width:0;accent-color:var(--teal);margin:0}
 .check{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:.8rem;margin:8px 0 2px;color:var(--ink)}
 .check input{accent-color:var(--teal);width:16px;height:16px}
+.ctl select{font-family:var(--mono);font-size:.8rem;padding:4px 6px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:4px;min-width:0;width:100%}
+.pills .check{margin:0 10px 0 0}
+.step ol b{font-family:var(--mono);font-size:.85em;color:var(--teal)}
 .readout{font-family:var(--mono);font-size:.78rem;line-height:1.55;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:10px 12px;margin:10px 0 0;font-variant-numeric:tabular-nums}
 .readout var{font-family:var(--mono)}
 .v-ok{color:var(--teal);font-weight:600}.v-bad{color:var(--rose);font-weight:600}
@@ -151,7 +154,7 @@ table.t{border-collapse:collapse;font-size:.86rem;width:100%;color:var(--ink)}
 .card li{margin-bottom:.35em}
 .card h4{font-size:1rem;margin-bottom:8px}
 .dag{border:1px solid var(--line);background:var(--plate);border-radius:6px;overflow-x:auto}
-.dag svg{display:block;min-width:760px;width:100%;height:auto}
+.dag svg{display:block;min-width:880px;width:100%;height:auto}
 pre.cmd{font-family:var(--mono);font-size:.86rem;background:var(--plate);border:1px solid var(--line);border-radius:6px;padding:14px 16px;overflow-x:auto;margin:0 0 12px;color:var(--ink)}
 @media (max-width:760px){.cols{grid-template-columns:minmax(0,1fr)}}
 .foot{border-top:1px solid var(--line);margin-top:56px;padding-block:44px 64px;background:var(--plate)}
@@ -185,6 +188,7 @@ pre.cmd{font-family:var(--mono);font-size:.86rem;background:var(--plate);border:
 .gap{stroke:var(--plate);stroke-width:15;fill:none}
 .vtx{fill:var(--ink)}
 .dot{stroke:var(--plate);stroke-width:2}
+.noise{fill:var(--plate);stroke:var(--muted);stroke-width:2.2}
 .osm{fill:var(--plate);stroke:var(--ink);stroke-width:2.4}
 .ovt{fill:var(--ink);stroke:var(--plate);stroke-width:1.5}
 .bx{fill:var(--grid);stroke:var(--line);stroke-width:1.2}.bx.gold{fill:var(--gold-soft)}.bx.teal{fill:var(--teal-soft)}
@@ -232,10 +236,11 @@ pre.cmd{font-family:var(--mono);font-size:.86rem;background:var(--plate);border:
 .curve{fill:none;stroke:var(--teal);stroke-width:3}.mean{fill:none;stroke:var(--gold);stroke-width:2;stroke-dasharray:7 6}
 .refl{fill:none;stroke:var(--rose);stroke-width:1.6;stroke-dasharray:5 5}
 .chain{fill:var(--plate);stroke:var(--line);stroke-width:1.4}.chain.on{fill:var(--teal-soft);stroke:var(--teal)}
-.ob rect{stroke:var(--line);stroke-width:1.5}.ob.sp rect{fill:var(--teal-soft)}.ob.ec rect{fill:var(--gold-soft)}.ob.ou rect{fill:var(--grid)}
+.ob rect{stroke:var(--line);stroke-width:1.5}.ob.sp rect{fill:var(--teal-soft)}.ob.ec rect{fill:var(--gold-soft)}.ob.ou rect{fill:var(--grid)}.ob.op rect{fill:var(--plate);stroke-dasharray:6 4}
 .ob{cursor:pointer;outline:none}.ob:hover rect,.ob:focus-visible rect{stroke:var(--teal);stroke-width:2.6}
 .flow{fill:none;stroke:var(--teal);stroke-width:1.8;stroke-dasharray:6 5;animation:flow 1.1s linear infinite}
-.flow.gold{stroke:var(--gold)}.flow.ink{stroke:var(--muted)}
+.flow.gold{stroke:var(--gold)}.flow.ink{stroke:var(--muted)}.flow.dash{stroke-dasharray:3 6}
+.ovw .xs{font-size:11px}
 @keyframes flow{to{stroke-dashoffset:-11}}
 .dn rect{fill:var(--grid);stroke:var(--line);stroke-width:1.5;transition:fill .4s,stroke .4s}
 .dn.stale rect{fill:var(--gold-soft);stroke:var(--gold);stroke-width:2.5}
@@ -292,11 +297,11 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
     <a id="live-back-top" class="live-back" href="index.html">← Back to Explorer</a>
     <a id="sigma-about-tutorial-link" class="live-back sigma-about-link" href="about.html" target="_blank" rel="noopener noreferrer" title="What is SIGMA?">What is SIGMA?</a>
     <nav class="nav" aria-label="Parts">
-      <a href="#places" data-part="places">1 Places</a>
+      <a href="#places" data-part="places">1 Places and sectors</a>
       <a href="#roads" data-part="roads">2 Roads and clusters</a>
       <a href="#economy" data-part="economy">3 Economy</a>
       <a href="#graph" data-part="graph">4 Graph and scores</a>
-      <a href="#limits" data-part="limits">5 Limits</a>
+      <a href="#limits" data-part="limits">5 Routes and limits</a>
     </nav>
     <span class="now" id="now">Overview</span>
     <button class="theme" id="theme" type="button" aria-pressed="false" title="Switch between light and dark mode"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.7a6.3 6.3 0 0 1 0 12.6z" fill="currentColor"/></svg><span>Dark mode</span></button>
@@ -308,13 +313,14 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
   <section class="hero gut" aria-labelledby="h1">
     <p class="eyebrow">Project SIGMA · method walk-through</p>
     <h1 id="h1">From establishments to a spatial–economic influence network</h1>
-    <p class="lede">SIGMA takes three inputs: mapped business locations, a road network, and a national input–output table. The current canonical method derives local IO sectors, measures original HDBSCAN clusters, conditionally rolls up sectors with K=0, and applies one network Gap k-medoid pass with four workers to retained clusters. Final network-node 1-medians, Voronoi, numerical X and Katz follow. Scroll through the worked illustrations; the actual published area's settings must be audited separately.</p>
-    <div class="ovw"><svg id="fig-overview" viewBox="0 0 960 304" role="img" aria-label="Pipeline: places and roads feed clustering, centers and territories; input-output coefficients feed graph X; graph X gives Katz centrality, which becomes the establishment score."></svg></div>
+    <p class="lede">SIGMA takes three inputs: mapped business locations, a road network, and a national input–output table. <code>sigma load</code> turns the locations into typed establishments and builds sectors for the study area (stages 1–5). <code>sigma run</code> measures road distances, finds clusters of each sector, rolls up sectors that have no cluster, refines dispersed clusters once with the network Gap statistic, and then computes centers, territories, graph <var>X</var>, Katz centrality and establishment scores (stages 6–17). Explorer then draws road routes on request. Each stage below has a worked, interactive example. The examples are illustrative; the panel “Current SIGMA run” shows the published results of the area you opened.</p>
+    <div class="ovw"><svg id="fig-overview" viewBox="0 0 960 384" role="img" aria-label="Pipeline in 17 stages. sigma load: sources, matching, activity, IO tags and ownership evidence, area sectors. sigma run: road graph and snapping, HDBSCAN per sector, zero-cluster roll-up, network Gap refinement, 1-median centers and network Voronoi; input-output coefficients; graph X; balanced Katz centrality; establishment scores; publication with browser routes."></svg></div>
     <div class="cap">
-      <span class="key"><i style="background:var(--teal-soft)"></i>spatial branch</span>
+      <span class="key"><i style="background:var(--teal-soft)"></i>places, roads and clusters</span>
       <span class="key"><i style="background:var(--gold-soft)"></i>economic branch</span>
-      <span class="key"><i style="background:var(--grid)"></i>combined model and scores</span>
-      <span>Conceptual stages: generated-hierarchy roll-up uses pre-Gap HDBSCAN K=0 counts; the Gap refinement is single-pass and four-worker by default. Choose a box for its worked explanation.</span>
+      <span class="key"><i style="background:var(--grid)"></i>combined model, scores and publication</span>
+      <span class="key"><i style="background:transparent;border-style:dashed"></i>optional step between load and run</span>
+      <span>Numbers are stage numbers used in this page and in the documentation. Choose a box to go to its worked explanation.</span>
     </div>
   </section>
 
@@ -323,7 +329,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
     <div class="live-summary">
       <div class="live-main">
         <h2 id="live-title">Current area and economic model</h2>
-        <p class="live-explainer">The figures below use published results from the area you are exploring. The tutorial's mathematical diagrams remain worked illustrations. Canonical settings described below (hierarchical K=0 roll-up and Gap refinement with four workers) describe the <em>current default workflow</em>, not proof that this particular published bundle used those options. Check its run and clustering audits for provenance.</p>
+        <p class="live-explainer">The figures in this panel use published results from the area you are exploring. The worked diagrams further down are illustrations with invented numbers. The stages describe the default workflow (for example, zero-cluster roll-up for generated hierarchies and Gap refinement with four workers); this is not proof that this particular published bundle used those options. What was actually done is recorded in <code>run.json</code> (published outputs), <code>rollup_audit.json</code> (roll-up package) and <code>median_gap_audit.json</code> (clustering artifact).</p>
         <div id="live-stats" class="live-stats"></div>
         <div class="live-chooser">
           <label for="live-sector">Economic sector <select id="live-sector" aria-label="Choose an actual economic sector"></select></label>
@@ -348,6 +354,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
         <div><b>An <var>X</var> node <var>n</var> = (<var>t</var>, <var>c</var>)</b>A cluster <var>c</var> of establishments of the same type <var>t</var>, for example a local group of bakeries.</div>
       </div>
       <p>Centrality is computed for <var>X</var> nodes. Each clustered establishment receives its cluster's centrality, reduced by at most 15% for its road distance from the cluster center. An establishment labeled <em>noise</em> belongs to no cluster, so it is not part of any <var>X</var> node.</p>
+      <p>A <em>sector</em> (economic type <var>t</var>) is not fixed in advance. Stage 5 builds the sector list of each study area from the national 240-industry table, and stage 9 can merge a sector that has no cluster into a broader sector.</p>
     </div>
     <div class="note warn">
       <h2>What the model does not say</h2>
@@ -358,11 +365,11 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
   </section>
 
   <!-- ======================= PART 1 ======================= -->
-  <section class="part" id="places" data-title="1 Places">
+  <section class="part" id="places" data-title="1 Places and sectors">
     <div class="part-head gut">
-      <p class="part-no">Part 1 · Stages 1–3</p>
-      <h2>From observed places to typed establishments</h2>
-      <p>Two map sources describe the same streets. SIGMA decides which records are the same place, then gives each place an economic type.</p>
+      <p class="part-no">Part 1 · Stages 1–5 · <code>sigma load</code></p>
+      <h2>From observed places to typed establishments and area sectors</h2>
+      <p>Two map sources describe the same streets. SIGMA decides which records are the same place, classifies each place's activity, attaches input–output (IO) industries with their evidence, and then chooses the sectors that this study area can support.</p>
     </div>
     <div class="scrolly gut" data-fig="places">
       <div class="steps">
@@ -414,17 +421,16 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p class="callout">The thresholds and the <var>q</var> weights are a versioned matching <strong>policy</strong>. They are not learned, and they are not a proven-optimal record-linkage method.</p>
         </article>
 
-        <article class="step" data-cap="Each canonical place receives one economic type. Colors: Food (teal) and Retail (blue).">
-          <p class="stage"><span class="shield">3</span>Stage 3</p>
-          <h3>Give each place an economic type</h3>
-          <p>Name, OSM tags, and source categories go through reviewed deterministic crosswalks and name rules to a PSIC industry code (Philippine Standard Industrial Classification). The code supplies candidate industries for the selected input–output (IO) economy. By default, SIGMA uses an area-specific hierarchy of PSA 2018 IO240, IO80, and IO16 industries; explicit IO16, IO80, IO240, or custom economies remain available. Stage 3A below explains how the local sectors are selected.</p>
+        <article class="step" data-cap="Each canonical place receives one activity code and, later, one economic type. Colors: Food (teal) and Retail (blue).">
+          <p class="stage"><span class="shield">3</span>Stage 3 · activity</p>
+          <h3>Classify each place's activity (PSIC)</h3>
+          <p>Name, OSM tags, and source categories go through reviewed deterministic crosswalks and name rules to a PSIC code (Philippine Standard Industrial Classification). PSIC describes the <em>activity</em>, for example baking or retail sale.</p>
           <ul>
-            <li>Strong source categories take precedence.</li>
-            <li>Compatible OSM tag combinations are allowed.</li>
-            <li>Incompatible combined activities are sent to review; they are not forced into one code.</li>
-            <li>No large language model (LLM) is used in the default path. Optional human review can remove out-of-scope rows before clustering.</li>
+            <li>Strong source categories take precedence. A name rule that disagrees with a trusted category is dropped (<code>NAME_RULE_OVERRULED_BY_CATEGORY</code>).</li>
+            <li>Compatible OSM tag combinations are allowed. Incompatible combined activities are sent to review; they are not forced into one code.</li>
+            <li>No large language model (LLM) is used in the default path.</li>
           </ul>
-          <p>Classification decides which places may cluster together, and which economic coefficients apply to them later.</p>
+          <p>Stage 4 then translates the activity into IO industries, and stage 5 into the sectors of this area. The sector decides which places may cluster together (Part 2) and which economic coefficients apply to them (Part 3).</p>
         </article>
       </div>
       <figure class="fig-wrap">
@@ -432,76 +438,168 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
         <figcaption class="figcap"></figcaption>
       </figure>
     </div>
-  </section>
 
+    <div class="scrolly gut" data-fig="evidence" id="evidence">
+      <div class="steps">
+        <article class="step" data-cap="Decision path of the administrative-office rule for one place name. Choose a name to follow its path. Example names; the decisions were checked with SIGMA's rule code.">
+          <p class="stage"><span class="shield">3</span>Stage 3 · office or service</p>
+          <h3>A government office is not a school or a hospital</h3>
+          <p>Some places are offices that administer health or education, for example a schools division office. Their source category can still say “school” or “hospital”. After the PSIC classifier, SIGMA applies one narrow rule set to the name:</p>
+          <ul>
+            <li>A clear administrative office name changes the activity to PSIC <code>84120</code> (public administration of health, education and other social programmes).</li>
+            <li>A name that also contains a frontline word (hospital, clinic, school, university and similar) is sent to review. Frontline services are never changed.</li>
+            <li>A name that only mentions an agency, such as “Department of Health”, is sent to review.</li>
+          </ul>
+          <div class="pills" role="group" aria-label="Example place name">
+            <button class="pill" type="button" data-adm="0" aria-pressed="true">Schools Division Office</button>
+            <button class="pill" type="button" data-adm="1" aria-pressed="false">Regional Office</button>
+            <button class="pill" type="button" data-adm="2" aria-pressed="false">City Health Department</button>
+            <button class="pill" type="button" data-adm="3" aria-pressed="false">Office health clinic</button>
+            <button class="pill" type="button" data-adm="4" aria-pressed="false">Agency name only</button>
+            <button class="pill" type="button" data-adm="5" aria-pressed="false">National High School</button>
+          </div>
+          <p class="readout" id="adm-out" aria-live="polite"></p>
+          <p class="mini">The previous PSIC is kept in <code>admin_original_psic</code>; the status is <code>REASSIGNED</code>, <code>CONFIRMED</code> (already 84xxx) or <code>REVIEW</code>. This rule decides the activity only. It never decides public or private ownership.</p>
+        </article>
+        <article class="step" data-cap="Candidate industries at each IO level for PSIC class 0112, Growing of rice. A level receives a tag only when it has exactly one candidate.">
+          <p class="stage"><span class="shield">4</span>Stage 4 · IO candidates</p>
+          <h3>From one activity code to candidate IO industries</h3>
+          <p>The PSA input–output (IO) tables describe the economy at three nested levels: 16, 80 and 240 industries. Published concordances map a PSIC code to a <em>set</em> of candidate industries at each level. A level receives a tag only when its set has exactly one member.</p>
+          <p>Example: PSIC class 0112 (growing of rice) is in group 011. Group 011 maps to 1 IO16 industry, 6 IO80 industries and 11 IO240 industries, so only the IO16 tag is known. A reviewed refinement row for class 0112 narrows IO240 to <code>001</code> Palay. Its parents then fix IO80 <code>01</code> and IO16 <code>01</code>: the place is tagged at all three levels.</p>
+          <label class="check" for="ref-on"><input id="ref-on" type="checkbox" checked> apply the refinement row for class 0112</label>
+          <p class="readout" id="ref-out" aria-live="polite"></p>
+          <ul>
+            <li>A refinement row may only narrow a set. A row that would add an industry is not applied.</li>
+            <li>Other evidence can choose inside a set but never outside it: same-name evidence, OSM tag rules for IO80, and ownership evidence (next step).</li>
+            <li>The three tags must nest. If they disagree, the weaker source's tag is cleared (<code>LEVEL_CONFLICT</code>) or replaced by the parent of a stronger finer tag (<code>DERIVED_FROM_IO240</code>, <code>DERIVED_FROM_IO80</code>).</li>
+          </ul>
+          <p class="mini"><code>io_mapping_provisional</code> = true marks a mapping that depends on a draft bridge or refinement row, not on a published concordance.</p>
+        </article>
+        <article class="step" data-cap="Evidence ladder for public or private ownership of a school. Top rungs can change the IO industry; lower rungs are recorded but do not change it.">
+          <p class="stage"><span class="shield">4</span>Stage 4 · ownership</p>
+          <h3>Public or private? Only strong evidence changes the industry</h3>
+          <p>Education and health are split into public and private IO industries: IO80 74 / 75 (IO240 229 / 230) and IO80 76 / 77 (IO240 231 / 232). A PSIC code alone often leaves both sides as candidates.</p>
+          <p>At <code>places.classified</code>, SIGMA can choose one side from evidence, in this order of strength: a verified link to a registry record, an official registry ID found in the source record, and an explicit ownership attribute in OSM or Overture. A registry match by name and city only, or a government operator tag, is recorded as provisional and does not change the industry. Evidence that points to both sides is a conflict, and SIGMA abstains.</p>
+          <div class="ctl" style="grid-template-columns:auto minmax(0,1fr)">
+            <label for="own-src">source attribute</label>
+            <select id="own-src"><option value="none">none</option><option value="public" selected>ownership = public</option><option value="private">ownership = private</option></select>
+            <label for="own-reg">registry evidence</label>
+            <select id="own-reg"><option value="none" selected>none</option><option value="namecity">name + city match (public)</option><option value="extid">official ID match (public)</option><option value="link">verified registry link (public)</option></select>
+          </div>
+          <label class="check" for="own-op"><input id="own-op" type="checkbox"> government operator tag (for example operator = DepEd)</label>
+          <label class="check" for="own-base"><input id="own-base" type="checkbox"> a stronger PSIC or tag rule already chose the other industry</label>
+          <p class="readout" id="own-out" aria-live="polite"></p>
+          <p class="mini">Registry layers: packaged national school (BEIS) and higher-education (UniFAST) references, a validated national hospital snapshot when it is installed, and verified links in <code>references/institution_links.json</code>. Name heuristics used during tagging (for example “National High School”) are flagged <code>ownership_inferred</code>; they are not registry proof. The decision is in <code>institution_promotion_status</code> and <code>institution_evidence_basis</code>.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-evidence" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
 
-  <!-- sigma-under-the-hood-current-run-hierarchy-3a-20261102-v1 -->
-  <section class="sigma-hier3a gut" id="hierarchical-tagging" aria-labelledby="sigma-hier3a-title">
-    <div class="sigma-hier3a-head">
-      <p class="part-no">Stage 3A · After tagging, before clustering</p>
-      <h2 id="sigma-hier3a-title">How SIGMA constructs an area-specific industry hierarchy</h2>
-      <p>PSIC and the official IO concordances provide candidate industries. The <strong>local establishment evidence</strong> determines which of those industries remain separate and which fold into their parent. This example is illustrative, not a result from the current area.</p>
+    <div class="scrolly gut" data-fig="hierarchy" id="hierarchy">
+      <div class="steps">
+        <article class="step" data-cap="One IO16 industry X with three IO80 children and seven IO240 industries. Bars: places with an exact IO240 tag. Dashed line: min_places. Brackets: the resulting sectors. Invented counts.">
+          <p class="stage"><span class="shield">5</span>Stage 5 · area sectors</p>
+          <h3>Keep an industry only where enough places support it</h3>
+          <p>For each study area, SIGMA chooses its own list of sectors from the national 240-industry table. An IO240 industry becomes a sector only when at least <code>min_places</code> places (5 by default) carry it as an exact tag. Other industries fold into a parent:</p>
+          <ul>
+            <li>unkept siblings of a kept industry form the IO80 residual <code>X:Y:o</code>;</li>
+            <li>an IO80 industry with no kept child stays whole as <code>X:Y</code> when its places reach <code>min_places</code>;</li>
+            <li>the remaining industries of the IO16 parent form <code>X:o</code>, or the whole <code>X</code> when nothing was kept.</li>
+          </ul>
+          <div class="ctl"><label for="mp"><code>min_places</code></label><input id="mp" type="range" min="1" max="10" step="1" value="5"><output id="mp-o" for="mp">5</output></div>
+          <p class="readout" id="mp-out" aria-live="polite"></p>
+          <p class="mini">Each of the 240 industries belongs to exactly one sector, including industries with no observed place. Codes: <code>X:Y:Z</code> one IO240 industry; <code>X:Y:o</code> the rest of an IO80 parent; <code>X:Y</code> a whole IO80 parent; <code>X:o</code> the rest of an IO16 parent; <code>X</code> a whole IO16 parent.</p>
+        </article>
+        <article class="step" data-cap="Where places with only a coarse tag go. Y1: 3 places tagged IO80 Y1 only; Y2: 2 places tagged IO80 Y2 only; X: 1 place tagged IO16 X only.">
+          <p class="stage"><span class="shield">5</span>Stage 5 · coarse tags</p>
+          <h3>Places with only an IO80 or IO16 tag</h3>
+          <p>A coarse place joins a sector at once when one sector contains every industry under its tag. Otherwise a policy decides:</p>
+          <ul>
+            <li><strong>residual</strong> (default): the place goes to the residual of its parent (<code>IO80_RESIDUAL</code>, <code>IO16_RESIDUAL</code>). This is a recorded convention: the residual holds the <em>least</em> supported industries.</li>
+            <li><strong>contain</strong> (optional): the place joins a sector only if that sector contains all of its candidate industries. A parent is kept whole when more than <code>max_straddle_share</code> of its places would straddle the split; remaining straddlers are unassigned.</li>
+          </ul>
+          <div class="pills" role="group" aria-label="Coarse policy">
+            <button class="pill" type="button" data-pol="residual" aria-pressed="true">residual</button>
+            <button class="pill" type="button" data-pol="contain" aria-pressed="false">contain</button>
+          </div>
+          <div class="ctl"><label for="sh"><code>max_straddle_share</code></label><input id="sh" type="range" min="0" max="0.5" step="0.01" value="0.25"><output id="sh-o" for="sh">0.25</output></div>
+          <p class="readout" id="sh-out" aria-live="polite"></p>
+          <p class="mini">The share applies only to <code>contain</code>. A place whose supplied candidate industries contradict its own tag is never imputed: it stays <code>UNASSIGNED_CANDIDATE_CONFLICT</code> under both policies.</p>
+        </article>
+        <article class="step" data-cap="Aggregation of an invented 4-industry table to 3 sectors. Industries c and d form one sector. Totals are unchanged.">
+          <p class="stage"><span class="shield">5</span>Stage 5 · the table</p>
+          <h3>Aggregate the national table to the area's sectors</h3>
+          <p>With membership matrix <var>M</var> (one row per sector, one column per IO240 industry, entries 0 or 1), SIGMA aggregates transactions and gross output:</p>
+          <div class="eq"><var>Z</var><sub>area</sub> = <var>M Z M</var><sup>T</sup>, &nbsp; <var>x</var><sub>area</sub> = <var>M x</var></div>
+          <p>Rows and columns use the same partition, so total transactions and total output are unchanged. Part 3 then recomputes coefficients from the aggregated table.</p>
+          <div class="pills" role="group" aria-label="Table view"><button class="pill" type="button" data-agg="0" aria-pressed="false">4 industries</button><button class="pill" type="button" data-agg="1" aria-pressed="true">3 sectors</button></div>
+          <p class="readout" id="agg-out" aria-live="polite"></p>
+          <p class="mini">The recomputed coefficient equals the output-weighted average of the merged coefficients, not their simple average.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-hierarchy" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
     </div>
-    <div class="sigma-hier3a-scene" role="img" aria-label="Animated illustration: PSIC tagging produces candidates in IO240. A well-supported precise industry remains X:Y:Z, while unsupported IO240 siblings form X:Y:o under their IO80 parent. Broad IO80 and IO16 groups remain possible.">
-      <div class="sigma-hier3a-step"><div class="sigma-hier3a-label">Evidence</div><div class="sigma-hier3a-tiles"><span>6 exact tags</span><span>3 broad tags</span></div><small>Mapped establishments and PSIC candidates</small></div>
-      <div class="sigma-hier3a-arrow" aria-hidden="true">→</div>
-      <div class="sigma-hier3a-step"><div class="sigma-hier3a-label">Parent structure</div><div class="sigma-hier3a-chain"><span>IO16 · X</span><span>IO80 · X:Y</span><span>IO240 · X:Y:Z</span></div><small>Each detailed industry belongs to one parent at each level</small></div>
-      <div class="sigma-hier3a-arrow" aria-hidden="true">→</div>
-      <div class="sigma-hier3a-step sigma-hier3a-result"><div class="sigma-hier3a-label">Local sectors</div><div class="sigma-hier3a-tiles"><span class="sigma-hier3a-fine">X:Y:Z</span><span class="sigma-hier3a-other">X:Y:o</span></div><small>Retain supported detail; fold other IO240 siblings into a residual</small></div>
-    </div>
-    <p class="sigma-hier3a-hint">Sparse codes: <code>X:Y:Z</code> = detailed IO240 industry; <code>X:Y:o</code> = other IO240 industries within an IO80 parent; <code>X:Y</code> = whole IO80 parent; <code>X:o</code> = remaining industries within an IO16 parent; <code>X</code> = whole IO16 parent. Here X, Y and Z stand for actual two-, two-, and three-digit codes. A branch needs at least <code>min_places</code> exact supporting establishments (5 in the standard area profile).</p>
-    <div class="sigma-hier3a-policies">
-      <div><b>Residual · default</b><p>Keeps supported detailed sectors separate. When a coarse tag spans multiple groups, it may be assigned to the parent's residual sector by convention, when that residual exists. This is exploratory attribution, not a verified fine industry.</p></div>
-      <div><b>Contain · optional</b><p>Assigns a coarse establishment only when a sector contains all its candidates. It may keep a parent whole if too many establishments would straddle a split; remaining straddlers stay unassigned.</p></div>
-    </div>
-    <p class="sigma-hier3a-foot">The resulting sectors form a mutually exclusive partition of all 240 reference industries. SIGMA aggregates transactions and total output to that partition before clustering establishments by their assigned local economic type.</p>
-<!-- sigma-docs-20261104-v1:begin -->
-<div class="sigma-hier3a-foot" role="note" aria-label="Post-clustering hierarchical roll-up">
-      <p><strong>After clustering: conditional zero-cluster roll-up.</strong>
-        This scene describes the initial <code>sigma load</code> hierarchy.
-        For a generated hierarchical economy, the normal <code>sigma run</code>
-        additionally checks each original sector's retained HDBSCAN clusters.
-        Only a sector with <strong>K = 0</strong> is eligible for an iterative,
-        residual-first coarsening, accepted under the positive net-retention
-        rule. Sectors that already have clusters are not automatically merged.
-        Use <code>sigma run AREA --no-iterative-rollup</code> to preserve the
-        original sector partition. No noise point is assigned to its nearest
-        Voronoi cluster by this method. <strong>Order:</strong> HDBSCAN K=0
-        eligibility and any effective-sector reclustering happen <em>before</em>
-        the canonical Gap split pass. Gap never invents a retained cluster for
-        a sector with K=0.</p>
-      <p><strong>Two sector identities.</strong> Each moved establishment
-        retains an original industry code for provenance. Its effective
-        rolled-up sector controls clustering, IO aggregation, network X and
-        SIGMA scores. The local Explorer lets you expand original children
-        and toggle their <em>point</em> visibility independently, retaining
-        their fixed industry colors. This is not a second scored X network.</p>
-      <p><strong>Fixed color scheme and map-only overlays.</strong> SIGMA uses
-        336 fixed industry colors (16/80/240); residuals inherit parent
-        colors. On selection, an opt-in overlay can display unclustered
-        establishments of matching effective sectors within the published
-        Voronoi partitions, with 0.96 focus and
-        0.90/&radic;<var>d</var> opacity at network step <var>d</var>.
-        Hovering a cluster-center triangle outlines its existing polygon
-        boundary in that sector's color. Neither view creates cluster
-        membership, new edges, or scores.</p>
-    </div>
-<!-- sigma-docs-20261104-v1:end -->
 
+    <div class="scrolly gut" data-fig="handoff" id="handoff">
+      <div class="steps">
+        <article class="step" data-cap="The editable handoff places/places.parquet. Removing rows changes its SHA-256 hash, which marks the dependent stages for recomputation.">
+          <p class="stage"><span class="shield">+</span>Between load and run · review</p>
+          <h3>Review the handoff before analysis</h3>
+          <p><code>sigma load</code> ends by writing <code>places/places.parquet</code>. You may open it in a GIS or data tool, remove establishments that should not take part (for example non-MSME rows), and save it in place. Keep at least <code>canonical_id</code>, geometry, CRS and <code>economy_code</code>.</p>
+          <p>SIGMA hashes the file bytes. The next <code>sigma run</code> recomputes only the stages that depend on the changed file, and rebuilds the area sectors (stage 5) when they are older than the handoff.</p>
+          <p class="mini">Remove a row rather than add a flag: clustering uses every row it receives.</p>
+        </article>
+        <article class="step" data-cap="A user record (square) meets a canonical place with two sources. The same distance and name rule as stage 2 accepts the pair; the position becomes the source-count weighted average.">
+          <p class="stage"><span class="shield">+</span>Between load and run · augment</p>
+          <h3>Add your own source with the same matching rule</h3>
+          <p><code>sigma augment AREA FILE --source NAME</code> reads a CSV or Parquet file with four required columns: <code>source_id</code>, <code>name</code>, <code>lon</code>, <code>lat</code>. Each record is compared with the loaded canonical places using the stage 2 rule (120 m, name score bands, one-to-one by <var>q</var>).</p>
+          <ul>
+            <li>Matched: the canonical ID is kept, the source is added to provenance, and the position becomes the source-count weighted average. For a place with 2 sources: (2 · <var>p</var> + <var>u</var>) / 3.</li>
+            <li>Unmatched: a new place with its own deterministic ID, classified by the same routines.</li>
+            <li>Every other column is kept as <code>aug_&lt;source&gt;__&lt;column&gt;</code>. These columns do not enter the scores.</li>
+          </ul>
+          <div class="pills"><button class="pill" type="button" id="aug-replay">Replay the match</button></div>
+          <p class="mini"><code>--check</code> previews the result without writing. Applying the same file twice is recognized and refused.</p>
+        </article>
+        <article class="step" data-cap="An explicit IO tag in a supplied record. Filled boxes: supplied. Outlined boxes: derived by SIGMA. Choose the supplied levels.">
+          <p class="stage"><span class="shield">+</span>Between load and run · explicit tags</p>
+          <h3>Explicit IO tags: derive parents, never children</h3>
+          <p>A supplied record may carry its own <code>io16</code>, <code>io80</code> and <code>io240</code> codes. SIGMA derives the missing <em>parents</em> of the finest supplied code and checks every supplied parent link. It never guesses a finer code from a coarser one.</p>
+          <div class="pills" role="group" aria-label="Supplied levels">
+            <label class="check" for="ag16"><input id="ag16" type="checkbox"> io16</label>
+            <label class="check" for="ag80"><input id="ag80" type="checkbox" checked> io80</label>
+            <label class="check" for="ag240"><input id="ag240" type="checkbox"> io240</label>
+            <label class="check" for="agbad"><input id="agbad" type="checkbox"> supplied codes disagree</label>
+          </div>
+          <p class="readout" id="ag-out" aria-live="polite"></p>
+          <p class="mini">Supplied tags are national codes, never local residual codes such as <code>X:Y:o</code>; the next run places the tagged establishments into the area's sectors.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-handoff" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
   </section>
 
   <!-- ======================= PART 2 ======================= -->
   <section class="part" id="roads" data-title="2 Roads and clusters">
     <div class="part-head gut">
-      <p class="part-no">Part 2 · Stages 4–8</p>
+      <p class="part-no">Part 2 · Stages 6–12 · <code>sigma run</code></p>
       <h2>Road distances, clusters, and territories</h2>
-      <p>Every spatial step in SIGMA measures distance along roads. This part builds the road graph, finds clusters of each economic type, picks a center for each cluster, and assigns territory.</p>
+      <p>Every spatial step in SIGMA measures distance along roads. This part builds the road graph, finds clusters of each sector, merges sectors that have no cluster into a broader sector, refines dispersed clusters once, picks a center for each final cluster, and assigns territory.</p>
     </div>
 
     <div class="scrolly gut" data-fig="roads">
       <div class="steps">
         <article class="step" data-cap="One road line stored as four coordinates. Teal: the road path. Dashed gold: the straight line.">
-          <p class="stage"><span class="shield">4</span>Stage 4</p>
+          <p class="stage"><span class="shield">6</span>Stage 6</p>
           <h3>Roads become a graph</h3>
           <div class="eq"><var>G</var><sub>R</sub> = (<var>V</var><sub>R</sub>, <var>E</var><sub>R</sub>), &nbsp; edge length <var>ℓ</var><sub><var>e</var></sub> &gt; 0</div>
           <p>Vertices are canonicalized road coordinates. Edges are the straight pieces between consecutive coordinates of each road line. Each edge has its projected length in metres (local UTM). The shortest road distance <var>d</var><sub>R</sub> is computed with Dijkstra's algorithm (SciPy).</p>
@@ -509,14 +607,14 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p>The graph is <strong>undirected</strong>: one-way tags are kept for audit but do not restrict routing.</p>
         </article>
         <article class="step" data-cap="Left: two lines share a vertex, so a turn is possible. Right: a flyover has no shared vertex, so the route cannot turn.">
-          <p class="stage"><span class="shield">4</span>Stage 4 · topology</p>
+          <p class="stage"><span class="shield">6</span>Stage 6 · topology</p>
           <h3>Where do two roads connect?</h3>
           <p>Roads come from the same Geofabrik file: the study boundary buffered by 5 km, motor-road classes only (motorway … residential, living_street, service, road), excluding <code>access</code> = no, private, agricultural, or forestry. Lines are projected to local UTM and not simplified.</p>
           <p>Coordinates are rounded to 11 significant digits. Two lines connect <strong>only</strong> where they share a canonical vertex. A flyover crosses a road without a shared vertex, so no turn is possible there.</p>
           <p class="callout">If a flyover were joined to the road below it, the graph would allow a turn that does not exist. That false path would change clusters, centers, territories, <var>X</var> edges, and scores.</p>
         </article>
         <article class="step" data-cap="Each place snaps to the nearest point on any road. Distance is measured along roads between snap points.">
-          <p class="stage"><span class="shield">5</span>Stage 5</p>
+          <p class="stage"><span class="shield">7</span>Stage 7</p>
           <h3>Snap each place onto the road</h3>
           <div class="eq"><var>s</var><sub><var>i</var></sub> = arg min<sub><var>z</var> ∈ <var>N</var></sub> ‖<var>x</var><sub><var>i</var></sub> − <var>z</var>‖, &nbsp;&nbsp; <var>d</var>(<var>i</var>, <var>j</var>) = <var>d</var><sub>R</sub>(<var>s</var><sub><var>i</var></sub>, <var>s</var><sub><var>j</var></sub>)</div>
           <p><var>N</var> is every position on every road, not only the vertices. Here <var>x</var><sub><var>i</var></sub> is nearer the side street, so its snap point is on the side street, and <var>d</var>(<var>i</var>, <var>j</var>) = 115 + 170 = 285 m.</p>
@@ -524,7 +622,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p>If two snap points are on road parts that do not connect, their road distance is undefined (infinite). SIGMA does not replace it with a straight-line distance.</p>
         </article>
         <article class="step" data-cap="A and B are 330 m apart on the map but 690 m apart by road, because the road goes around the river.">
-          <p class="stage"><span class="shield">5</span>Stage 5 · why roads</p>
+          <p class="stage"><span class="shield">7</span>Stage 7 · why roads</p>
           <h3>Why not straight-line distance?</h3>
           <p>Straight-line distance asks how close two coordinates are on a map: 330 m. Road distance asks how far apart they are through allowed roads: 690 m.</p>
           <p>A river, disconnected roads, or a single crossing point can put two nearby places in different local groups.</p>
@@ -540,8 +638,8 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
     <div class="scrolly gut" data-fig="clusters" id="clusters">
       <div class="steps">
         <article class="step" data-cap="Food and Retail places on the same roads. Clustering runs on one type at a time. Invented positions.">
-          <p class="stage"><span class="shield">6</span>Stage 6</p>
-          <h3>Cluster each economic type separately</h3>
+          <p class="stage"><span class="shield">8</span>Stage 8</p>
+          <h3>Cluster each sector separately</h3>
           <p>Network HDBSCAN* finds dense, connected groups along roads without fixing the number of clusters in advance. It works on one economic type at a time, so here the Retail places are set aside while Food is clustered.</p>
           <p>All establishments of the type take part at the same time. HDBSCAN* does not grow clusters from a chosen starting point; the next four steps show what it does instead.</p>
           <p>Positions with no dense group are labeled <strong>noise</strong>. Noise is not used to build centers.</p>
@@ -549,7 +647,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p class="mini">This is HDBSCAN* applied to road shortest-path distance. It is not ordinary latitude/longitude clustering.</p>
         </article>
         <article class="step" data-cap="Worked example: 10 Food positions on one road (metres), k = 3. Each position in turn searches along the road until it reaches k; the bar is its core distance. Select a position to repeat its search.">
-          <p class="stage"><span class="shield">6</span>HDBSCAN* · step 1 of 4</p>
+          <p class="stage"><span class="shield">8</span>HDBSCAN* · step 1 of 4</p>
           <h3>No starting point: every position is <var>p</var></h3>
           <p>HDBSCAN* does not pick a first point. It takes all positions of one economic type at once. A <em>position</em> is one snap point on the road. Establishments that snap to the same point are merged into one position with weight <var>w</var> (in this example every weight is 1).</p>
           <p>For <strong>every</strong> position, SIGMA asks the same question: how far along the road must I go to reach <var>k</var> establishments, counting myself? The answer is that position's core distance. Each position takes the role of <var>p</var> once, and the order does not change the result.</p>
@@ -560,7 +658,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p class="mini" style="margin-top:10px">SIGMA's default is <var>k</var> = 5; this example uses 3 so that it stays small, and the next three steps keep <var>k</var> = 3. This is different from k-means, which starts from chosen centers, and from the usual step-by-step description of DBSCAN, which picks an unvisited point and grows a cluster from it.</p>
         </article>
         <article class="step" data-cap="Each arc is one link of the minimum spanning tree; a taller arc costs more. Links are added from the cheapest to the most expensive.">
-          <p class="stage"><span class="shield">6</span>HDBSCAN* · step 2 of 4</p>
+          <p class="stage"><span class="shield">8</span>HDBSCAN* · step 2 of 4</p>
           <h3>Which positions should be linked first?</h3>
           <p>Two positions should be linked early when they are close to each other <em>and</em> both are in crowded surroundings. The link cost, called mutual reachability, says exactly this:</p>
           <div class="eq"><var>d</var><sub>mr</sub>(<var>p</var>, <var>q</var>) = max{ core(<var>p</var>), core(<var>q</var>), <var>d</var>(<var>p</var>, <var>q</var>) }</div>
@@ -569,7 +667,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p class="mini">Why the maximum? With plain road distance, a lone shop 40 m from a group would join as early as the group's own members. With core distances, sparse positions join late, so one sparse position cannot connect two dense groups early.</p>
         </article>
         <article class="step" data-cap="Tree of the example: a link at height h joins two groups when the threshold ε reaches h. Colored groups have at least 3 positions; grey positions are in groups that are too small at this ε.">
-          <p class="stage"><span class="shield">6</span>HDBSCAN* · step 3 of 4</p>
+          <p class="stage"><span class="shield">8</span>HDBSCAN* · step 3 of 4</p>
           <h3>Lower the threshold and the tree breaks into groups</h3>
           <p>Keep only the links that cost at most ε. With a large ε, everything is one group. As ε gets smaller, the expensive links disappear and the tree breaks apart. A group with fewer than <code>min_cluster_size</code> establishments (3 here) is too small to be a cluster; at that level its positions are noise.</p>
           <div class="ctl"><label for="eps">threshold ε</label><input id="eps" type="range" min="0" max="220" step="5" value="120"><output id="eps-o" for="eps">120 m</output></div>
@@ -578,7 +676,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p class="mini">HDBSCAN* writes the same thing with the density level <var>λ</var> = 1/ε: a smaller ε is a larger, denser <var>λ</var>.</p>
         </article>
         <article class="step" data-cap="Condensed tree of the example, with λ in 1/km. Width shows how many positions remain. EOM keeps L and R; 0 m and 620 m are noise.">
-          <p class="stage"><span class="shield">6</span>HDBSCAN* · step 4 of 4</p>
+          <p class="stage"><span class="shield">8</span>HDBSCAN* · step 4 of 4</p>
           <h3>Keep the clusters that persist</h3>
           <p>The condensed tree keeps only real splits, where both sides have at least <code>min_cluster_size</code> establishments. A candidate cluster <var>C</var> is born at <var>λ</var><sub>birth</sub>(<var>C</var>), and each position <var>p</var> leaves it at <var>λ</var><sub><var>p</var></sub>. Stability adds up how long the positions stay:</p>
           <div class="eq"><var>S</var>(<var>C</var>) = Σ<sub><var>p</var> ∈ <var>C</var></sub> <var>w</var><sub><var>p</var></sub> (<var>λ</var><sub><var>p</var></sub> − <var>λ</var><sub>birth</sub>(<var>C</var>))</div>
@@ -592,7 +690,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p class="mini">Membership strength is <var>λ</var><sub><var>p</var></sub> / <var>λ</var><sub>max</sub>(<var>C</var>): position 150 gets 14.29 / 16.67 = 0.86, position 490 gets 16.67 / 20 = 0.83, the others get 1, and noise gets 0. Here <var>λ</var> = 1000 / ε, in 1/km.</p>
         </article>
         <article class="step" data-cap="Radius schedule of the adaptive search. The rings show the radii; the actual search runs along roads.">
-          <p class="stage"><span class="shield">6</span>HDBSCAN* · search horizon</p>
+          <p class="stage"><span class="shield">8</span>HDBSCAN* · search horizon</p>
           <h3>Limit the road search</h3>
           <p>SIGMA never builds the full table of all pairs. It stores only pairs closer than the current radius, which grows over trials:</p>
           <div class="eq"><var>r</var><sub>0</sub> = <var>R</var> / <var>g</var><sup><var>n</var>−1</sup>, &nbsp; <var>r</var><sub><var>t</var>+1</sub> = min(<var>R</var>, <var>g</var> <var>r</var><sub><var>t</var></sub>)</div>
@@ -611,46 +709,121 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
       </figure>
     </div>
 
-    <!-- SIGMA_GAP_HIERARCHY_UNDERHOOD_20261105: worked method card; no scrolly step IDs changed -->
-    <section class="sec gut" id="gap-refinement" aria-labelledby="gap-refinement-title">
-      <p class="part-no">Stage 6A · Between HDBSCAN and final network 1-medians</p>
-      <h3 id="gap-refinement-title">Default network Gap refinement: decide whether one HDBSCAN cluster needs several local centers</h3>
-      <p>A retained HDBSCAN cluster can be geographically dispersed. SIGMA makes <strong>one</strong> additional, nonrecursive model-selection pass over <em>each original retained cluster</em>, within its effective economic sector. This does not rerun HDBSCAN, rescue noise or merge industries. In generated hierarchical runs, the baseline K=0 roll-up decision is already complete at this point.</p>
-      <div class="cols">
-        <div class="card">
-          <h4>Choose k with road distances</h4>
-          <p>For candidate observed demand-node medoids <var>m</var><sub>j</sub>, find the network-distance allocation objective:</p>
-          <div class="eq"><var>J</var><sub>k</sub> = min Σ<sub><var>i</var></sub> min<sub><var>j</var>=1…<var>k</var></sub> <var>d</var><sub>R</sub>(<var>q</var><sub>i</sub>, <var>m</var><sub>j</sub>)</div>
-          <p>Compare with uniform reference draws of <strong>road vertices</strong> inside the parent cluster's bounding rectangle and road component. Choose the first <var>k</var> satisfying the adapted Gap one-standard-error rule. Greedy BUILD plus PAM-style SWAP is an approximation to k-medoids; this is <em>not</em> the original Euclidean Gap null.</p>
-          <p class="mini">Defaults: up to <var>k</var>=6, 10 reference draws and 64 sampled establishments. <code>upper_bound_reached</code> flags the search ceiling, not proof of an optimal k.</p>
-        </div>
-        <div class="card">
-          <h4>Keep the actual memberships auditable</h4>
+    <div class="scrolly gut" data-fig="rollup" id="rollup">
+      <div class="steps">
+        <article class="step" data-cap="Two groups of one sector on one road, far apart. HDBSCAN* with min_cluster_size = 5 and allow_single_cluster = false. Change the group sizes. Results checked against SIGMA's clustering code.">
+          <p class="stage"><span class="shield">9</span>Stage 9 · why K = 0</p>
+          <h3>Why can a sector end with zero clusters?</h3>
+          <p>By default HDBSCAN* is not allowed to return a whole sector as one cluster (<code>allow_single_cluster</code> = false). A sector keeps a cluster only when its density tree splits into at least two groups, and each group has at least <code>min_cluster_size</code> = 5 establishments.</p>
+          <p>So a sector with fewer than 2 × 5 = 10 establishments always has <var>K</var> = 0 retained clusters. Stage 5 can still keep such a sector, because it needs only 5 places. All its places are then noise: no <var>X</var> node and no score.</p>
+          <div class="ctl">
+            <label for="ga">group A</label><input id="ga" type="range" min="1" max="12" step="1" value="6"><output id="ga-o" for="ga">6</output>
+            <label for="gb">group B</label><input id="gb" type="range" min="1" max="12" step="1" value="4"><output id="gb-o" for="gb">4</output>
+          </div>
+          <p class="readout" id="g-out" aria-live="polite"></p>
+          <p class="mini">A successful extraction with <var>K</var> = 0 is a valid result. It is not an error, and it does not start the Euclidean recovery path.</p>
+        </article>
+        <article class="step" data-cap="Baseline HDBSCAN* of three invented sectors, then two roll-up trials. Positions and cluster counts were checked with SIGMA's clustering code.">
+          <p class="stage"><span class="shield">9</span>Stage 9 · residual-first trials</p>
+          <h3>Try the nearest residual, keep the merge only if it retains more places</h3>
+          <p>For a generated hierarchy, <code>sigma run</code> first clusters the stage 5 sectors without Gap refinement. For each sector with <var>K</var> = 0 it tries the nearest residual that already exists:</p>
+          <div class="eq"><code>X:Y:Z</code> → <code>X:Y:o</code>, then <code>X:o</code> &nbsp;·&nbsp; <code>X:Y</code> and <code>X:Y:o</code> → <code>X:o</code></div>
+          <p>The places of the failed sector and of the residual are clustered together with the same roads, snaps and HDBSCAN* settings. With <var>b</var> = retained places of these sectors before and <var>a</var> = retained places after the trial, the merge is accepted only if <var>a</var> &gt; <var>b</var>.</p>
+          <div class="pills"><button class="pill" type="button" id="ru-replay">Replay the trials</button></div>
+          <p class="readout" id="ru-out" aria-live="polite"></p>
+          <p class="mini">Sectors that aim at the same residual are tried together. A rejected IO80 residual is followed by the IO16 residual in the next round. A sector with <var>K</var> ≥ 1 is never a source, whatever its noise share.</p>
+        </article>
+        <article class="step" data-cap="What an accepted merge changes. The derived economy is a separate package; the stage 5 economy and the handoff are not edited.">
+          <p class="stage"><span class="shield">9</span>Stage 9 · effects</p>
+          <h3>A new effective sector list, with the original tag kept</h3>
           <ol>
-            <li>If <var>k</var>=2 and every child meets the minimum size, assign <strong>all</strong> original members by exact shortest-road-path distance to the selected medoids.</li>
-            <li>If <var>k</var>=1 or the proposed partition is inadmissible, retain the original HDBSCAN cluster unchanged.</li>
-            <li>Keep HDBSCAN noise as noise. Never retest children recursively.</li>
-            <li>Compute a fresh <strong>full-network 1-median</strong> for each final child at Stage 7. That is different from the observed-node medoid used here.</li>
+            <li>Each moved place keeps <code>original_economy_code</code>; its <code>economy_code</code> becomes the residual. The effective code governs clustering, the IO table, <var>X</var> and scores.</li>
+            <li>The national table is aggregated again to the new partition (<var>M Z M</var><sup>T</sup>, <var>M x</var>), and coefficients are recomputed.</li>
+            <li>The result is written as a separate package under <code>hierarchical/iterative_rollup/&lt;hash&gt;/</code> with <code>rollup_audit.json</code>.</li>
+            <li>SIGMA clusters the effective sectors again without Gap refinement and stops if the cluster count differs from the trial prediction. Only then does stage 10 run.</li>
           </ol>
-          <p class="mini">Default execution: <strong>4 independent worker processes</strong> (Windows-safe spawn), one parent cluster task per worker at a time. Results and child IDs are assembled deterministically; <code>--median-gap-workers 1</code> runs serially.</p>
-        </div>
+          <p class="callout">The roll-up runs only for generated hierarchies. <code>sigma run AREA --no-iterative-rollup</code> keeps the stage 5 sectors. Fixed IO16, IO80, IO240, custom and <code>--equivalent</code> economies are not rolled up. Noise is never assigned to its nearest territory.</p>
+        </article>
       </div>
-      <p class="callout"><strong>Interpretation and controls.</strong> This step changes final centers, type-specific Voronoi polygons, X edges and Katz scores, but splitting does not guarantee a smaller combined sector territory or a fairer score distribution. Use <code>--no-median-gap</code> for the unrefined baseline; legacy <code>--equivalent</code> is also unrefined by default. Inspect <code>hdbscan_cluster</code>, final <code>cluster</code> and the clustering artifact's <code>median_gap_audit.json</code> for actual run-specific outcomes. See the <a href="https://projectsigma.github.io/sigma/content/methods/network_gap_medians.html" target="_blank" rel="noopener noreferrer">full methodological specification</a>.</p>
-    </section>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-rollup" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
+
+    <div class="scrolly gut" data-fig="gap" id="gap-refinement">
+      <div class="steps">
+        <article class="step" data-cap="One retained HDBSCAN* cluster of 16 establishments on one road (invented positions). Move the slider to separate its two halves.">
+          <p class="stage"><span class="shield">10</span>Stage 10 · which clusters</p>
+          <h3>One retained cluster can hold several local concentrations</h3>
+          <p>HDBSCAN* decides which establishments belong to a cluster. It can keep a long, dispersed cluster as one. Stage 10 asks once, for each retained cluster of the final sectors: do several road medoids describe this cluster better than one?</p>
+          <ul>
+            <li>Eligible: at least 2 × <code>min_cluster_size</code> = 10 members and at least 3 distinct road positions.</li>
+            <li>Noise stays noise. A sector with <var>K</var> = 0 is not rescued here; that was stage 9.</li>
+          </ul>
+          <div class="ctl"><label for="gsep">gap between halves</label><input id="gsep" type="range" min="0" max="900" step="10" value="300"><output id="gsep-o" for="gsep">300 m</output></div>
+          <p class="readout" id="gsep-out" aria-live="polite"></p>
+        </article>
+        <article class="step" data-cap="Best k road medoids (diamonds) found by greedy BUILD and SWAP. Chart: log of the total road distance W_k from members to their nearest medoid.">
+          <p class="stage"><span class="shield">10</span>Stage 10 · within-cluster cost</p>
+          <h3>How far are members from <var>k</var> medoids?</h3>
+          <p>For <var>k</var> = 1, 2, … SIGMA looks for <var>k</var> medoids among the members' own road positions. The cost is the total road distance from each member to its nearest medoid:</p>
+          <div class="eq"><var>W</var><sub><var>k</var></sub> = min Σ<sub><var>i</var></sub> min<sub><var>j</var>=1…<var>k</var></sub> <var>d</var><sub>R</sub>(<var>q</var><sub><var>i</var></sub>, <var>m</var><sub><var>j</var></sub>)</div>
+          <p>Greedy BUILD adds the medoid that lowers the cost most; SWAP then exchanges medoids while the cost strictly falls. This is PAM-style k-medoids, an approximation, not a proof of the optimum. <var>W</var><sub><var>k</var></sub> always falls as <var>k</var> grows, so its size alone cannot choose <var>k</var>.</p>
+          <div class="ctl"><label for="gk">medoids <var>k</var></label><input id="gk" type="range" min="1" max="6" step="1" value="2"><output id="gk-o" for="gk">2</output></div>
+          <p class="readout" id="gk-out" aria-live="polite"></p>
+        </article>
+        <article class="step" data-cap="Grey ticks: road vertices inside the cluster's bounding box. Each reference draw places 16 members uniformly on these vertices. Chart: observed log W_k (solid line) and the reference mean (dashed line) with one standard error.">
+          <p class="stage"><span class="shield">10</span>Stage 10 · reference draws</p>
+          <h3>Compare with members placed at random on the same roads</h3>
+          <p>The Gap statistic compares the observed cost with the cost of structureless data. SIGMA draws <var>B</var> = 10 reference samples. Each places the same number of members uniformly at random on the <em>road vertices</em> inside the cluster's bounding box, in the same road component, and repeats the k-medoid search.</p>
+          <div class="eq">Gap(<var>k</var>) = <span class="frac"><span>1</span><span><var>B</var></span></span> Σ<sub><var>b</var></sub> log <var>W</var><sup>*</sup><sub><var>k</var>,<var>b</var></sub> − log <var>W</var><sub><var>k</var></sub></div>
+          <p>A large Gap means the members are much more concentrated around <var>k</var> medoids than random members on the same roads.</p>
+          <p class="mini">This road-vertex reference is SIGMA's adaptation. The published Gap statistic uses a uniform box in Euclidean space.</p>
+        </article>
+        <article class="step" data-cap="Gap(k) with one standard error. SIGMA chooses the first k with Gap(k) ≥ Gap(k+1) − s(k+1). Move the slider or draw new references.">
+          <p class="stage"><span class="shield">10</span>Stage 10 · one-standard-error rule</p>
+          <h3>Choose the smallest <var>k</var> that is good enough</h3>
+          <div class="eq">first <var>k</var> with Gap(<var>k</var>) ≥ Gap(<var>k</var>+1) − <var>s</var><sub><var>k</var>+1</sub></div>
+          <div class="eq"><var>s</var><sub><var>k</var></sub> = sd(log <var>W</var><sup>*</sup><sub><var>k</var></sub>) · √(1 + 1/<var>B</var>)</div>
+          <p>This is the one-standard-error rule of Tibshirani, Walther and Hastie (2001). If no <var>k</var> up to the ceiling (6) satisfies it, the result is the ceiling with status <code>upper_bound_reached</code>, which flags the search limit, not an optimal <var>k</var>.</p>
+          <div class="ctl"><label for="gsep2">gap between halves</label><input id="gsep2" type="range" min="0" max="900" step="10" value="300"><output id="gsep2-o" for="gsep2">300 m</output></div>
+          <div class="pills"><button class="pill" type="button" id="g-redraw">Draw new references</button></div>
+          <p class="readout" id="gsel-out" aria-live="polite"></p>
+          <p class="mini">This page uses the browser's own random generator. SIGMA seeds NumPy with SHA-256 of (seed, sector, cluster), so every cluster has its own reproducible draws.</p>
+        </article>
+        <article class="step" data-cap="Final children of the example cluster: each member goes to its nearest selected medoid by road distance. Labels are the final cluster IDs.">
+          <p class="stage"><span class="shield">10</span>Stage 10 · assignment and audit</p>
+          <h3>Assign all members, check sizes, record the decision</h3>
+          <ol>
+            <li>If <var>k</var> ≥ 2 is selected, <strong>all</strong> members are assigned to the nearest selected medoid by exact road distance.</li>
+            <li>If any child has fewer than <code>min_cluster_size</code> members, or only one child remains, the original cluster is kept (<code>no_admissible_partition</code>).</li>
+            <li>The child that holds the first member (by <code>canonical_id</code>) keeps the original cluster ID; other children get new IDs after the largest ID of the sector.</li>
+            <li>Children are never tested again: one nonrecursive pass. Stage 11 computes a new full-network 1-median for each final child.</li>
+          </ol>
+          <p class="readout" id="gaud-out" aria-live="polite"></p>
+          <p class="mini">Clusters with more than 64 members fit the medoids on a reproducible sample of 64, then assign every member. The run uses up to 4 independent worker processes by default; each worker handles one cluster at a time, and the parent process assigns IDs in a fixed order, so 1 to 4 workers give the same result. <code>--median-gap-workers 1</code> runs serially; <code>--no-median-gap</code> keeps unrefined HDBSCAN* clusters. The clustering artifact keeps <code>hdbscan_cluster</code> beside the final <code>cluster</code> and writes <code>median_gap_audit.json</code>.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-gap" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
 
     <div class="scrolly gut" data-fig="centers" id="centers">
       <div class="steps">
         <article class="step" data-cap="Five establishments on one road. Bars: total road distance M(v) from all five to each vertex. Move the far establishment with the slider.">
-          <p class="stage"><span class="shield">7</span>Stage 7</p>
+          <p class="stage"><span class="shield">11</span>Stage 11</p>
           <h3>Which road node is easiest to reach from the whole cluster?</h3>
           <p>For a cluster with demand nodes <var>q</var><sub>1</sub>, …, <var>q</var><sub><var>m</var></sub> (one per establishment), score every road vertex <var>v</var> by total road distance:</p>
           <div class="eq"><var>M</var>(<var>v</var>) = Σ<sub><var>i</var>=1…<var>m</var></sub> <var>d</var><sub>R</sub>(<var>q</var><sub><var>i</var></sub>, <var>v</var>), &nbsp; <var>v</var>* = arg min<sub><var>v</var> ∈ <var>V</var><sub>R</sub></sub> <var>M</var>(<var>v</var>)</div>
           <div class="ctl"><label for="far">far place at</label><input id="far" type="range" min="500" max="5000" step="100" value="1000"><output id="far-o" for="far">1,000 m</output></div>
           <p class="readout" id="far-out" aria-live="polite"></p>
-          <p style="margin-top:10px">This is the classic <strong>1-median</strong> (minisum) objective. It is not the coordinate centroid, and not the minimax 1-center, which minimizes the largest distance. If Stage 6A split an HDBSCAN cluster, SIGMA computes this 1-median <strong>separately for every accepted child</strong> over all eligible road vertices—not merely its sampled Gap medoid.</p>
+          <p style="margin-top:10px">This is the classic <strong>1-median</strong> (minisum) objective. It is not the coordinate centroid, and not the minimax 1-center, which minimizes the largest distance. If stage 10 split an HDBSCAN* cluster, SIGMA computes this 1-median <strong>separately for every final child</strong> over all road vertices of its component, not only at its Gap medoid.</p>
         </article>
         <article class="step" data-cap="Recovery path: centroid, snap to the nearest road edge in the cluster's component, then the nearer endpoint node.">
-          <p class="stage"><span class="shield">7</span>Stage 7 · recovery</p>
+          <p class="stage"><span class="shield">11</span>Stage 11 · recovery</p>
           <h3>If the 1-median fails, the output says so</h3>
           <p>Primary method: compute demand-to-node road distances in batches and take the node with the smallest total.</p>
           <p>Recovery path, used only if the primary method fails and continuation is enabled:</p>
@@ -672,14 +845,14 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
     <div class="scrolly gut" data-fig="voronoi" id="territories">
       <div class="steps">
         <article class="step" data-cap="Multi-source Dijkstra from the road nodes of two Food clusters. White dots mark where ownership changes inside an edge.">
-          <p class="stage"><span class="shield">8</span>Stage 8</p>
+          <p class="stage"><span class="shield">12</span>Stage 12</p>
           <h3>Network Voronoi: which cluster owns each road?</h3>
           <p>For each economic type separately, <strong>all</strong> cluster-member road nodes are sources, not only the centers. Multi-source Dijkstra gives every reachable road node to its nearest source's cluster. Exact ties go to the smaller cluster label.</p>
           <p>The search spreads from all sources at once. Where two searches meet, the road changes owner.</p>
           <div class="pills"><button class="pill" type="button" id="wave-replay">Replay the search</button></div>
         </article>
         <article class="step" data-cap="One edge between two owners. Top: the two route costs. The owner changes where they are equal.">
-          <p class="stage"><span class="shield">8</span>Stage 8 · inside an edge</p>
+          <p class="stage"><span class="shield">12</span>Stage 12 · inside an edge</p>
           <h3>Where exactly does an edge change owner?</h3>
           <p>Take an edge (<var>u</var>, <var>v</var>) of length <var>L</var>. <var>D</var><sub><var>u</var></sub> and <var>D</var><sub><var>v</var></sub> are the distances from the owners' nearest sources to <var>u</var> and <var>v</var>. A point at offset <var>t</var> from <var>u</var> costs <var>D</var><sub><var>u</var></sub> + <var>t</var> via <var>A</var>, and <var>D</var><sub><var>v</var></sub> + <var>L</var> − <var>t</var> via <var>B</var>. They are equal at</p>
           <div class="eq"><var>t</var>* = <span class="frac"><span><var>D</var><sub><var>v</var></sub> + <var>L</var> − <var>D</var><sub><var>u</var></sub></span><span>2</span></span> &nbsp; (clipped to [0, <var>L</var>])</div>
@@ -691,7 +864,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p style="margin-top:10px">The road is split by <em>road</em> distance, not at the middle of the edge.</p>
         </article>
         <article class="step" data-cap="Grid rendering. Each cell takes the owner of its nearest road point (dotted line for one cell). Black line: the dissolved boundary.">
-          <p class="stage"><span class="shield">8</span>Stage 8 · 2-D rendering</p>
+          <p class="stage"><span class="shield">12</span>Stage 12 · 2-D rendering</p>
           <h3>Turning road ownership into areas</h3>
           <p>Graph <var>X</var> needs areas, because it tests whether territories overlap. SIGMA renders the 1-D ownership as 2-D polygons:</p>
           <ol>
@@ -714,21 +887,21 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
   <!-- ======================= PART 3 ======================= -->
   <section class="part" id="economy" data-title="3 Economy">
     <div class="part-head gut">
-      <p class="part-no">Part 3 · Stage 9</p>
+      <p class="part-no">Part 3 · Stage 13 · <code>sigma run</code></p>
       <h2>From transactions to a directed economic network</h2>
-      <p>An input–output table says how much each sector buys from each other sector. SIGMA turns it into directed edges between economic types.</p>
+      <p>An input–output table says how much each sector buys from each other sector. SIGMA uses the table aggregated to the area's effective sectors (stages 5 and 9) and turns it into directed edges between sectors.</p>
     </div>
     <div class="scrolly gut" data-fig="economy">
       <div class="steps">
         <article class="step" data-cap="Illustrative transaction table Z (not PSA data). Rows supply; columns use.">
-          <p class="stage"><span class="shield">9</span>Stage 9</p>
+          <p class="stage"><span class="shield">13</span>Stage 13</p>
           <h3>A table of intermediate use</h3>
           <p>In the transaction matrix <var>Z</var> = (<var>z</var><sub><var>ij</var></sub>), row <var>i</var> is the supplying sector and column <var>j</var> is the using sector. Values must be finite and non-negative.</p>
           <p>Example: <var>z</var><sub>Food,Retail</sub> = 40 means the retail sector buys 40 units of food-sector output as an intermediate input.</p>
           <p>The table summarizes flows between whole sectors of one economy. It does not identify which establishments trade with each other.</p>
         </article>
         <article class="step" data-cap="Each column is divided by the total output x_j of the using sector.">
-          <p class="stage"><span class="shield">9</span>Stage 9 · coefficients</p>
+          <p class="stage"><span class="shield">13</span>Stage 13 · coefficients</p>
           <h3>Divide by the user's total output</h3>
           <div class="eq"><var>a</var><sub><var>ij</var></sub> = <span class="frac"><span><var>z</var><sub><var>ij</var></sub></span><span><var>x</var><sub><var>j</var></sub></span></span></div>
           <p><var>x</var><sub><var>j</var></sub> is the total output of using sector <var>j</var>. It includes value added, so it is larger than the column sum of <var>Z</var> (30 and 45 here).</p>
@@ -736,13 +909,13 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p>Every <var>a</var><sub><var>ij</var></sub> &gt; 0 gives a directed edge <var>i</var> → <var>j</var>. The direction “supplier → user” stays the same through graph <var>X</var>.</p>
         </article>
         <article class="step" data-cap="The economic graph from the example. Edge width follows the coefficient. Self-use and two-way edges are kept.">
-          <p class="stage"><span class="shield">9</span>Stage 9 · default graph</p>
+          <p class="stage"><span class="shield">13</span>Stage 13 · default graph</p>
           <h3>The economy is not forced into a DAG</h3>
           <p>By default, <code>transaction_preprocessing</code> = none: the effective table is the raw transaction table (unless a valid explicit coefficient matrix is supplied under the compatibility rules).</p>
           <p>Positive self-use (diagonal), two-way edges, and directed cycles are all kept. A cyclic economy is normal; treating cycles as errors would remove real interindustry dependence.</p>
         </article>
         <article class="step" data-cap="Optional greedy MWAS on three sectors. Edges are tried from heaviest to lightest; an edge that would close a cycle is rejected.">
-          <p class="stage"><span class="shield">9</span>Optional branch</p>
+          <p class="stage"><span class="shield">13</span>Optional branch</p>
           <h3>Greedy MWAS, then RAS (not the default)</h3>
           <p><code>mwas_ras_fast</code> exists for large or special tables when a sparse support is useful.</p>
           <ol>
@@ -764,14 +937,14 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
   <!-- ======================= PART 4 ======================= -->
   <section class="part" id="graph" data-title="4 Graph and scores">
     <div class="part-head gut">
-      <p class="part-no">Part 4 · Stages 10–13</p>
+      <p class="part-no">Part 4 · Stages 14–17 · <code>sigma run</code></p>
       <h2>Constructing and scoring the spatial–economic graph</h2>
       <p>Clusters become nodes. Economic coefficients and territory overlap decide the edges. Katz centrality measures each node, and each establishment receives its cluster's score.</p>
     </div>
     <div class="scrolly gut" data-fig="xgraph">
       <div class="steps">
         <article class="step" data-cap="Food territories (top) and Retail territories (moving up). Overlapping parts are candidate links. Invented example.">
-          <p class="stage"><span class="shield">10</span>Stage 10</p>
+          <p class="stage"><span class="shield">14</span>Stage 14</p>
           <h3>Build <var>X</var>: overlap decides which edges can exist</h3>
           <p>Every retained cluster becomes a node <var>u</var> = (<var>t</var>, <var>c</var>). Isolated nodes are kept. A candidate edge <var>u</var> → <var>v</var> needs both conditions:</p>
           <div class="eq">[<var>a</var><sub><var>t</var>(<var>u</var>),<var>t</var>(<var>v</var>)</sub> &gt; 0] ∧ [area(<var>P</var><sub><var>u</var></sub> ∩ <var>P</var><sub><var>v</var></sub>) &gt; 0]</div>
@@ -779,23 +952,23 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p>Here <var>F</var><sub>2</sub> and <var>R</var><sub>1</sub> do not overlap, so there is no edge between them.</p>
         </article>
         <article class="step" data-cap="Graph X example: w = a × source sector share × target sector share / max(effective hub distance, 1)^λ_X. Each of the two clusters in each example sector has share 1/2; mean road radii set to zero. Copper: Food → Retail. Blue: Retail → Food.">
-          <p class="stage"><span class="shield">10</span>Stage 10 · weights</p>
+          <p class="stage"><span class="shield">14</span>Stage 14 · weights</p>
           <h3>Economic coupling combines sector shares and road distance</h3>
           <p class="hint">Cluster shares count clustered establishments per exact economic type; the worked example uses 1/2 per cluster. Unclustered places are excluded from the totals.</p>
           <div class="eq"><var>w</var><sub>uv</sub> = <var>a</var><sub>st</sub> · (<var>N</var><sub>u</sub>/<var>N</var><sub>s</sub>) · (<var>N</var><sub>v</sub>/<var>N</var><sub>t</sub>) / max(1, (<var>r</var><sub>u</sub> + <var>d</var><sub>R</sub>(<var>m</var><sub>u</sub>, <var>m</var><sub>v</sub>) + <var>r</var><sub>v</sub>) / 1 m)<sup><var>λ</var><sub>X</sub></sup></div>
           <p><var>m</var><sub><var>u</var></sub> and <var>m</var><sub><var>v</var></sub> are the two cluster centers. An edge is kept only if the centers are connected by road and the weight is strictly positive.</p>
-          <p class="callout">For a fixed coefficient, <strong>more separation gives less weight</strong>. With <var>λ</var><sub>X</sub> = 1, a 500 m route keeps 1/500 of the coefficient; a 1,400 m route keeps 1/1,400. This schematic sets the within-cluster mean road radii to zero; in a real run both radii are added to the center route before attenuation. In this schematic, two equally sized clusters per sector give both sector shares 1/2, making every edge 1/4 of its distance-only weight. The one-metre floor caps the distance factor at 1. The worked example now highlights the strongest attenuated link, not the longest one.</p>
+          <p class="callout">For a fixed coefficient, <strong>more separation gives less weight</strong>. With <var>λ</var><sub>X</sub> = 1, a 500 m route keeps 1/500 of the coefficient; a 1,400 m route keeps 1/1,400. This schematic sets the within-cluster mean road radii to zero; in a real run both radii are added to the center route before attenuation. In this schematic, two equally sized clusters per sector give both sector shares 1/2, making every edge 1/4 of its distance-only weight. The one-metre floor caps the distance factor at 1. The worked example highlights the strongest attenuated link, which is not the longest one.</p>
           <p class="mini">Same-cluster self-edges remain omitted by an explicit topology rule, even though capped decay at 0 m equals 1. Disconnected centers produce a diagnostic, not an edge. Two-way coefficients still produce two-way edges when territories overlap. The X exponent is separate from point-score tempering.</p>
         </article>
         <article class="step" data-cap="A two-step walk F2 → R2 → F1. Katz adds every walk, discounted by α per step.">
-          <p class="stage"><span class="shield">11</span>Stage 11</p>
+          <p class="stage"><span class="shield">15</span>Stage 15</p>
           <h3>Why count paths of many steps?</h3>
           <p>An edge is a direct relation. A cluster can also reach others in 2, 3, or more steps. Katz centrality adds up <em>walks</em> (nodes may repeat) and multiplies each extra step by the attenuation <var>α</var>:</p>
           <div class="eq">(<var>I</var> − <var>α</var><var>W</var>)<sup>−1</sup> = <var>I</var> + <var>α</var><var>W</var> + <var>α</var><sup>2</sup><var>W</var><sup>2</sup> + …</div>
           <p>(<var>W</var><sup><var>k</var></sup>)<sub><var>ij</var></sub> adds, over all <var>k</var>-step walks from <var>i</var> to <var>j</var>, the product of their edge weights. The walk in the figure adds <var>α</var><sup>2</sup> × (0.20×0.25/500) × (0.10×0.25/1,400) to the outgoing score of <var>F</var><sub>2</sub> and to the incoming score of <var>F</var><sub>1</sub>.</p>
         </article>
         <article class="step" data-cap="Balanced Katz computed live on the example graph. Node size follows C. Change the α factor with the slider.">
-          <p class="stage"><span class="shield">11</span>Stage 11 · directed Katz</p>
+          <p class="stage"><span class="shield">15</span>Stage 15 · directed Katz</p>
           <h3>A receiving score and a sending score</h3>
           <div class="eq"><var>K</var><sup>in</sup> = <var>β</var>(<var>I</var> − <var>α</var><var>W</var><sup>T</sup>)<sup>−1</sup><b>1</b>, &nbsp; <var>K</var><sup>out</sup> = <var>β</var>(<var>I</var> − <var>α</var><var>W</var>)<sup>−1</sup><b>1</b></div>
           <p><var>K</var><sup>in</sup> adds the weighted walks that end at a node; <var>K</var><sup>out</sup> adds those that start there. Both use <var>β</var> = 1 and the same <var>α</var>:</p>
@@ -806,7 +979,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p class="mini" style="margin-top:10px">Because <var>α</var> is set relative to <var>ρ</var>(<var>W</var>), multiplying every weight by the same constant (for example metres to kilometres) does not change <var>K</var>. An isolated node keeps <var>K</var><sup>in</sup> = <var>K</var><sup>out</sup> = 1.</p>
         </article>
         <article class="step" data-cap="Combined score for nodes whose two Katz values add to 10. The arithmetic mean is the same for all; the geometric mean is not.">
-          <p class="stage"><span class="shield">12</span>Stage 12</p>
+          <p class="stage"><span class="shield">16</span>Stage 16</p>
           <h3>Combine the two roles: the geometric mean</h3>
           <div class="eq"><var>g</var><sub><var>i</var></sub> = √(<var>K</var><span class="ss"><span>in</span><span><var>i</var></span></span> <var>K</var><span class="ss"><span>out</span><span><var>i</var></span></span>), &nbsp; <var>C</var><sub><var>i</var></sub> = <var>g</var><sub><var>i</var></sub> / ‖<var>g</var>‖<sub>2</sub></div>
           <p>Both roles matter, and a weak side limits the result. The geometric mean ranks nodes in the same order as the product <var>K</var><sup>in</sup><var>K</var><sup>out</sup> (Sharkey, 2017), on the scale of a single Katz score. SIGMA normalizes once, at the end.</p>
@@ -824,7 +997,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
     <div class="scrolly gut" data-fig="score" id="scores">
       <div class="steps">
         <article class="step" data-cap="Score of one establishment as it moves away from its cluster center (C_c = 0.40, p90 = 800 m).">
-          <p class="stage"><span class="shield">13</span>Stage 13</p>
+          <p class="stage"><span class="shield">17</span>Stage 17</p>
           <h3>Transfer cluster centrality to establishments</h3>
           <p>For establishment <var>p</var> in cluster <var>c</var>, <var>d</var><sub><var>p</var></sub> is its road distance to the cluster's 1-median, and <var>Q</var><sub>.90,<var>c</var></sub> is the 90th percentile of these distances in the cluster.</p>
           <div class="eq"><var>q</var><sub><var>p</var></sub> = min(<var>d</var><sub><var>p</var></sub> / max(<var>Q</var><sub>.90,<var>c</var></sub>, 1 m), 1), &nbsp; <var>S</var><sub><var>p</var></sub> = <var>C</var><sub><var>c</var></sub>(1 − <var>λ</var><var>q</var><sub><var>p</var></sub>), &nbsp; <var>λ</var> = 0.15</div>
@@ -833,20 +1006,22 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p style="margin-top:10px">So <var>C</var><sub><var>c</var></sub>(1 − <var>λ</var>) ≤ <var>S</var><sub><var>p</var></sub> ≤ <var>C</var><sub><var>c</var></sub>: position changes the score by at most 15%. An establishment at the edge of a cluster with <var>C</var><sub><var>c</var></sub> = 0.40 (0.34) still scores above one at the center of a cluster with <var>C</var><sub><var>c</var></sub> = 0.30.</p>
           <p class="mini">The p90 gives each cluster its own distance scale; the cap at 1 stops very distant points from receiving an unbounded penalty; the 1 m floor avoids division by zero. This step does not estimate a separate place-to-place trade network.</p>
         </article>
-        <article class="step" data-cap="One invented establishment through every stage.">
+        <article class="step" data-cap="One invented establishment through all 17 stages. Bold numbers are stage numbers.">
           <p class="stage"><span class="shield">✓</span>All stages</p>
           <h3>One establishment, from record to score</h3>
           <ol>
-            <li>One OSM record and one Overture record pass the distance/name rule → one canonical bakery.</li>
-            <li>Categories and PSIC → the Food IO sector.</li>
-            <li>The bakery snaps to a road and joins an initial Food HDBSCAN* cluster (after any applicable zero-cluster sector roll-up).</li>
-            <li>The default one-pass Gap refinement may split that retained cluster; the bakery belongs to one final child (or stays in the original when <var>k</var> = 1).</li>
-            <li>That final cluster's center is its recomputed network 1-median; network Voronoi gives its territory.</li>
-            <li><var>a</var><sub>Food,Retail</sub> &gt; 0, the territories overlap, and the centers are road-connected → a directed <var>X</var> edge.</li>
-            <li>Balanced Katz gives the cluster <var>C</var><sub><var>c</var></sub> = 0.40.</li>
-            <li>The bakery is 200 m from its center and <var>Q</var><sub>.90,<var>c</var></sub> = 800 m → <var>S</var><sub><var>p</var></sub> = 0.40 × (1 − 0.15 × 0.25) = 0.385.</li>
+            <li><b>1–2</b> One OSM record and one Overture record pass the distance and name rule → one canonical bakery.</li>
+            <li><b>3–4</b> Categories → a PSIC bakery code → candidate IO industries; no ownership question arises for a bakery.</li>
+            <li><b>5</b> Enough bakeries carry the same exact IO240 tag, so the area keeps it as its own sector (<code>X:Y:Z</code>).</li>
+            <li><b>6–8</b> The bakery snaps to a road and joins a baseline HDBSCAN* cluster of its sector.</li>
+            <li><b>9</b> Its sector has <var>K</var> ≥ 1, so the roll-up does not move it.</li>
+            <li><b>10</b> The one Gap pass splits the dispersed cluster in two; the bakery belongs to one final child.</li>
+            <li><b>11–12</b> That child's center is its own network 1-median; network Voronoi gives its territory.</li>
+            <li><b>13–14</b> <var>a</var><sub>Food,Retail</sub> &gt; 0, the territories overlap, and the centers are road-connected → a directed <var>X</var> edge.</li>
+            <li><b>15–16</b> Balanced Katz gives the cluster <var>C</var><sub><var>c</var></sub> = 0.40.</li>
+            <li><b>17</b> The bakery is 200 m from its center and <var>Q</var><sub>.90,<var>c</var></sub> = 800 m → <var>S</var><sub><var>p</var></sub> = 0.40 × (1 − 0.15 × 0.25) = 0.385.</li>
           </ol>
-          <p>Each final number has a traceable chain: matched identity → economic type → roads → cluster → graph → score.</p>
+          <p>Each final number has a traceable chain: matched identity → activity and IO evidence → area sector → roads → baseline cluster → final cluster → graph → score.</p>
         </article>
       </div>
       <figure class="fig-wrap">
@@ -857,11 +1032,46 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
   </section>
 
   <!-- ======================= PART 5 ======================= -->
-  <section class="part" id="limits" data-title="5 Limits">
+  <section class="part" id="limits" data-title="5 Routes and limits">
     <div class="part-head gut">
-      <p class="part-no">Part 5</p>
-      <h2>Auditability, adjustments, and limits</h2>
-      <p>What a result can and cannot support, how SIGMA reuses and recomputes its stages, and what to inspect before you interpret a score.</p>
+      <p class="part-no">Part 5 · Publication · <code>sigma run</code> export and <code>sigma view</code></p>
+      <h2>Routes, auditability, adjustments, and limits</h2>
+      <p>How published results reach the browser, what a result can and cannot support, how SIGMA reuses and recomputes its stages, and what to inspect before you interpret a score. Publication changes no number computed in stages 1–17.</p>
+    </div>
+
+    <div class="scrolly gut" data-fig="routes" id="routes">
+      <div class="steps">
+        <article class="step" data-cap="Two cluster centers joined by a published X edge. The numerical record holds distances and the weight, not a route geometry.">
+          <p class="stage"><span class="shield">→</span>Publication · numbers</p>
+          <h3>Graph <var>X</var> stores distances, not route lines</h3>
+          <p>Stage 14 needs only the shortest road <em>distance</em> between two centers. It never stores the route line. Each published edge in <code>sigma_X_edges.csv</code> carries the coefficient, <code>road_distance</code> (center to center), <code>effective_road_distance</code> (plus both mean radii) and the weight.</p>
+          <p>A route line is needed only when a person looks at an edge on the map. By default (<code>--route-geometry browser</code>) SIGMA publishes a compact road graph and lets the browser draw routes on request. <code>--route-geometry precomputed</code> instead writes every route into the GeoPackage <code>paths</code> layer at export.</p>
+          <p class="mini">Both modes publish the same numerical <var>X</var>, the same centrality and the same scores.</p>
+        </article>
+        <article class="step" data-cap="One original road segment split by two establishment snap points (gold) and one cluster center (ink). Contraction removes the establishment points and adds their lengths.">
+          <p class="stage"><span class="shield">→</span>Publication · routing graph</p>
+          <h3>Publish a compact road graph without establishment positions</h3>
+          <p>During analysis, every establishment's snap point is inserted into the road graph as an extra vertex. Before publishing, SIGMA removes these vertices again: inside each original straight road segment, consecutive pieces are joined and their lengths are added. Original road vertices and the cluster-center vertices are kept.</p>
+          <p>Shortest-path distances between kept vertices do not change, because the pieces lie on one straight segment. The file <code>sigma_routing_graph.bin</code> holds only coordinates of kept vertices and edges with lengths (format <code>SIGRTE01</code>).</p>
+          <div class="pills"><button class="pill" type="button" id="rt-replay">Replay the contraction</button></div>
+          <p class="mini">If a segment is not a simple straight chain, export stops instead of publishing an unsafe graph. The metadata records <code>routing_graph_privacy</code> = <code>base_vertices_and_x_centers_only</code>.</p>
+        </article>
+        <article class="step" data-cap="Explorer's Web Worker searches from the source center until it reaches the target center, then compares the route length with the published road_distance.">
+          <p class="stage"><span class="shield">→</span>Publication · route on request</p>
+          <h3>Draw a route on request and check its length</h3>
+          <p>When you select an edge in Explorer, a Web Worker (a background browser thread) runs Dijkstra's algorithm on the compact graph from the source center to the target center. Before drawing, it compares the route length with the published <code>road_distance</code>:</p>
+          <div class="eq">|<var>d</var><sub>browser</sub> − <var>d</var><sub>published</sub>| ≤ max(10<sup>−6</sup>, 10<sup>−8</sup> · <var>d</var><sub>published</sub>)</div>
+          <p>If the lengths disagree, no route is drawn and an error is shown. Up to 256 recent routes are cached.</p>
+          <label class="check" for="rt-bad"><input id="rt-bad" type="checkbox"> pretend the published distance is 10 m longer</label>
+          <div class="pills"><button class="pill" type="button" id="rt-run">Request the route</button></div>
+          <p class="readout" id="rt-out" aria-live="polite"></p>
+          <p class="mini">When two routes have exactly the same length, the browser may draw the other one. The enforced contract is equal length, not identical coordinates.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-routes" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
     </div>
 
     <div class="sec gut">
@@ -889,16 +1099,20 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
 
     <div class="sec gut">
       <h3>Reproducibility: an artifact dependency DAG</h3>
-      <p style="max-width:68ch">Each stage has a <em>recipe</em>: parameters, schema and implementation versions, upstream artifact identities, and source hashes. The recipe is stored as canonical JSON and hashed with SHA-256; the output files are hashed too. When a parameter changes, only the stages that depend on it are recomputed. Choose a change:</p>
+      <p style="max-width:68ch">Each managed stage has a <em>recipe</em>: parameters, schema and implementation versions, upstream artifact identities, and source hashes. The recipe is stored as canonical JSON and hashed with SHA-256; the output files are hashed too. When a parameter changes, only the stages that depend on it are recomputed. Choose a change:</p>
       <div class="pills" role="group" aria-label="Parameter to change">
         <button class="pill" type="button" data-change="katz" aria-pressed="true">Katz α</button>
         <button class="pill" type="button" data-change="vertex" aria-pressed="false">vertex_digits</button>
         <button class="pill" type="button" data-change="match" aria-pressed="false">matching thresholds</button>
         <button class="pill" type="button" data-change="io" aria-pressed="false">IO table</button>
+        <button class="pill" type="button" data-change="rollup" aria-pressed="false">roll-up on/off</button>
+        <button class="pill" type="button" data-change="gap" aria-pressed="false">Gap on/off</button>
+        <button class="pill" type="button" data-change="workers" aria-pressed="false">Gap workers</button>
+        <button class="pill" type="button" data-change="route" aria-pressed="false">route geometry</button>
       </div>
-      <div class="dag"><svg id="fig-dag" viewBox="0 0 960 280" role="img" aria-label="Artifact dependency graph with recomputed stages highlighted"></svg></div>
+      <div class="dag"><svg id="fig-dag" viewBox="0 0 1120 280" role="img" aria-label="Artifact dependency graph with recomputed stages highlighted"></svg></div>
       <p class="readout" id="dag-out" aria-live="polite"></p>
-      <p class="mini" style="margin-top:10px">Reproducible computation does not by itself validate the modeling assumptions.</p>
+      <p class="mini" style="margin-top:10px">Long stages (clustering, partitions, <var>X</var>, export) also keep <em>savepoints</em>: completed work units per sector, checked by SHA-256, so an interrupted run resumes instead of starting again. Savepoints are cleared once the stage artifact is committed. Reproducible computation does not by itself validate the modeling assumptions.</p>
     </div>
 
     <div class="sec gut">
@@ -906,11 +1120,13 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
         <div class="card">
           <h4>Inspect before you interpret: identity and geography</h4>
           <ul>
-            <li>Cross-source matches and unresolved classes</li>
+            <li>Cross-source matches, augmentation sources and unresolved classes</li>
+            <li>Administrative-office changes, <code>institution_promotion_status</code> and <code>economy_review_required</code></li>
+            <li>Stage 5 sectors, <code>economy_status</code> and coarse-place policy</li>
             <li>Boundary, road, and snap quality</li>
-            <li>Baseline hierarchy, K=0 roll-up eligibility and effective/original sectors</li>
-            <li>HDBSCAN noise, network fallbacks and adaptive-radius diagnostics</li>
-            <li>Gap <code>selected_k</code>, one-SE / search-bound status, child IDs and sampled-limit caveat</li>
+            <li>HDBSCAN* noise, network fallbacks and adaptive-radius diagnostics</li>
+            <li><code>rollup_audit.json</code>: tested and accepted merges; <code>original_economy_code</code> versus <code>economy_code</code></li>
+            <li><code>median_gap_audit.json</code>: <code>selected_k</code>, outcome, child IDs, sampled-fit flag</li>
             <li><code>center_method</code> and <code>surface_method</code> fallbacks</li>
           </ul>
         </div>
@@ -919,7 +1135,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <ul>
             <li>Raw and effective transaction matrices, and coefficient direction</li>
             <li>Overlap qualification and unreachable pairs</li>
-            <li><var>a</var><sub><var>ij</var></sub>, road distance, <var>w</var><sub><var>uv</var></sub>, road paths</li>
+            <li><var>a</var><sub><var>ij</var></sub>, <code>road_distance</code>, <code>effective_road_distance</code>, sector shares, <var>w</var><sub><var>uv</var></sub></li>
             <li><code>katz_in_raw</code>, <code>katz_out_raw</code>, final <var>C</var> and <var>S</var><sub><var>p</var></sub></li>
           </ul>
         </div>
@@ -931,17 +1147,20 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
       <h3>What is established, and what SIGMA adjusts</h3>
       <div class="tw"><table class="t">
         <tr><th>Component</th><th>Methodological foundation</th><th>SIGMA adjustment or policy</th></tr>
-        <tr><td>Place records</td><td>geographic and name-based record linkage</td><td>distance bands, <var>q</var> weights, greedy one-to-one matching</td></tr>
+        <tr><td>Place records</td><td>geographic and name-based record linkage</td><td>distance bands, <var>q</var> weights, greedy one-to-one matching; the same rule for user sources</td></tr>
+        <tr><td>Activity and ownership</td><td>PSIC Rev. 5; PSA concordances; official registries</td><td>reviewed crosswalks and refinement rows; narrow administrative-office rule; ownership changed only by verified link, official ID or explicit attribute</td></tr>
         <tr><td>Road distance</td><td>shortest paths (Dijkstra; SciPy)</td><td>motor-road profile, undirected graph, shared-vertex topology</td></tr>
-        <tr><td>Hierarchy / roll-up</td><td>PSA 2018 IO sector nesting</td><td>support-based sparse hierarchy; residual-first coarsening only for K=0 original HDBSCAN sectors</td></tr>
+        <tr><td>Area sectors</td><td>PSA 2018 IO nesting (240 / 80 / 16); aggregation <var>M Z M</var><sup>T</sup></td><td><code>min_places</code> support rule, sparse residual codes, coarse-place policy</td></tr>
+        <tr><td>Zero-cluster roll-up</td><td>HDBSCAN* extraction; IO aggregation</td><td>residual-first merge of <var>K</var> = 0 sectors, accepted only for a strict gain in retained places</td></tr>
         <tr><td>Clustering</td><td>HDBSCAN*; network-space clustering</td><td>weighted snaps, sparse search horizon, adaptive stopping, fallback</td></tr>
-        <tr><td>Post-HDBSCAN refinement</td><td>Gap statistic (Tibshirani et al.); PAM k-medoids</td><td>adapted road-vertex null; bounded k search; four workers; one pass, never recursive</td></tr>
+        <tr><td>Post-HDBSCAN refinement</td><td>Gap statistic (Tibshirani et al.); PAM k-medoids</td><td>road-vertex reference; medoids among observed positions; <var>k</var> ≤ 6; sample of 64; up to four workers; one pass, never recursive</td></tr>
         <tr><td>Centers</td><td>network-node 1-median (location theory)</td><td>road-node candidates; labeled centroid recovery</td></tr>
         <tr><td>Territories</td><td>graph and network Voronoi</td><td>finite-grid 2-D rendering, refinement, Euclidean fallback</td></tr>
         <tr><td>Economy</td><td>IO technical coefficients; RAS</td><td>configurable table; optional greedy MWAS and support repair</td></tr>
         <tr><td>Centrality</td><td>Katz; sender–receiver coupling</td><td>geometric mean, then one final L2 normalization</td></tr>
         <tr><td>Point scoring</td><td>distance-based score tempering</td><td>cluster p90 scale and capped linear tempering</td></tr>
         <tr><td>Graph <var>X</var></td><td colspan="2">modeled positive technical-coefficient edge and positive-area partition overlap; numerical weight <var>w</var><sub>uv</sub> = <var>a</var><sub>st</sub> · (<var>N</var><sub>u</sub>/<var>N</var><sub>s</sub>) · (<var>N</var><sub>v</sub>/<var>N</var><sub>t</sub>) / max(1, (<var>r</var><sub>u</sub> + <var>d</var><sub>R</sub> + <var>r</var><sub>v</sub>) / 1 m)<sup><var>λ</var><sub>X</sub></sup>. Numeric X does not compute route geometries; browser routing is on demand by default.</td></tr>
+        <tr><td>Route display</td><td>Dijkstra shortest paths</td><td>contracted routing graph without establishment vertices; length checked against the published distance</td></tr>
       </table></div>
     </div>
 
@@ -950,15 +1169,17 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
         <div>
           <h3>Run and inspect a study area</h3>
 <pre class="cmd">sigma init
-sigma load pasig
-sigma run pasig
+sigma load pasig            # stages 1–5
+sigma augment pasig FILE --source NAME   # optional
+sigma run pasig             # stages 6–17 and export
 sigma status pasig
 sigma view pasig</pre>
-          <p class="mini"><code>init</code> prepares the shared national source data; <code>load</code> prepares the area-specific establishment handoff and baseline IO hierarchy. <code>run</code> executes the dependency-aware analysis and reuses valid artifacts. <code>status</code> inspects artifacts. <code>view</code> opens SIGMA Explorer, a read-only browser view of the published results; it draws existing results and is not another modeling step.</p>
+          <p class="mini"><code>init</code> prepares the shared national source data. <code>load</code> prepares the area's establishment handoff and its stage 5 sectors. <code>augment</code> optionally adds a user source to the handoff. <code>run</code> executes the dependency-aware analysis and reuses valid artifacts. <code>status</code> inspects artifacts. <code>view</code> opens SIGMA Explorer, a read-only browser view of the published results; it draws existing results and is not another modeling step.</p>
+          <p class="mini">Comparison runs: <code>--no-iterative-rollup</code> (stage 5 sectors), <code>--no-median-gap</code> (unrefined HDBSCAN* clusters), <code>--median-gap-workers 1</code> (serial, same result), <code>--route-geometry precomputed</code> (route lines in the GeoPackage).</p>
         </div>
         <div>
           <h3>Published outputs</h3>
-          <p class="mini"><code>sigma_points.parquet</code>, <code>sigma_X_nodes.csv</code>, <code>sigma_X_edges.csv</code>, <code>sigma_spatial_outputs.gpkg</code>, a QGIS project, and an optional SIGMA Explorer browser bundle.</p>
+          <p class="mini"><code>sigma_points.parquet</code>, <code>pois.parquet</code> (classified places with evidence fields), <code>sigma_X_nodes.csv</code>, <code>sigma_X_edges.csv</code>, <code>sigma_spatial_outputs.gpkg</code>, <code>sigma_routing_graph.bin</code> (browser routing mode), <code>run.json</code>, a QGIS project, and an optional SIGMA Explorer browser bundle.</p>
           <p class="mini">The value of the model is not that every assumption is beyond dispute, but that each assumption can be identified, tested, and changed.</p>
         </div>
       </div>
@@ -969,38 +1190,45 @@ sigma view pasig</pre>
 <footer class="foot gut">
   <div class="in">
     <div>
-      <h4>Defaults that change outputs</h4>
+      <h4>Defaults that change outputs (stage)</h4>
       <div class="tw"><table class="t">
-        <tr><td>Vertex significant digits</td><td class="n">11</td></tr>
-        <tr><td>Min. cluster size / min. samples</td><td class="n">5 / 5</td></tr>
-        <tr><td>Cluster selection</td><td class="n">EOM; leaf retry on exception</td></tr>
-        <tr><td>Post-HDBSCAN Gap / workers</td><td class="n">On / 4</td></tr>
-        <tr><td>Gap k ceiling / draws / sample</td><td class="n">6 / 10 / 64</td></tr>
-        <tr><td>Default X route geometry</td><td class="n">Browser on demand</td></tr>
-        <tr><td>HDBSCAN* ceiling, growth, steps</td><td class="n">5 km, 1.5, 4</td></tr>
-        <tr><td>Core truncation tolerance</td><td class="n">1%</td></tr>
-        <tr><td>Max. neighbor pairs</td><td class="n">20 million</td></tr>
-        <tr><td>Voronoi grid / max. cells</td><td class="n">500 m / 1 M</td></tr>
-        <tr><td>Min. class score / margin</td><td class="n">0.45 / 0.12</td></tr>
-        <tr><td>Road buffer, direction</td><td class="n">5 km, undirected</td></tr>
-        <tr><td>IO system (new area), preprocessing</td><td class="n">Hierarchical + K=0 roll-up, none</td></tr>
-        <tr><td>Katz α factor, β</td><td class="n">0.85, 1</td></tr>
-        <tr><td>X distance-decay exponent λ<sub>X</sub></td><td class="n">1.0</td></tr>
-<tr><td>Distance tempering λ</td><td class="n">0.15</td></tr>
+        <tr><td>Min. class score / margin (3)</td><td class="n">0.45 / 0.12</td></tr>
+        <tr><td>IO system for a new area (5)</td><td class="n">Hierarchical</td></tr>
+        <tr><td>min_places / coarse policy (5)</td><td class="n">5 / residual</td></tr>
+        <tr><td>Road buffer, direction (6)</td><td class="n">5 km, undirected</td></tr>
+        <tr><td>Vertex significant digits (6)</td><td class="n">11</td></tr>
+        <tr><td>Min. cluster size / min. samples (8)</td><td class="n">5 / 5</td></tr>
+        <tr><td>Single cluster allowed (8)</td><td class="n">No</td></tr>
+        <tr><td>Cluster selection (8)</td><td class="n">EOM; leaf retry on exception</td></tr>
+        <tr><td>HDBSCAN* ceiling, growth, steps (8)</td><td class="n">5 km, 1.5, 4</td></tr>
+        <tr><td>Core truncation tolerance (8)</td><td class="n">1%</td></tr>
+        <tr><td>Max. neighbor pairs (8)</td><td class="n">20 million</td></tr>
+        <tr><td>Zero-cluster roll-up (9)</td><td class="n">On for generated hierarchy</td></tr>
+        <tr><td>Post-HDBSCAN Gap / workers (10)</td><td class="n">On / 4</td></tr>
+        <tr><td>Gap k ceiling / draws / sample / seed (10)</td><td class="n">6 / 10 / 64 / 20261105</td></tr>
+        <tr><td>Voronoi grid / max. cells (12)</td><td class="n">500 m / 1 M</td></tr>
+        <tr><td>Transaction preprocessing (13)</td><td class="n">none</td></tr>
+        <tr><td>X distance-decay exponent λ<sub>X</sub> (14)</td><td class="n">1.0</td></tr>
+        <tr><td>Katz α factor, β (15)</td><td class="n">0.85, 1</td></tr>
+        <tr><td>Distance tempering λ (17)</td><td class="n">0.15</td></tr>
+        <tr><td>Default X route geometry (publication)</td><td class="n">Browser on demand</td></tr>
       </table></div>
     </div>
     <div>
       <h4>Notation</h4>
       <ul>
         <li><var>G</var><sub>R</sub>, <var>d</var><sub>R</sub>: undirected road graph and road shortest-path distance</li>
-        <li>(<var>t</var>, <var>c</var>): economic type and cluster → one <var>X</var> node</li>
+        <li>(<var>t</var>, <var>c</var>): sector (economic type) and cluster → one <var>X</var> node</li>
+        <li><code>X:Y:Z</code>, <code>X:Y:o</code>, <code>X:Y</code>, <code>X:o</code>, <code>X</code>: sparse sector codes; <var>M</var>: sector membership matrix</li>
+        <li><var>K</var>: number of retained clusters of one sector (stage 9)</li>
         <li>core(<var>p</var>), <var>d</var><sub>mr</sub>, <var>λ</var> = 1/<var>d</var><sub>mr</sub>: HDBSCAN* quantities</li>
+        <li><var>W</var><sub><var>k</var></sub>, Gap(<var>k</var>), <var>s</var><sub><var>k</var></sub>, <var>B</var>: k-medoid cost, Gap statistic, standard error, reference draws (stage 10)</li>
         <li><var>Z</var>, <var>x</var><sub><var>j</var></sub>, <var>a</var><sub><var>ij</var></sub> = <var>z</var><sub><var>ij</var></sub>/<var>x</var><sub><var>j</var></sub>: transactions, output, coefficients</li>
         <li><var>W</var> = (<var>w</var><sub><var>uv</var></sub>): weighted adjacency of <var>X</var></li>
         <li><var>K</var><sup>in</sup>, <var>K</var><sup>out</sup>, <var>C</var>: raw Katz scores and balanced centrality</li>
         <li><var>S</var><sub><var>p</var></sub>, <var>Q</var><sub>.90,<var>c</var></sub>, <var>λ</var> (scoring): point score, p90 distance, tempering</li>
       </ul>
-      <p class="mini" style="margin-top:10px">The symbol λ has two unrelated meanings: the HDBSCAN* density level and the scoring tempering factor.</p>
+      <p class="mini" style="margin-top:10px">The symbol λ has three unrelated meanings: the HDBSCAN* density level, the <var>X</var> distance exponent λ<sub>X</sub>, and the scoring tempering factor. <var>W</var> without subscript is the adjacency of <var>X</var>; <var>W</var><sub><var>k</var></sub> is the stage 10 cost.</p>
     </div>
     <div>
       <h4>References</h4>
@@ -1123,41 +1351,51 @@ const FIGS = {};
 function overview() {
   const svg = $('#fig-overview'); if (!svg) return;
   const AH = markers(svg);
-  const W = 168, H = 66, col = [10, 200, 390, 580, 770], row = [14, 117, 220];
+  const W = 146, H = 62, col = [10, 168, 326, 484, 642, 800], row = [16, 112, 208, 304];
+  // [column, row, kind, line 1, line 2, target id]
   const B = {
-    A: [0, 0, 'sp', 'OSM + Overture', 'observed places', 'places'],
-    B: [1, 0, 'sp', 'Match and classify', 'PSIC → IO type', 'places'],
-    C: [2, 0, 'sp', 'HDBSCAN∗ per type', 'K=0 check → Gap', 'clusters'],
-    D: [3, 0, 'sp', '1-median centers;', 'Voronoi territories', 'centers'],
+    A: [0, 0, 'sp', '1–2 OSM + Overture', '→ canonical places', 'places'],
+    Bx: [1, 0, 'sp', '3–4 Activity, IO tags', 'ownership evidence', 'evidence'],
+    C: [2, 0, 'sp', '5 Area sectors', 'IO240 / IO80 / IO16', 'hierarchy'],
+    R: [3, 0, 'op', 'Review or augment', 'optional handoff edit', 'handoff'],
     E: [0, 1, 'sp', 'Geofabrik roads', 'same file as OSM', 'roads'],
-    F: [1, 1, 'sp', 'Road graph ~G~_{R}', 'road distance ~d~_{R}', 'roads'],
-    G: [0, 2, 'ec', 'Hierarchical IO', 'K=0 roll-up if eligible', 'economy'],
-    H: [1, 2, 'ec', 'Coefficients', '~a~_{~ij~} = ~z~_{~ij~} / ~x~_{~j~}', 'economy'],
-    X: [3, 2, 'ou', 'Graph ~X~', 'nodes (~t~, ~c~)', 'graph'],
-    K: [4, 2, 'ou', 'Balanced Katz', 'centrality ~C~', 'graph'],
-    P: [4, 1, 'ou', 'Establishment', 'score ~S~_{~p~}', 'scores']
+    F: [1, 1, 'sp', '6–7 Road graph ~G~_{R}', 'snap; distance ~d~_{R}', 'roads'],
+    G: [2, 1, 'sp', '8 HDBSCAN∗', 'per sector · baseline', 'clusters'],
+    Hr: [3, 1, 'sp', '9 Zero-cluster roll-up', 'generated hierarchy', 'rollup'],
+    I: [4, 1, 'sp', '10 Gap refinement', 'one pass · up to 4 workers', 'gap-refinement'],
+    J: [5, 1, 'sp', '11–12 Centers', '1-medians · Voronoi', 'centers'],
+    K: [0, 2, 'ec', 'National IO table', 'transactions ~Z~, output ~x~', 'economy'],
+    L: [1, 2, 'ec', '13 Coefficients', '~a~_{~ij~} = ~z~_{~ij~} / ~x~_{~j~}', 'economy'],
+    X: [2, 3, 'ou', '14 Graph ~X~', 'nodes (~t~, ~c~)', 'graph'],
+    Q: [3, 3, 'ou', '15–16 Balanced Katz', 'centrality ~C~', 'graph'],
+    P: [4, 3, 'ou', '17 Establishment', 'score ~S~_{~p~}', 'scores'],
+    U: [5, 3, 'ou', 'Publish', 'routes on request', 'routes']
   };
+  const box = k => { const [c, r] = B[k]; return { x: col[c], y: row[r], cx: col[c] + W / 2, cy: row[r] + H / 2, r: col[c] + W, b: row[r] + H }; };
   const flows = [
-    ['M178,47H198', 'flow'], ['M368,47H388', 'flow'], ['M558,47H578', 'flow'],
-    ['M178,150H198', 'flow'], ['M368,150H474V82', 'flow'],
-    ['M178,253H198', 'flow gold'], ['M368,253H578', 'flow gold'],
-    ['M664,80V218', 'flow'], ['M748,253H768', 'flow ink'], ['M854,220V185', 'flow ink'], ['M748,47H854V115', 'flow ink']
-  ];
-  flows.forEach(([d, c]) => S('path', { d, class: c, 'marker-end': AH(c.includes('gold') ? 'gold' : c.includes('ink') ? 'muted' : 'teal') }, svg));
-  T(svg, 473, 244, 'edges ~i~ → ~j~ where ~a~_{~ij~} > 0', 'sm f-gold', { 'text-anchor': 'middle' });
-  T(svg, 654, 146, 'territory overlap', 'sm f-muted', { 'text-anchor': 'end' });
-  T(svg, 654, 162, '+ center distance', 'sm f-muted', { 'text-anchor': 'end' });
-  T(svg, 801, 39, '~d~_{~p~} to center', 'sm f-muted', { 'text-anchor': 'middle' });
+    ['A', 'Bx'], ['Bx', 'C'], ['E', 'F'], ['F', 'G'], ['G', 'Hr'], ['Hr', 'I'], ['I', 'J'], ['K', 'L'], ['X', 'Q'], ['Q', 'P'], ['P', 'U']
+  ].map(([a, b]) => { const A = box(a), Bb = box(b); return [`M${A.r + 2},${A.cy}H${Bb.x - 2}`, 'flow']; });
+  const c = box('C'), g = box('G'), h = box('Hr'), l = box('L'), x = box('X'), j = box('J'), r0 = box('R');
+  flows.push([`M${c.r + 2},${c.cy}H${r0.x - 2}`, 'flow ink dash']);
+  flows.push([`M${c.cx},${c.b + 2}V${g.y - 2}`, 'flow']);
+  flows.push([`M${h.cx},${h.b + 2}V${l.cy}H${l.r + 2}`, 'flow gold']);
+  flows.push([`M${l.cx},${l.b + 2}V${x.cy}H${x.x - 2}`, 'flow gold']);
+  flows.push([`M${j.cx},${j.b + 2}V${x.y - 14}H${x.cx}V${x.y - 2}`, 'flow ink']);
+  flows.forEach(([d, cl]) => S('path', { d, class: cl, 'marker-end': AH(cl.includes('gold') ? 'gold' : cl.includes('ink') ? 'muted' : 'teal') }, svg));
+  T(svg, (g.r + h.x) / 2, g.y - 6, 'K=0 check → Gap', 'xs f-muted', { 'text-anchor': 'middle' });
+  T(svg, (h.cx + l.r) / 2 + 40, l.cy - 7, 'effective sectors → ~M Z M~^{T}', 'sm f-gold', { 'text-anchor': 'middle' });
+  T(svg, (j.cx + x.cx) / 2, x.y - 20, 'territory overlap + center distances', 'sm f-muted', { 'text-anchor': 'middle' });
+  T(svg, c.cx - 8, (c.b + g.y) / 2 + 4, 'sectors', 'xs f-muted', { 'text-anchor': 'end' });
   for (const k in B) {
-    const [c, r, kind, l1, l2, target] = B[k];
-    const x = col[c], y = row[r];
-    const g = S('g', { class: 'ob ' + kind, tabindex: 0, role: 'link', 'aria-label': (l1 + ' ' + l2).replace(/[~_{}^]/g, '') + ': go to this stage' }, svg);
-    S('rect', { x, y, width: W, height: H, rx: 6 }, g);
-    T(g, x + W / 2, y + 28, l1, '', { 'text-anchor': 'middle', 'font-weight': 700 });
-    T(g, x + W / 2, y + 48, l2, 'sm f-muted', { 'text-anchor': 'middle' });
+    const [cc, rr, kind, l1, l2, target] = B[k];
+    const bx = col[cc], by = row[rr];
+    const gg = S('g', { class: 'ob ' + kind, tabindex: 0, role: 'link', 'aria-label': (l1 + ' ' + l2).replace(/[~_{}^]/g, '') + ': go to this stage' }, svg);
+    S('rect', { x: bx, y: by, width: W, height: H, rx: 6 }, gg);
+    T(gg, bx + W / 2, by + 26, l1, '', { 'text-anchor': 'middle', 'font-weight': 700 });
+    T(gg, bx + W / 2, by + 45, l2, 'sm f-muted', { 'text-anchor': 'middle' });
     const go = () => { const el = document.getElementById(target); if (el) el.scrollIntoView({ behavior: RM ? 'auto' : 'smooth', block: 'start' }); };
-    g.addEventListener('click', go);
-    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    gg.addEventListener('click', go);
+    gg.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
   }
 }
 
@@ -1305,6 +1543,497 @@ FIGS.places = (svg, sec) => {
         if (prev < 3) { place(0); recs.forEach(r => vis(r.shape, true)); ctx.tween(900, place, finish); }
         else { place(1); finish(); }
       }
+    }
+  };
+};
+
+/* ================= Part 1b: activity, IO tags and ownership evidence ================= */
+FIGS.evidence = (svg, sec) => {
+  plate(svg); const ctx = Ctx(); const AH = markers(svg);
+  const sc = scenes(svg, 3);
+  /* scene 0: administrative-office rule */
+  const g0 = sc[0];
+  const ADM = [
+    { name: 'DepEd Schools Division Office', path: ['q1y', 'q2n'], out: 1, reason: 'division_deped_office' },
+    { name: 'Department of Health – Regional Office', path: ['q1y', 'q2n'], out: 1, reason: 'regional_doh_office' },
+    { name: 'Riverside City Health Department', path: ['q1y', 'q2n'], out: 1, reason: 'local_health_department' },
+    { name: 'DepEd Division Office Health Clinic', path: ['q1y', 'q2y'], out: 0, reason: 'admin_named_but_frontline_name' },
+    { name: 'Department of Health', path: ['q1n', 'q3y'], out: 2, reason: 'admin_name_insufficient_to_override_activity' },
+    { name: 'Riverside National High School', path: ['q1n', 'q3n'], out: 3, reason: '' }
+  ];
+  S('rect', { x: 50, y: 22, width: 500, height: 40, rx: 6, class: 'bx gold' }, g0);
+  const nameT = T(g0, 300, 48, '', 'hd', { 'text-anchor': 'middle' });
+  const box = (g, x, y, w, h, l1, l2, cls) => { const r = S('rect', { x, y, width: w, height: h, rx: 6, class: 'bx ' + (cls || '') }, g); T(g, x + w / 2, y + (l2 ? 18 : 25), l1, 'sm', { 'text-anchor': 'middle' }); if (l2) T(g, x + w / 2, y + 34, l2, 'sm', { 'text-anchor': 'middle' }); return r; };
+  const q1 = box(g0, 165, 92, 270, 44, 'clear administrative office', 'pattern in the name?');
+  const q2 = box(g0, 30, 176, 250, 44, 'a frontline word in a name?', '(hospital, clinic, school …)');
+  const q3 = box(g0, 320, 176, 250, 44, 'only agency or office words?', '(e.g. “Department of Health”)');
+  const outs = [
+    box(g0, 20, 268, 128, 54, 'REVIEW', 'frontline name', ''),
+    box(g0, 158, 268, 128, 54, 'REASSIGNED', 'PSIC → 84120', ''),
+    box(g0, 316, 268, 128, 54, 'REVIEW', 'name not enough', ''),
+    box(g0, 454, 268, 128, 54, 'unchanged', 'activity kept', '')
+  ];
+  const E0 = {
+    q1y: S('path', { d: 'M230,136L155,176', class: 'arw ink', 'marker-end': AH('muted') }, g0),
+    q1n: S('path', { d: 'M370,136L445,176', class: 'arw ink', 'marker-end': AH('muted') }, g0),
+    q2y: S('path', { d: 'M110,220L84,268', class: 'arw ink', 'marker-end': AH('muted') }, g0),
+    q2n: S('path', { d: 'M200,220L222,268', class: 'arw ink', 'marker-end': AH('muted') }, g0),
+    q3y: S('path', { d: 'M400,220L380,268', class: 'arw ink', 'marker-end': AH('muted') }, g0),
+    q3n: S('path', { d: 'M490,220L518,268', class: 'arw ink', 'marker-end': AH('muted') }, g0)
+  };
+  [['yes', 178, 150], ['no', 416, 150], ['yes', 84, 246], ['no', 222, 246], ['yes', 377, 246], ['no', 518, 246]].forEach(([t, x, y]) => T(g0, x, y, t, 'xs f-muted halo', { 'text-anchor': 'middle' }));
+  const reasonT = T(g0, 300, 360, '', 'sm mono', { 'text-anchor': 'middle' });
+  const noteT = T(g0, 300, 386, '', 'sm f-muted', { 'text-anchor': 'middle' });
+  T(g0, 300, 424, 'example names · rule policy admin-function-v1', 'xs f-muted', { 'text-anchor': 'middle' });
+  const admOut = $('#adm-out', sec);
+  let admI = 0;
+  function renderAdm(animate) {
+    const ex = ADM[admI];
+    setT(nameT, '“' + ex.name + '”');
+    Object.values(E0).forEach(e => e.setAttribute('class', 'arw ink dim'));
+    [q1, q2, q3].forEach(r => r.setAttribute('class', 'bx'));
+    outs.forEach(r => r.setAttribute('class', 'bx'));
+    const steps = [() => q1.setAttribute('class', 'bx teal')];
+    ex.path.forEach(k => steps.push(() => { E0[k].setAttribute('class', 'arw'); (k.startsWith('q1') ? (k === 'q1y' ? q2 : q3) : null)?.setAttribute('class', 'bx teal'); }));
+    steps.push(() => outs[ex.out].setAttribute('class', 'bx ' + (ex.out === 1 ? 'teal' : ex.out === 3 ? '' : 'gold')));
+    ctx.clear();
+    steps.forEach((f, k) => animate ? ctx.after(150 + 420 * k, f) : f());
+    setT(reasonT, ex.reason ? 'reason: ' + ex.reason : 'no administrative pattern');
+    setT(noteT, ex.out === 1 ? 'previous PSIC kept in admin_original_psic' : ex.out === 3 ? 'PSIC from stage 3 is kept' : 'status REVIEW: PSIC is not changed');
+    const status = ['<span class="v-bad">REVIEW</span> — a frontline word protects the place; PSIC is not changed.', '<span class="v-ok">REASSIGNED</span> — PSIC becomes 84120 (CONFIRMED instead if it was already 84xxx).', '<span class="v-bad">REVIEW</span> — the name alone is not enough to change the activity.', 'No change — no administrative pattern; the stage 3 activity stays.'][ex.out];
+    admOut.innerHTML = `Name: “${ex.name}”<br>${status}${ex.reason ? '<br>Reason code: ' + ex.reason : ''}`;
+    $$('[data-adm]', sec).forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.adm === admI)));
+  }
+  $$('[data-adm]', sec).forEach(b => b.addEventListener('click', () => { admI = +b.dataset.adm; renderAdm(true); }));
+
+  /* scene 1: IO candidate sets for PSIC class 0112 */
+  const g1 = sc[1];
+  T(g1, 300, 40, 'PSIC class 0112 · Growing of rice (group 011)', 'hd', { 'text-anchor': 'middle' });
+  const LV = [
+    { lab: 'IO16', y: 110, codes: ['01'], keep: ['01'] },
+    { lab: 'IO80', y: 200, codes: ['01', '02', '04', '09', '13', '14'], keep: ['01'] },
+    { lab: 'IO240', y: 290, codes: ['001', '002', '004', '009', '013', '014', '018', '019', '020', '021', '022'], keep: ['001'] }
+  ];
+  LV.forEach(L => {
+    T(g1, 30, L.y + 22, L.lab, 'hd');
+    const w = 40, gap = 4, x0 = 96;
+    L.chips = L.codes.map((c, i) => { const g = S('g', null, g1); S('rect', { x: x0 + i * (w + gap), y: L.y, width: w, height: 34, rx: 4, class: 'bx teal' }, g); T(g, x0 + i * (w + gap) + w / 2, L.y + 22, c, 'xs mono', { 'text-anchor': 'middle' }); return { c, g }; });
+    L.count = T(g1, 570, L.y + 22, '', 'sm mono', { 'text-anchor': 'end' });
+  });
+  T(g1, 116, 352, '001 Palay · 002 Corn · 004 Sugarcane · 022 Other crops, n.e.c. …', 'xs f-muted');
+  const tagT = T(g1, 300, 396, '', 'hd', { 'text-anchor': 'middle' });
+  const refOn = $('#ref-on', sec), refOut = $('#ref-out', sec);
+  function renderRef() {
+    const on = refOn.checked;
+    LV.forEach(L => {
+      const live = on ? L.keep : L.codes;
+      L.chips.forEach(ch => ch.g.classList.toggle('dim', !live.includes(ch.c)));
+      setT(L.count, live.length === 1 ? 'tag ' + live[0] : live.length + ' candidates');
+    });
+    setT(tagT, on ? 'tags: IO16 01 · IO80 01 · IO240 001 (sparse form 01:01:001)' : 'tags: IO16 01 · IO80 none · IO240 none');
+    refOut.innerHTML = on
+      ? 'Refinement row (class 0112 → IO240 001) applied.<br>IO240 {001} → parent IO80 {01} → parent IO16 {01}: <span class="v-ok">all three levels tagged</span>.'
+      : 'Group 011 only.<br>IO16: 1 candidate → tagged 01. IO80: 6 candidates, IO240: 11 candidates → <span class="v-bad">no tag</span> at these levels.';
+  }
+  refOn.addEventListener('change', renderRef);
+
+  /* scene 2: ownership evidence ladder */
+  const g2 = sc[2];
+  T(g2, 24, 34, 'Evidence for public or private ownership (strongest first)', 'hd');
+  const RUNGS = [
+    ['verified link to a registry record', 'can change the industry'],
+    ['official registry ID in the source record', 'can change the industry'],
+    ['explicit ownership attribute (OSM, Overture)', 'can change the industry'],
+    ['registry match by name and city only', 'recorded as provisional'],
+    ['government operator tag', 'recorded as provisional'],
+    ['no ownership evidence', 'no decision']
+  ];
+  const rungG = RUNGS.map(([a, b], i) => { const y = 58 + i * 46 + (i >= 3 ? 18 : 0); const g = S('g', null, g2); const r = S('rect', { x: 24, y, width: 330, height: 38, rx: 5, class: 'bx' }, g); T(g, 36, y + 17, a, 'sm'); T(g, 36, y + 32, b, 'xs f-muted'); return r; });
+  S('path', { d: 'M24,206H354', class: 'thr' }, g2);
+  T(g2, 354, 201, 'promotable above this line', 'xs f-rose', { 'text-anchor': 'end' });
+  S('rect', { x: 372, y: 58, width: 206, height: 288, rx: 6, class: 'bx' }, g2);
+  T(g2, 475, 82, 'example: a school', 'sm f-muted', { 'text-anchor': 'middle' });
+  T(g2, 475, 104, 'IO80 candidates 74 | 75', 'sm mono', { 'text-anchor': 'middle' });
+  const resStatus = T(g2, 475, 152, '', 'hd', { 'text-anchor': 'middle' });
+  const resSide = T(g2, 475, 180, '', 'sm', { 'text-anchor': 'middle' });
+  const resIO = T(g2, 475, 206, '', 'sm mono', { 'text-anchor': 'middle' });
+  const resBasis = T(g2, 475, 248, '', 'xs mono f-muted', { 'text-anchor': 'middle' });
+  const resBasis2 = T(g2, 475, 264, '', 'xs mono f-muted', { 'text-anchor': 'middle' });
+  const resNote = T(g2, 475, 306, '', 'xs f-muted', { 'text-anchor': 'middle' });
+  const resNote2 = T(g2, 475, 322, '', 'xs f-muted', { 'text-anchor': 'middle' });
+  T(g2, 24, 378, 'IO80 74 public education · 75 private education (IO240 229 · 230)', 'xs f-muted');
+  T(g2, 24, 396, 'IO80 76 public health · 77 private health (IO240 231 · 232)', 'xs f-muted');
+  T(g2, 24, 422, 'Promotion never changes PSIC and never leaves the PSIC candidate set.', 'xs f-muted');
+  const oSrc = $('#own-src', sec), oReg = $('#own-reg', sec), oOp = $('#own-op', sec), oBase = $('#own-base', sec), oOut = $('#own-out', sec);
+  function resolveOwnership() {
+    const src = oSrc.value, reg = oReg.value, op = oOp.checked, base = oBase.checked;
+    const sides = new Set(); if (src !== 'none') sides.add(src); if (reg !== 'none') sides.add('public');
+    if (sides.size > 1) return { rung: -1, status: 'EXPLICIT_OR_REGISTRY_CONFLICT', note: 'evidence points to both sides: SIGMA abstains' };
+    let rung, side, basis;
+    if (reg === 'link') { rung = 0; side = 'public'; basis = 'verified_canonical_registry_link'; }
+    else if (reg === 'extid') { rung = 1; side = 'public'; basis = 'official_registry_external_id'; }
+    else if (src !== 'none') { rung = 2; side = src; basis = 'explicit_source_attribute'; }
+    else if (reg === 'namecity') { rung = 3; side = 'public'; basis = 'official_registry_name_city_provisional'; }
+    else if (op) { rung = 4; side = 'public'; basis = 'government_operator_proxy'; }
+    else return { rung: 5, status: 'NO_OWNERSHIP_EVIDENCE', note: 'IO80 stays undecided (74 | 75)' };
+    if (op && side === 'private') return { rung, side, basis, status: 'OPERATOR_VS_PRIVATE_CONFLICT', note: 'operating is not owning: flagged for review' };
+    if (rung >= 3) return { rung, side, basis, status: 'PROVISIONAL_NOT_PROMOTED', note: 'recorded, IO80 stays undecided' };
+    if (base) return { rung, side, basis, status: 'STRONG_BASELINE_CONFLICT', note: 'a stronger tag already chose the other side' };
+    return { rung, side, basis, status: 'PROMOTED', note: 'CONFIRMED if the tag already had this side' };
+  }
+  function renderOwn() {
+    const r = resolveOwnership();
+    rungG.forEach((el, i) => el.setAttribute('class', 'bx' + (i === r.rung ? (i <= 2 ? ' teal' : ' gold') : '')));
+    setT(resStatus, r.status.length > 22 ? r.status.replace(/_/g, ' ').toLowerCase() : r.status);
+    resStatus.setAttribute('class', 'hd ' + (r.status === 'PROMOTED' ? 'f-teal' : 'f-rose'));
+    setT(resSide, r.side ? 'side: ' + r.side : 'side: none');
+    const promoted = r.status === 'PROMOTED';
+    setT(resIO, promoted ? (r.side === 'public' ? 'IO80 74 · IO240 229' : 'IO80 75 · IO240 230') : 'IO80 74 | 75 (unchanged)');
+    const split = (t, n) => { if (!t || t.length <= n) return [t || '', '']; const w = t.split(/[_ ]/); let a = ''; while (w.length && (a + (a ? '_' : '') + w[0]).length <= n) a += (a ? '_' : '') + w.shift(); return [a, w.join('_')]; };
+    const [b1, b2] = split(r.basis, 26); setT(resBasis, b1); setT(resBasis2, b2);
+    const [n1, n2] = (r.note || '').length > 34 ? (() => { const w = r.note.split(' '); let a = ''; while (w.length && (a + ' ' + w[0]).trim().length <= 34) a = (a + ' ' + w.shift()).trim(); return [a, w.join(' ')]; })() : [r.note || '', ''];
+    setT(resNote, n1); setT(resNote2, n2);
+    oOut.innerHTML = `Status: <span class="${promoted ? 'v-ok' : 'v-bad'}">${r.status}</span>${r.basis ? '<br>Basis: ' + r.basis : ''}<br>${promoted ? 'The IO industry is set to the ' + r.side + ' side.' : 'The IO industry is not changed.'}`;
+  }
+  [oSrc, oReg].forEach(e => e.addEventListener('change', renderOwn));
+  [oOp, oBase].forEach(e => e.addEventListener('change', renderOwn));
+  renderAdm(false); renderRef(); renderOwn();
+  return {
+    step(i) {
+      ctx.clear(); showScene(sc, i);
+      if (i === 0) renderAdm(true);
+      if (i === 1) {
+        if (!RM && refOn.checked) { refOn.checked = false; renderRef(); ctx.after(1100, () => { refOn.checked = true; renderRef(); }); } else renderRef();
+      }
+      if (i === 2) renderOwn();
+    }
+  };
+};
+
+/* ================= Part 1c: area sectors (stage 5) ================= */
+// Faithful one-parent port of sigma.economy.hierarchical.build_hierarchical_economy.
+// Checked against the Python builder for min_places 1–10 and both coarse policies.
+const HIER = (() => {
+  const LEAVES = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7'];
+  const P80 = { Z1: 'Y1', Z2: 'Y1', Z3: 'Y1', Z4: 'Y2', Z5: 'Y2', Z6: 'Y3', Z7: 'Y3' };
+  const EXACT = { Z1: 9, Z2: 6, Z3: 2, Z4: 3, Z5: 1, Z6: 0, Z7: 0 };
+  const COARSE80 = { Y1: 3, Y2: 2, Y3: 0 };
+  const COARSE16 = 1;
+  const PARENTS = ['Y1', 'Y2', 'Y3'];
+  function build(mp, policy, share) {
+    const leaves80 = {}; PARENTS.forEach(p => leaves80[p] = LEAVES.filter(z => P80[z] === p));
+    const retained = new Set(LEAVES.filter(z => EXACT[z] > 0 && EXACT[z] >= mp));
+    const support80 = { ...COARSE80 };
+    LEAVES.forEach(z => { if (EXACT[z] > 0 && !retained.has(z)) support80[P80[z]] += EXACT[z]; });
+    const places = [];
+    LEAVES.forEach(z => { for (let i = 0; i < EXACT[z]; i++) places.push({ tag: z, a: z, b: P80[z], cand: [z] }); });
+    PARENTS.forEach(p => { for (let i = 0; i < COARSE80[p]; i++) places.push({ tag: p, a: '', b: p, cand: leaves80[p] }); });
+    for (let i = 0; i < COARSE16; i++) places.push({ tag: 'X', a: '', b: '', cand: LEAVES.slice() });
+    const partition = (w80, w16) => {
+      if (w16.has('X')) return [{ key: '16:X', leaves: LEAVES.slice() }];
+      const groups = [], taken = new Set();
+      for (const p of PARENTS) {
+        const ch = leaves80[p];
+        if (w80.has(p)) { groups.push({ key: '80:' + p, leaves: ch.slice() }); ch.forEach(z => taken.add(z)); continue; }
+        const precise = ch.filter(z => retained.has(z));
+        precise.forEach(z => { groups.push({ key: '240:' + z, leaves: [z] }); taken.add(z); });
+        const left = ch.filter(z => !retained.has(z));
+        if (precise.length && left.length) { groups.push({ key: '80:' + p + ':OTHER', leaves: left }); left.forEach(z => taken.add(z)); }
+        else if (!precise.length && support80[p] >= mp) { groups.push({ key: '80:' + p, leaves: ch.slice() }); ch.forEach(z => taken.add(z)); }
+      }
+      const rem = LEAVES.filter(z => !taken.has(z));
+      if (rem.length) groups.push({ key: taken.size ? '16:X:O' : '16:X', leaves: rem });
+      return groups;
+    };
+    const rev = gs => { const r = {}; gs.forEach(g => g.leaves.forEach(z => { r[z] = g.key; })); return r; };
+    const w80 = new Set(), w16 = new Set(), kept = [];
+    let groups = partition(w80, w16), R = rev(groups);
+    if (policy === 'contain') {
+      for (const level of ['io80', 'io16']) {
+        const up = z => level === 'io80' ? P80[z] : 'X';
+        const parents = level === 'io80' ? leaves80 : { X: LEAVES };
+        const whole = level === 'io80' ? w80 : w16;
+        for (;;) {
+          const gp = {}; groups.forEach(g => { const f = new Set(g.leaves.map(up)); gp[g.key] = f.size === 1 ? [...f][0] : null; });
+          const st = {}, ex = {};
+          places.forEach(pl => {
+            const owners = new Set(pl.cand.map(z => R[z]));
+            if (owners.size === 1) { const par = gp[[...owners][0]]; if (par !== null) ex[par] = (ex[par] || 0) + 1; }
+            else { const f = new Set(pl.cand.map(up)); if (f.size === 1) { const k = [...f][0]; st[k] = (st[k] || 0) + 1; } }
+          });
+          let changed = false;
+          for (const [par, mem] of Object.entries(parents)) {
+            if (whole.has(par) || new Set(mem.map(z => R[z])).size < 2) continue;
+            const s = st[par] || 0, e = ex[par] || 0;
+            if (s > share * (s + e)) { whole.add(par); kept.push({ level, code: par, s, e }); changed = true; }
+          }
+          if (!changed) break;
+          groups = partition(w80, w16); R = rev(groups);
+        }
+      }
+    }
+    const avail = new Set(groups.map(g => g.key));
+    const containing = ls => { const o = new Set(ls.map(z => R[z])); return o.size === 1 ? [...o][0] : ''; };
+    const assign = places.map(pl => {
+      let key = '', how = '';
+      if (pl.a) { key = R[pl.a]; how = key === '240:' + pl.a ? 'IO240' : 'IO240_FOLDED'; }
+      else if (pl.b) {
+        key = containing(leaves80[pl.b]);
+        if (key) how = key === '80:' + pl.b ? 'IO80' : key.startsWith('240:') ? 'IO80_SINGLE_MEMBER' : 'IO80_FOLDED';
+        else if (policy === 'contain') { key = containing(pl.cand); how = key ? 'IO80_CANDIDATES' : 'UNASSIGNED_IO80_STRADDLES'; }
+        else { key = avail.has('80:' + pl.b + ':OTHER') ? '80:' + pl.b + ':OTHER' : ''; how = key ? 'IO80_RESIDUAL' : 'IO80_UNASSIGNABLE'; }
+      } else {
+        key = containing(LEAVES);
+        if (key) how = key === '16:X' ? 'IO16' : 'IO16_SINGLE_MEMBER';
+        else if (policy === 'contain') { key = containing(pl.cand); how = key ? 'IO16_CANDIDATES' : 'UNASSIGNED_IO16_STRADDLES'; }
+        else { key = avail.has('16:X:O') ? '16:X:O' : ''; how = key ? 'IO16_RESIDUAL' : 'IO16_UNASSIGNABLE'; }
+      }
+      if (!key || !avail.has(key)) { key = ''; if (!how.startsWith('UNASSIGNED_')) how = pl.b ? 'UNASSIGNED_IO80_NO_RESIDUAL' : 'UNASSIGNED_IO16_NO_RESIDUAL'; }
+      return { tag: pl.tag, key, how };
+    });
+    return { groups, assign, kept, support80 };
+  }
+  const code = key => { const p = key.split(':'); if (p[0] === '240') return 'X:' + P80[p[1]] + ':' + p[1]; if (p[0] === '80') return 'X:' + p[1] + (p[2] ? ':o' : ''); return 'X' + (p[2] ? ':o' : ''); };
+  return { build, code, LEAVES, P80, EXACT, COARSE80, COARSE16, PARENTS };
+})();
+
+FIGS.hierarchy = (svg, sec) => {
+  plate(svg); const ctx = Ctx(); const AH = markers(svg);
+  const sc = scenes(svg, 2);
+  const g0 = sc[0];
+  const LX = { Z1: 70, Z2: 132, Z3: 194, Z4: 314, Z5: 376, Z6: 476, Z7: 538 };
+  const YX = { Y1: 132, Y2: 345, Y3: 507 };
+  const BASE = 292, UNIT = 15;
+  S('circle', { cx: 300, cy: 34, r: 15, class: 'nodeN' }, g0); T(g0, 300, 39, 'X', 'hd', { 'text-anchor': 'middle' });
+  T(g0, 322, 30, 'IO16', 'xs f-muted');
+  const c16 = T(g0, 322, 46, '+1 coarse', 'xs f-gold');
+  HIER.PARENTS.forEach(p => {
+    S('path', { d: `M300,49L${YX[p]},${92}`, class: 'axis' }, g0);
+    S('circle', { cx: YX[p], cy: 104, r: 14, class: 'nodeN' }, g0); T(g0, YX[p], 109, p, 'sm', { 'text-anchor': 'middle' });
+    if (HIER.COARSE80[p]) T(g0, YX[p] + 20, 100, '+' + HIER.COARSE80[p] + ' coarse', 'xs f-gold');
+  });
+  T(g0, 24, 108, 'IO80', 'xs f-muted');
+  HIER.LEAVES.forEach(z => {
+    const x = LX[z], n = HIER.EXACT[z];
+    S('path', { d: `M${YX[HIER.P80[z]]},118L${x},${BASE - n * UNIT - 4}`, class: 'guide' }, g0);
+    S('rect', { x: x - 17, y: BASE - n * UNIT, width: 34, height: Math.max(n * UNIT, 0.5), class: 'barb tealf' }, g0);
+    T(g0, x, BASE - n * UNIT - 6, n, 'xs mono', { 'text-anchor': 'middle' });
+    T(g0, x, BASE + 16, z, 'sm', { 'text-anchor': 'middle' });
+  });
+  S('path', { d: `M30,${BASE}H570`, class: 'axis' }, g0);
+  T(g0, 24, BASE + 16, 'IO240', 'xs f-muted');
+  const thr = S('line', { x1: 34, x2: 566, class: 'thr' }, g0);
+  const thrT = T(g0, 566, 0, '', 'xs f-rose halo', { 'text-anchor': 'end' });
+  const brG = S('g', null, g0);
+  const coarseG = S('g', { class: 'off' }, g0);
+  const unT = S('g', { class: 'off' }, g0);
+  S('rect', { x: 466, y: 396, width: 120, height: 32, rx: 5, class: 'bx' }, unT); T(unT, 526, 417, 'unassigned', 'sm', { 'text-anchor': 'middle' });
+  const COL = ['f-teal', 'f-blue', 'f-gold', 'f-rose', 'f-ink', 'f-muted'];
+  const ST = { mp: 5, pol: 'residual', sh: 0.25, coarse: false };
+  const mpEl = $('#mp', sec), mpO = $('#mp-o', sec), mpOut = $('#mp-out', sec);
+  const shEl = $('#sh', sec), shO = $('#sh-o', sec), shOut = $('#sh-out', sec);
+  function render() {
+    const r = HIER.build(ST.mp, ST.pol, ST.sh);
+    const y = BASE - ST.mp * UNIT; setAttrs(thr, { y1: y, y2: y }); setAttrs(thrT, { y: y - 5 }); setT(thrT, 'min_places = ' + ST.mp);
+    while (brG.firstChild) brG.removeChild(brG.firstChild);
+    const pos = {};
+    r.groups.forEach((g, i) => {
+      const xs = g.leaves.map(z => LX[z]), x0 = Math.min(...xs) - 22, x1 = Math.max(...xs) + 22, yb = BASE + 30 + (i % 2) * 34;
+      const cls = COL[i % COL.length];
+      S('path', { d: `M${x0},${yb - 6}V${yb}H${x1}V${yb - 6}`, class: 'brk', style: `stroke:var(--${cls.slice(2)})` }, brG);
+      T(brG, (x0 + x1) / 2, yb + 15, HIER.code(g.key), 'sm mono halo ' + cls, { 'text-anchor': 'middle' });
+      pos[g.key] = [(x0 + x1) / 2, yb + 18];
+    });
+    // coarse arrows
+    while (coarseG.firstChild) coarseG.removeChild(coarseG.firstChild);
+    const byTag = {}; r.assign.forEach(a => { (byTag[a.tag] = byTag[a.tag] || []).push(a); });
+    const from = { Y1: [YX.Y1 + 34, 100], Y2: [YX.Y2 + 34, 100], X: [360, 44] };
+    let anyUn = false;
+    ['Y1', 'Y2', 'X'].forEach(t => {
+      const a = byTag[t] && byTag[t][0]; if (!a) return;
+      const [fx, fy] = from[t];
+      const [tx, ty] = a.key ? pos[a.key] : [526, 396];
+      if (!a.key) anyUn = true;
+      const d = t === 'X' ? `M${fx},${fy}C590,${fy} 590,${ty - 70} ${tx},${ty - 4}` : `M${fx},${fy}C${fx + 40},${(fy + ty) / 2} ${tx},${ty - 80} ${tx},${ty - 4}`;
+      S('path', { d, class: 'arw ' + (a.key ? 'gold' : 'rose'), 'stroke-dasharray': '5 4', 'marker-end': AH(a.key ? 'gold' : 'rose') }, coarseG);
+    });
+    vis(unT, ST.coarse && anyUn);
+    mpEl.value = ST.mp; mpO.textContent = ST.mp; shEl.value = ST.sh; shO.textContent = ST.sh.toFixed(2);
+    shEl.disabled = ST.pol !== 'contain';
+    const fine = r.assign.filter(a => /^Z/.test(a.tag));
+    const seen = {}; fine.forEach(a => { seen[a.tag] = a; });
+    mpOut.innerHTML = 'Sectors: ' + r.groups.map(g => `<b>${HIER.code(g.key)}</b> (${g.leaves.join(', ')})`).join(' · ') +
+      '<br>Kept as own sector: ' + (HIER.LEAVES.filter(z => seen[z] && seen[z].how === 'IO240').join(', ') || 'none') +
+      ' · folded: ' + (HIER.LEAVES.filter(z => seen[z] && seen[z].how === 'IO240_FOLDED').join(', ') || 'none') +
+      `<br>IO80 support with folded children: Y1 = ${r.support80.Y1}, Y2 = ${r.support80.Y2}, Y3 = ${r.support80.Y3}`;
+    const line = t => { const a = byTag[t][0]; return `${t}-only (${byTag[t].length}) → ${a.key ? '<b>' + HIER.code(a.key) + '</b>' : '<span class="v-bad">unassigned</span>'} · ${a.how}`; };
+    shOut.innerHTML = `Policy <b>${ST.pol}</b>${ST.pol === 'contain' ? ', share ' + ST.sh.toFixed(2) : ''} with min_places = ${ST.mp}:<br>` + ['Y1', 'Y2', 'X'].map(line).join('<br>') +
+      (r.kept.length ? '<br>Kept whole: ' + r.kept.map(k => `${k.code} (${k.s} straddling vs ${k.e} assigned)`).join(', ') : '');
+    $$('[data-pol]', sec).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.pol === ST.pol)));
+  }
+  mpEl.addEventListener('input', () => { ST.mp = +mpEl.value; render(); });
+  shEl.addEventListener('input', () => { ST.sh = +shEl.value; render(); });
+  $$('[data-pol]', sec).forEach(b => b.addEventListener('click', () => { ST.pol = b.dataset.pol; render(); }));
+
+  /* scene 1: aggregation M Z M^T */
+  const g1 = sc[1];
+  const Z4 = [[5, 10, 4, 2], [8, 3, 6, 1], [2, 7, 1, 3], [1, 2, 2, 0]], X4 = [100, 80, 60, 40];
+  const Z3 = [[5, 10, 6], [8, 3, 7], [3, 9, 6]], X3 = [100, 80, 100];
+  const mat = (g, x0, y0, M, xs, labs, hot) => {
+    const cw = 44, ch = 30, cells = [];
+    labs.forEach((l, j) => T(g, x0 + j * cw + cw / 2, y0 - 8, l, 'sm', { 'text-anchor': 'middle' }));
+    M.forEach((row, i) => {
+      T(g, x0 - 8, y0 + i * ch + 20, labs[i], 'sm', { 'text-anchor': 'end' });
+      row.forEach((v, j) => { const r = S('rect', { x: x0 + j * cw, y: y0 + i * ch, width: cw - 2, height: ch - 2, class: 'cellz' }, g); T(g, x0 + j * cw + cw / 2 - 1, y0 + i * ch + 19, v, 'sm mono', { 'text-anchor': 'middle' }); cells.push({ i, j, r }); });
+    });
+    T(g, x0 - 8, y0 + M.length * ch + 26, '~x~', 'sm', { 'text-anchor': 'end' });
+    xs.forEach((v, j) => T(g, x0 + j * cw + cw / 2, y0 + M.length * ch + 26, v, 'sm mono', { 'text-anchor': 'middle' }));
+    return cells;
+  };
+  T(g1, 150, 50, 'IO240 industries', 'hd', { 'text-anchor': 'middle' });
+  T(g1, 450, 50, 'area sectors', 'hd', { 'text-anchor': 'middle' });
+  const C4 = mat(g1, 64, 84, Z4, X4, ['a', 'b', 'c', 'd']);
+  const C3 = mat(g1, 386, 84, Z3, X3, ['a', 'b', 'cd']);
+  S('path', { d: 'M262,160H340', class: 'arw', 'marker-end': AH('teal') }, g1);
+  T(g1, 301, 150, '~M Z M~^{T}', 'sm f-teal', { 'text-anchor': 'middle' });
+  T(g1, 300, 298, 'total transactions 57 = 57 · total output 280 = 280', 'sm', { 'text-anchor': 'middle' });
+  const coefT = T(g1, 300, 332, '', 'sm', { 'text-anchor': 'middle' });
+  const coefT2 = T(g1, 300, 356, '', 'sm f-muted', { 'text-anchor': 'middle' });
+  T(g1, 300, 408, 'rows and columns c and d are added; invented numbers', 'xs f-muted', { 'text-anchor': 'middle' });
+  const aggOut = $('#agg-out', sec);
+  let aggView = 1;
+  function renderAgg() {
+    C4.forEach(c => c.r.setAttribute('class', 'cellz' + (aggView === 0 && (c.i >= 2 || c.j >= 2) ? ' hot' : '')));
+    C3.forEach(c => c.r.setAttribute('class', 'cellz' + (aggView === 1 && (c.i === 2 || c.j === 2) ? ' hot' : '')));
+    setT(coefT, aggView === 1 ? 'recomputed: ~a~(b → cd) = 7 / 100 = 0.070' : 'before: ~a~(b → c) = 6 / 60 = 0.100, ~a~(b → d) = 1 / 40 = 0.025');
+    setT(coefT2, aggView === 1 ? 'output-weighted average of 0.100 and 0.025 (simple average would be 0.0625)' : 'merging c and d will add their rows, columns and outputs');
+    aggOut.innerHTML = 'Sum of all transactions: 57 before and after. Sum of output: 280 before and after.<br>' + (aggView === 1 ? 'Column cd: <var>x</var> = 60 + 40 = 100; row b in column cd: 6 + 1 = 7 → <var>a</var> = 0.070.' : 'Industries c and d fold into one sector of this area.');
+    $$('[data-agg]', sec).forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.agg === aggView)));
+  }
+  $$('[data-agg]', sec).forEach(b => b.addEventListener('click', () => { aggView = +b.dataset.agg; renderAgg(); }));
+  render(); renderAgg();
+  return {
+    step(i) {
+      ctx.clear(); showScene(sc, i === 2 ? 1 : 0);
+      ST.coarse = i === 1; vis(coarseG, i === 1); vis(c16, true);
+      render();
+      if (i === 2) { aggView = 0; renderAgg(); ctx.after(1200, () => { aggView = 1; renderAgg(); }); }
+    }
+  };
+};
+
+/* ================= Part 1d: between load and run ================= */
+FIGS.handoff = (svg, sec) => {
+  plate(svg); const ctx = Ctx(); const AH = markers(svg);
+  const sc = scenes(svg, 3);
+  /* scene 0: review the handoff */
+  const g0 = sc[0];
+  T(g0, 40, 46, 'places/places.parquet', 'hd mono');
+  const ROWS = [['a3f…', "Rosa's Bakery", 'X:Y1:Z1', true], ['b81…', 'Lim Hardware', 'X:Y2', true], ['c07…', 'City Hall Annex', 'X:o', false], ['d5e…', 'Kape Kanto', 'X:Y1:Z1', true], ['e22…', 'Mega Mall Chain Store', 'X:Y2', false], ['f9a…', 'Mercado Fresh', 'X:Y1:o', true]];
+  T(g0, 52, 82, 'canonical_id', 'xs f-muted'); T(g0, 150, 82, 'name', 'xs f-muted'); T(g0, 380, 82, 'economy_code', 'xs f-muted');
+  const rowG = ROWS.map((r, i) => { const g = S('g', null, g0); const y = 92 + i * 32; S('rect', { x: 40, y, width: 520, height: 28, rx: 3, class: 'bx' }, g); T(g, 52, y + 19, r[0], 'sm mono'); T(g, 150, y + 19, r[1], 'sm'); T(g, 380, y + 19, r[2], 'sm mono'); return g; });
+  const strike = ROWS.map((r, i) => S('path', { d: `M44,${106 + i * 32}H556`, class: 'thr off' }, g0));
+  const hashT = T(g0, 40, 312, '', 'sm mono');
+  const recT = S('g', { class: 'off' }, g0);
+  [['stage 5 sectors rebuilt', 352], ['stages 7–17 recomputed', 380], ['sources and roads reused', 408]].forEach(([t, y], k) => { S('path', { d: `M60,${y - 5}h24`, class: 'arw ' + (k < 2 ? 'gold' : ''), 'marker-end': AH(k < 2 ? 'gold' : 'teal') }, recT); T(recT, 94, y, t, 'sm'); });
+  function review() {
+    rowG.forEach(g => g.classList.remove('dim')); strike.forEach(s => vis(s, false)); vis(recT, false);
+    setT(hashT, 'SHA-256 of the file: 7d2c…19e4');
+    ROWS.forEach((r, i) => { if (!r[3]) ctx.after(700 + 500 * i, () => { vis(strike[i], true); rowG[i].classList.add('dim'); }); });
+    ctx.after(3400, () => { setT(hashT, 'SHA-256 of the file: 4b90…a07c (changed)'); vis(recT, true); });
+  }
+  /* scene 1: augment */
+  const g1 = sc[1];
+  ['M20,250H580', 'M190,40V420', 'M420,40V420'].forEach(d => S('path', { d, class: 'road' }, g1));
+  scalebar(g1, 500, 428, 75, '50 m');
+  const P = { x: 261, y: 212 }, U = { x: 300, y: 196 };
+  const W = { x: (2 * P.x + U.x) / 3, y: (2 * P.y + U.y) / 3 };
+  const canon = S('circle', { cx: P.x, cy: P.y, r: 8, class: 'dot f-gold' }, g1);
+  const canonT = T(g1, P.x - 12, P.y + 26, "Rosa's Bakery · 2 sources", 'sm halo', { 'text-anchor': 'end' });
+  const userG = S('g', null, g1); S('rect', { x: -8, y: -8, width: 16, height: 16, class: 'dot f-blue' }, userG);
+  const userT = T(g1, U.x + 14, U.y - 10, "Rosa's Bakery · registry", 'sm halo');
+  const link = S('line', { x1: P.x, y1: P.y, x2: U.x, y2: U.y, class: 'cand off' }, g1);
+  const matchT = T(g1, 300, 300, '', 'sm halo', { 'text-anchor': 'middle' });
+  const newG = S('g', null, g1); S('rect', { x: -8, y: -8, width: 16, height: 16, class: 'dot f-blue' }, newG);
+  const newT = T(g1, 470, 132, 'Sari-Sari Store 88 · registry', 'sm halo', { 'text-anchor': 'middle' });
+  const newDot = S('circle', { cx: 470, cy: 110, r: 8, class: 'dot f-gold off' }, g1);
+  const extraT = T(g1, 40, 60, '', 'sm mono');
+  const legA = S('g', null, g1); S('circle', { cx: 32, cy: 398, r: 6, class: 'dot f-gold' }, legA); T(legA, 44, 403, 'canonical place', 'sm'); S('rect', { x: 162, y: 392, width: 12, height: 12, class: 'dot f-blue' }, legA); T(legA, 180, 403, 'user record', 'sm');
+  function augment() {
+    ctx.clear();
+    setAttrs(canon, { cx: P.x, cy: P.y }); setT(canonT, "Rosa's Bakery · 2 sources"); setAttrs(canonT, { x: P.x - 12, y: P.y + 26 });
+    userG.setAttribute('transform', `translate(${U.x + 120},${U.y - 80})`); vis(userG, true); vis(userT, false); vis(link, false); setT(matchT, ''); setT(extraT, '');
+    newG.setAttribute('transform', 'translate(470,110)'); vis(newG, true); vis(newDot, false); vis(newT, true);
+    ctx.tween(900, k => userG.setAttribute('transform', `translate(${U.x + 120 * (1 - k)},${U.y - 80 * (1 - k)})`), () => {
+      vis(userT, true); vis(link, true); link.setAttribute('class', 'cand ok');
+      setT(matchT, '~d~ ≈ 28 m, ~s~ = 1.00 → accepted, ~q~ = 0.958');
+      ctx.after(1300, () => ctx.tween(900, k => { const x = P.x + (W.x - P.x) * k, y = P.y + (W.y - P.y) * k; setAttrs(canon, { cx: x, cy: y }); userG.setAttribute('transform', `translate(${U.x + (W.x - U.x) * k},${U.y + (W.y - U.y) * k})`); }, () => {
+        vis(userG, false); vis(link, false); vis(userT, false);
+        setT(canonT, "Rosa's Bakery · 3 sources"); setAttrs(canonT, { x: W.x - 12, y: W.y + 26 });
+        setT(matchT, 'position = (2 · old + new) / 3 · same canonical_id');
+        setT(extraT, 'aug_registry__employees = 6 (kept, not scored)');
+        vis(newG, false); vis(newDot, true); setT(newT, 'unmatched → new place, new ID');
+      }));
+    });
+  }
+  $('#aug-replay', sec).addEventListener('click', () => { if (sec.querySelectorAll('.step')[1].classList.contains('active')) augment(); });
+  /* scene 2: explicit IO tags */
+  const g2 = sc[2];
+  const LVL = [{ k: 'io16', x: 80, code: '01', name: 'Agriculture' }, { k: 'io80', x: 250, code: '01', name: 'Palay farming' }, { k: 'io240', x: 420, code: '001', name: 'Palay' }];
+  T(g2, 300, 52, 'one supplied record · illustrative codes', 'sm f-muted', { 'text-anchor': 'middle' });
+  LVL.forEach(L => {
+    L.g = S('g', null, g2);
+    L.r = S('rect', { x: L.x, y: 150, width: 120, height: 70, rx: 6, class: 'bx' }, L.g);
+    T(L.g, L.x + 60, 140, L.k, 'hd mono', { 'text-anchor': 'middle' });
+    L.c = T(L.g, L.x + 60, 186, '', 'big mono', { 'text-anchor': 'middle' });
+    L.s = T(L.g, L.x + 60, 240, '', 'xs f-muted', { 'text-anchor': 'middle' });
+  });
+  const arr1 = S('path', { d: 'M248,185H204', class: 'arw gold off', 'marker-end': AH('gold') }, g2);
+  const arr2 = S('path', { d: 'M418,185H374', class: 'arw gold off', 'marker-end': AH('gold') }, g2);
+  T(g2, 300, 290, 'parents can be derived ←', 'sm f-gold', { 'text-anchor': 'middle' });
+  T(g2, 300, 312, 'children are never guessed →', 'sm f-rose', { 'text-anchor': 'middle' });
+  const verdict = T(g2, 300, 370, '', 'hd', { 'text-anchor': 'middle' });
+  const cb = { io16: $('#ag16', sec), io80: $('#ag80', sec), io240: $('#ag240', sec) }, bad = $('#agbad', sec), agOut = $('#ag-out', sec);
+  function renderTags() {
+    const sup = { io16: cb.io16.checked, io80: cb.io80.checked, io240: cb.io240.checked };
+    const n = Object.values(sup).filter(Boolean).length;
+    const finest = sup.io240 ? 2 : sup.io80 ? 1 : sup.io16 ? 0 : -1;
+    const conflict = bad.checked && n >= 2;
+    LVL.forEach((L, i) => {
+      const supplied = sup[L.k], derived = !supplied && i < finest;
+      L.r.setAttribute('class', 'bx' + (supplied ? (conflict ? ' gold' : ' teal') : ''));
+      L.r.setAttribute('stroke-dasharray', derived ? '' : supplied ? '' : '5 4');
+      let code = supplied || derived ? L.code : '—';
+      if (conflict && L.k === 'io80') code = '02';
+      setT(L.c, code); setT(L.s, supplied ? 'supplied' : derived ? 'derived parent' : 'not inferred');
+    });
+    vis(arr1, finest >= 1 && !sup.io16 && !conflict); vis(arr2, finest >= 2 && !sup.io80 && !conflict);
+    let msg;
+    if (n === 0) msg = 'All blank: SIGMA\'s automatic classification applies.';
+    else if (conflict) msg = '<span class="v-bad">Blocked.</span> IO80 02 is not the parent of the other supplied code. Nothing is written; the <code>source_id</code> and row are reported.';
+    else {
+      const parts = [];
+      if (finest === 0) parts.push('IO16 kept; IO80 and IO240 are not inferred.');
+      if (finest === 1) parts.push(sup.io16 ? 'IO80 → IO16 link checked.' : 'IO16 derived from IO80.', 'IO240 is not inferred.');
+      if (finest === 2) {
+        parts.push(sup.io80 ? 'IO240 → IO80 link checked.' : 'IO80 derived from IO240.');
+        parts.push(sup.io16 ? 'IO16 checked against the IO80 parent.' : 'IO16 derived.');
+      }
+      msg = '<span class="v-ok">Accepted.</span> ' + parts.join(' ') + ' The finest supplied level sets <code>augment_io_code</code>.';
+    }
+    if (bad.checked && n < 2 && n > 0) msg += '<br>(A disagreement needs at least two supplied levels.)';
+    setT(verdict, n === 0 ? 'automatic classification' : conflict ? 'contradiction: no write' : 'explicit tag accepted');
+    verdict.setAttribute('class', 'hd ' + (conflict ? 'f-rose' : 'f-teal'));
+    agOut.innerHTML = msg;
+  }
+  [cb.io16, cb.io80, cb.io240, bad].forEach(e => e.addEventListener('change', renderTags));
+  renderTags();
+  return {
+    step(i) {
+      ctx.clear(); showScene(sc, i);
+      if (i === 0) review();
+      if (i === 1) augment();
+      if (i === 2) renderTags();
     }
   };
 };
@@ -1609,6 +2338,401 @@ FIGS.clusters = (svg, sec) => {
         rings.forEach(g => vis(g, false)); lpts.forEach(p => p.c.setAttribute('class', 'dot f-grey'));
         radii.forEach((r, k) => ctx.after(300 + 800 * k, () => { vis(rings[k], true); lpts.forEach(p => { if (p.r <= r) p.c.setAttribute('class', 'dot f-teal'); }); }));
       }
+    }
+  };
+};
+
+/* ================= Part 2b': zero-cluster roll-up (stage 9) ================= */
+FIGS.rollup = (svg, sec) => {
+  plate(svg); const ctx = Ctx(); const AH = markers(svg);
+  const sc = scenes(svg, 3);
+  /* scene 0: K = 0 needs two groups of at least min_cluster_size */
+  const g0 = sc[0], RY = 200;
+  S('path', { d: `M24,${RY}H576`, class: 'road' }, g0);
+  T(g0, 24, 46, 'one sector on one road · min_cluster_size = 5', 'sm f-muted');
+  const kT = T(g0, 300, 92, '', 'big', { 'text-anchor': 'middle' });
+  const kT2 = T(g0, 300, 118, '', 'sm f-muted', { 'text-anchor': 'middle' });
+  const hullA = S('path', { class: 'hull' }, g0), hullB = S('path', { class: 'hull' }, g0);
+  const dotsG = S('g', null, g0);
+  const labA = T(g0, 0, RY + 54, 'group A', 'sm', { 'text-anchor': 'middle' }), labB = T(g0, 0, RY + 54, 'group B', 'sm', { 'text-anchor': 'middle' });
+  T(g0, 300, 330, 'rule shown here: K = 2 if both groups have at least 5, else K = 0', 'sm', { 'text-anchor': 'middle' });
+  T(g0, 300, 352, '(two far-apart, evenly spaced groups; checked with SIGMA)', 'xs f-muted', { 'text-anchor': 'middle' });
+  T(g0, 300, 396, 'fewer than 10 establishments in a sector → always K = 0', 'hd f-rose', { 'text-anchor': 'middle' });
+  const gaEl = $('#ga', sec), gbEl = $('#gb', sec), gaO = $('#ga-o', sec), gbO = $('#gb-o', sec), gOut = $('#g-out', sec);
+  function renderK() {
+    const a = +gaEl.value, b = +gbEl.value; gaO.textContent = a; gbO.textContent = b;
+    while (dotsG.firstChild) dotsG.removeChild(dotsG.firstChild);
+    const K = a >= 5 && b >= 5 ? 2 : 0, cls = K ? 'dot f-teal' : 'noise';
+    const xa = i => 50 + i * 18, xb = i => 340 + i * 18;
+    for (let i = 0; i < a; i++) S('circle', { cx: xa(i), cy: RY, r: 7, class: cls }, dotsG);
+    for (let i = 0; i < b; i++) S('circle', { cx: xb(i), cy: RY, r: 7, class: cls }, dotsG);
+    setAttrs(labA, { x: (xa(0) + xa(a - 1)) / 2 }); setAttrs(labB, { x: (xb(0) + xb(b - 1)) / 2 });
+    setAttrs(hullA, { d: rrect(xa(0) - 14, RY - 16, xa(a - 1) - xa(0) + 28, 32, 12) }); setAttrs(hullB, { d: rrect(xb(0) - 14, RY - 16, xb(b - 1) - xb(0) + 28, 32, 12) });
+    vis([hullA, hullB], K === 2);
+    setT(kT, K ? '~K~ = 2 · ' + (a + b) + ' places retained' : '~K~ = 0 · all ' + (a + b) + ' places are noise');
+    setT(kT2, K ? 'the tree splits into two groups, each with at least 5' : (a + b < 10 ? 'fewer than 10 places: no split can give two groups of 5' : 'one group has fewer than 5: it drops out as noise, no split'));
+    gOut.innerHTML = `Group A = ${a}, group B = ${b} (total ${a + b}).<br>` + (K ? '<span class="v-ok">K = 2.</span> Both groups reach min_cluster_size.' : '<span class="v-bad">K = 0.</span> The sector has no cluster, no X node and no scored establishment.');
+  }
+  [gaEl, gbEl].forEach(e => e.addEventListener('input', renderK));
+
+  /* scene 1: residual-first trials (positions checked with sigma.spatial.clustering) */
+  const g1 = sc[1];
+  // Real positions (m) of the checked example; drawn schematically, 14 px per place inside a group.
+  const grp = (m, n, x) => ({ m, n, x });
+  const SECT = {
+    Z2: { lab: 'X:Y1:Z2 · 6 places', y: 70, groups: [grp(2600, 6, 400)], col: 'f-gold' },
+    R: { lab: 'X:Y1:o · 11 places', y: 140, groups: [grp(200, 6, 60), grp(1300, 5, 230)], col: 'f-teal' },
+    Y2: { lab: 'X:Y2 · 4 places', y: 210, groups: [grp(3400, 4, 120)], col: 'f-blue' },
+    Xo: { lab: 'X:o · 3 places', y: 280, groups: [grp(3700, 3, 330)], col: 'f-rose' }
+  };
+  const kLab = {};
+  Object.entries(SECT).forEach(([k, s]) => {
+    S('path', { d: `M24,${s.y}H576`, class: 'road', 'stroke-width': 5 }, g1);
+    T(g1, 24, s.y - 16, s.lab, 'sm');
+    kLab[k] = T(g1, 576, s.y - 16, '', 'sm mono', { 'text-anchor': 'end' });
+    s.dots = []; s.xs = [];
+    s.groups.forEach(G => { for (let i = 0; i < G.n; i++) { const x = G.x + 14 * i; s.xs.push(x); s.dots.push(S('circle', { cx: x, cy: s.y, r: 6, class: 'dot ' + s.col }, g1)); } T(g1, G.x + 7 * (G.n - 1), s.y + 22, 'at ' + fmt(G.m) + ' m', 'xs mono f-muted', { 'text-anchor': 'middle' }); });
+  });
+  const hulls1 = S('g', null, g1);
+  const hullX = (y, x0, x1) => S('path', { d: rrect(x0 - 12, y - 13, x1 - x0 + 24, 26, 10), class: 'hull' }, hulls1);
+  const TX = [24, 64, 330, 380, 430, 576];
+  [['trial', 0], ['sources → destination', 1], ['b', 2], ['a', 3], ['net', 4], ['result', 5]].forEach(([t, i]) => T(g1, TX[i], 334, t, 'xs f-muted', { 'text-anchor': i === 5 ? 'end' : 'start' }));
+  const rowT = [0, 1].map(r => [0, 1, 2, 3, 4, 5].map(i => T(g1, TX[i], 360 + r * 26, '', 'sm mono', { 'text-anchor': i === 5 ? 'end' : 'start' })));
+  const setRow = (r, vals, cls) => vals.forEach((v, i) => { setT(rowT[r][i], v); rowT[r][i].setAttribute('class', 'sm mono ' + (cls || '')); });
+  T(g1, 24, 424, 'b, a: retained places of the trial sectors before and after · real positions in metres', 'xs f-muted');
+  const ruOut = $('#ru-out', sec);
+  function baseline() {
+    while (hulls1.firstChild) hulls1.removeChild(hulls1.firstChild);
+    Object.entries(SECT).forEach(([k, s]) => s.dots.forEach((d, i) => setAttrs(d, { cx: s.xs[i], cy: s.y, class: k === 'R' ? 'dot ' + s.col : 'noise' })));
+    hullX(SECT.R.y, 60, 60 + 14 * 5); hullX(SECT.R.y, 230, 230 + 14 * 4);
+    setT(kLab.Z2, 'K = 0'); setT(kLab.R, 'K = 2'); setT(kLab.Y2, 'K = 0'); setT(kLab.Xo, 'K = 0');
+    setRow(0, ['', '', '', '', '', '']); setRow(1, ['', '', '', '', '', '']);
+    ruOut.innerHTML = 'Baseline (no Gap): X:Y1:Z2, X:Y2 and X:o have K = 0 (hollow = noise). X:o has no residual ancestor, so it cannot be a source.';
+  }
+  function trials() {
+    ctx.clear(); baseline();
+    const z = SECT.Z2, r = SECT.R, y2 = SECT.Y2, xo = SECT.Xo;
+    ctx.after(900, () => {
+      setRow(0, ['1', 'X:Y1:Z2 → X:Y1:o', '11', '…', '', '']);
+      ctx.tween(900, k => z.dots.forEach(d => d.setAttribute('cy', z.y + (r.y - z.y) * k)), () => {
+        z.dots.forEach(d => d.setAttribute('class', 'dot f-teal'));
+        ctx.after(500, () => {
+          hullX(r.y, 400, 400 + 14 * 5); setT(kLab.R, 'K = 3'); setT(kLab.Z2, 'merged');
+          setRow(0, ['1', 'X:Y1:Z2 → X:Y1:o', '11', '17', '+6', 'accepted'], 'f-teal');
+        });
+      });
+    });
+    ctx.after(3600, () => {
+      setRow(1, ['2', 'X:Y2 → X:o', '0', '…', '', '']);
+      ctx.tween(900, k => y2.dots.forEach(d => d.setAttribute('cy', y2.y + (xo.y - y2.y) * k)), () => {
+        ctx.after(600, () => {
+          setRow(1, ['2', 'X:Y2 → X:o', '0', '0', '0', 'rejected'], 'f-rose');
+          ctx.tween(800, k => y2.dots.forEach(d => d.setAttribute('cy', xo.y + (y2.y - xo.y) * k)));
+          ruOut.innerHTML = 'Trial 1 accepted: retained places 11 → 17 (net +6; all 6 places of X:Y1:Z2 recovered). X:Y1:o now has 3 clusters.<br>Trial 2 rejected: the 7 places still form no cluster (net 0). X:Y2 keeps K = 0; its places stay noise.';
+        });
+      });
+    });
+  }
+  $('#ru-replay', sec).addEventListener('click', () => { if (sec.querySelectorAll('.step')[1].classList.contains('active')) trials(); });
+
+  /* scene 2: order of operations */
+  const g2 = sc[2];
+  const FL = [
+    ['stage 5 sectors + baseline HDBSCAN∗', 'no Gap refinement', 'sp'],
+    ['residual-first trials', 'accept only a > b', 'sp'],
+    ['aggregate the IO table', '~M Z M~^{T}, ~M x~; new package', 'ec'],
+    ['cluster the effective sectors', 'count must equal the prediction', 'sp'],
+    ['stage 10 Gap refinement', 'on retained clusters only', 'sp']
+  ];
+  const flEl = FL.map(([a, b, k], i) => { const y = 34 + i * 78; const g = S('g', { class: 'ob ' + k }, g2); S('rect', { x: 150, y, width: 300, height: 54, rx: 6 }, g); T(g, 300, y + 23, a, '', { 'text-anchor': 'middle', 'font-weight': 700 }); T(g, 300, y + 42, b, 'sm f-muted', { 'text-anchor': 'middle' }); if (i < FL.length - 1) S('path', { d: `M300,${y + 56}V${y + 76}`, class: 'arw', 'marker-end': AH('teal') }, g2); return g; });
+  T(g2, 470, 255, 'stop if different', 'sm f-rose');
+  S('path', { d: 'M452,268H466', class: 'arw rose' }, g2);
+  T(g2, 128, 140, 'K = 0 only', 'sm f-muted', { 'text-anchor': 'end' });
+  T(g2, 128, 218, 'original tag kept', 'sm f-muted', { 'text-anchor': 'end' });
+  renderK(); baseline();
+  return {
+    step(i) {
+      ctx.clear(); showScene(sc, i);
+      if (i === 0) renderK();
+      if (i === 1) trials();
+      if (i === 2) { flEl.forEach(g => g.classList.add('dim')); flEl.forEach((g, k) => ctx.after(250 + 450 * k, () => g.classList.remove('dim'))); }
+    }
+  };
+};
+
+/* ================= Part 2b'': network Gap refinement (stage 10) ================= */
+// Port of sigma.spatial.network_gap (PAM BUILD + SWAP, Gap, one-SE rule) on one straight road.
+// The medoid search and the Gap formula were checked against the Python implementation.
+const GAPM = (() => {
+  function medoidCurve(D, w, maxK) {
+    const n = w.length, chosen = [], objectives = [], sets = [];
+    const nearest = cols => D.map(row => { let m = Infinity; for (const c of cols) if (row[c] < m) m = row[c]; return m; });
+    const cost = (near, cand) => { let s = 0; for (let i = 0; i < n; i++) s += Math.min(near ? near[i] : Infinity, D[i][cand]) * w[i]; return s; };
+    for (let step = 0; step < Math.min(maxK, n); step++) {
+      let available = []; for (let j = 0; j < n; j++) if (!chosen.includes(j)) available.push(j);
+      if (!available.length) break;
+      const cur = chosen.length ? nearest(chosen) : null;
+      let bestJ = available[0], bestL = Infinity;
+      for (const j of available) { const l = cost(cur, j); if (l < bestL) { bestL = l; bestJ = j; } }
+      chosen.push(bestJ); chosen.sort((a, b) => a - b);
+      let old = 0; { const nr = nearest(chosen); for (let i = 0; i < n; i++) old += nr[i] * w[i]; }
+      for (;;) {
+        let move = null, best = old;
+        available = []; for (let j = 0; j < n; j++) if (!chosen.includes(j)) available.push(j);
+        if (!available.length) break;
+        for (let pos = 0; pos < chosen.length; pos++) {
+          const other = chosen.filter((_, k) => k !== pos), no = other.length ? nearest(other) : null;
+          for (const cand of available) { const c = cost(no, cand); if (c < best - Math.max(1e-9, Math.abs(best) * 1e-12)) { best = c; const p = chosen.slice(); p[pos] = cand; move = p.sort((a, b) => a - b); } }
+        }
+        if (move === null) break;
+        chosen.length = 0; chosen.push(...move); old = best;
+      }
+      objectives.push(old); sets.push(chosen.slice());
+    }
+    return { objectives, sets };
+  }
+  function uniq(arr) { const m = new Map(); arr.forEach(v => m.set(v, (m.get(v) || 0) + 1)); const sites = [...m.keys()].sort((a, b) => a - b); return { sites, weights: sites.map(s => m.get(s)) }; }
+  function curve(pos, maxK) { const { sites, weights } = uniq(pos); const D = sites.map(a => sites.map(b => Math.abs(a - b))); const r = medoidCurve(D, weights, maxK); return { objectives: r.objectives, medoids: r.sets.map(s => s.map(j => sites[j])) }; }
+  function rng(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function select(pos, seed, { maxK = 6, B = 10, minMembers = 5, step = 25 } = {}) {
+    const n = pos.length, { sites } = uniq(pos);
+    const base = { n, distinct: sites.length };
+    if (n < 2 * minMembers) return { ...base, status: 'insufficient_members_for_split', selected: 1 };
+    if (sites.length < 3) return { ...base, status: 'insufficient_distinct_positions', selected: 1 };
+    const upper = Math.min(maxK, sites.length - 1), obs = curve(pos, upper);
+    if (obs.objectives[0] <= 1e-12) return { ...base, status: 'zero_one_median_loss', selected: 1 };
+    const pool = new Set(sites); for (let v = Math.ceil(sites[0] / step) * step; v <= sites[sites.length - 1]; v += step) pool.add(v);
+    const P = [...pool].sort((a, b) => a - b), r = rng(seed);
+    const draws = Array.from({ length: B }, () => Array.from({ length: n }, () => P[Math.floor(r() * P.length)]));
+    const nullLog = draws.map(ref => { const c = curve(ref, upper).objectives; return Array.from({ length: upper }, (_, k) => Math.log(Math.max(c[Math.min(k, c.length - 1)], 1e-12))); });
+    const mean = Array.from({ length: upper }, (_, k) => nullLog.reduce((s, x) => s + x[k], 0) / B);
+    const se = mean.map((m, k) => Math.sqrt(nullLog.reduce((s, x) => s + (x[k] - m) ** 2, 0) / (B - 1)) * Math.sqrt(1 + 1 / B));
+    const logW = obs.objectives.map(v => Math.log(Math.max(v, 1e-12)));
+    const gap = mean.map((m, k) => m - logW[k]);
+    let selected = upper, status = 'upper_bound_reached';
+    for (let j = 0; j < upper - 1; j++) if (gap[j] >= gap[j + 1] - se[j + 1]) { selected = j + 1; status = 'one_se_stopping_rule'; break; }
+    let owners = null, medoids = [];
+    if (selected > 1) {
+      medoids = obs.medoids[selected - 1].slice().sort((a, b) => a - b);
+      owners = pos.map(p => { let b = 0; medoids.forEach((m, k) => { if (Math.abs(p - m) < Math.abs(p - medoids[b])) b = k; }); return b; });
+      const counts = medoids.map((_, k) => owners.filter(o => o === k).length);
+      if (counts.filter(c => c > 0).length <= 1 || counts.some(c => c > 0 && c < minMembers)) { selected = 1; status = 'no_admissible_partition'; owners = null; medoids = []; }
+    }
+    return { ...base, status, selected, upper, obs, logW, mean, se, gap, pool: P, draws, owners, medoids };
+  }
+  return { select, curve };
+})();
+
+FIGS.gap = (svg, sec) => {
+  plate(svg); const ctx = Ctx();
+  const sc = scenes(svg, 5);
+  const BASE = [0, 22, 41, 63, 85, 104, 126, 147];
+  const ST = { sep: 300, k: 2, seed: 20261105, res: null, pos: [] };
+  const COLS = ['f-teal', 'f-blue', 'f-gold', 'f-rose', 'f-ink', 'f-muted'];
+  const RY = 86;
+  const span = () => 2 * 147 + ST.sep;
+  const px = m => 40 + m * 520 / span();
+  // one road drawing per scene (scenes hide each other)
+  const roads = sc.map(g => {
+    S('path', { d: `M28,${RY}H572`, class: 'road' }, g);
+    return { tick: S('g', null, g), dots: S('g', null, g), over: S('g', null, g), lab: T(g, 300, 40, '', 'sm f-muted', { 'text-anchor': 'middle' }) };
+  });
+  const clear = g => { while (g.firstChild) g.removeChild(g.firstChild); };
+  function drawDots(r, owners, medoids, ids) {
+    clear(r.dots); clear(r.over);
+    ST.pos.forEach((m, i) => S('circle', { cx: px(m), cy: RY, r: 6, class: 'dot ' + (owners ? COLS[owners[i] % COLS.length] : 'f-teal') }, r.dots));
+    (medoids || []).forEach((m, k) => S('path', { d: `M${px(m)},${RY - 22}l8,8l-8,8l-8,-8z`, class: 'dot ' + COLS[k % COLS.length] }, r.over));
+    if (ids) ids.forEach(([x, t, c]) => T(r.over, x, RY + 34, t, 'sm halo ' + c, { 'text-anchor': 'middle' }));
+  }
+  // chart frame helper
+  const CX0 = 96, CX1 = 548, CY0 = 400, CY1 = 196;
+  const kx = k => CX0 + (k - 1) * (CX1 - CX0) / 5;
+  function frame(g, title, lo, hi) {
+    clear(g);
+    const yv = v => CY0 - (v - lo) / (hi - lo) * (CY0 - CY1);
+    S('path', { d: `M${CX0 - 20},${CY1 - 6}V${CY0}H${CX1 + 16}`, class: 'axis' }, g);
+    for (let k = 1; k <= 6; k++) T(g, kx(k), CY0 + 18, k, 'sm mono f-muted', { 'text-anchor': 'middle' });
+    T(g, (CX0 + CX1) / 2, CY0 + 36, '~k~ (number of medoids)', 'sm f-muted', { 'text-anchor': 'middle' });
+    T(g, CX0 - 22, CY1 - 14, title, 'sm f-muted');
+    const ticks = 4; for (let t = 0; t <= ticks; t++) { const v = lo + (hi - lo) * t / ticks; S('path', { d: `M${CX0 - 24},${yv(v)}h4`, class: 'axis' }, g); T(g, CX0 - 28, yv(v) + 4, v.toFixed(1), 'xs mono f-muted', { 'text-anchor': 'end' }); }
+    return yv;
+  }
+  const chart = sc.map(g => S('g', null, g));
+  const ui = { sep: $('#gsep', sec), sepO: $('#gsep-o', sec), sep2: $('#gsep2', sec), sep2O: $('#gsep2-o', sec), sepOut: $('#gsep-out', sec), k: $('#gk', sec), kO: $('#gk-o', sec), kOut: $('#gk-out', sec), sel: $('#gsel-out', sec), aud: $('#gaud-out', sec) };
+  function compute() {
+    ST.pos = [...BASE, ...BASE.map(v => v + 147 + ST.sep)];
+    ST.res = GAPM.select(ST.pos, ST.seed);
+  }
+  function sepLabel(r) { clear(r.tick); const a = px(147), b = px(147 + ST.sep); if (ST.sep > 0) { S('path', { d: `M${a},${RY + 22}V${RY + 28}H${b}V${RY + 22}`, class: 'axis' }, r.tick); T(r.tick, (a + b) / 2, RY + 44, ST.sep + ' m', 'xs mono f-muted', { 'text-anchor': 'middle' }); } }
+  function scene0() {
+    const r = roads[0]; drawDots(r, null, null); sepLabel(r);
+    setT(r.lab, 'retained HDBSCAN∗ cluster 3 of sector X:Y:Z · 16 members');
+    const g = chart[0]; clear(g);
+    const R = ST.res;
+    [['members', R.n + ' ≥ 2 × 5 = 10', true], ['distinct road positions', R.distinct + ' ≥ 3', true], ['already noise?', 'no: noise is never refined', true]].forEach(([a, b, ok], i) => {
+      const y = 200 + i * 52; S('rect', { x: 120, y, width: 360, height: 40, rx: 6, class: 'bx teal' }, g); T(g, 136, y + 25, a, 'sm'); T(g, 464, y + 25, b, 'sm mono', { 'text-anchor': 'end' });
+    });
+    T(g, 300, 380, 'eligible for one Gap pass', 'hd f-teal', { 'text-anchor': 'middle' });
+    ui.sepOut.innerHTML = `16 members, ${R.distinct} distinct positions → eligible.<br>Current result of the full test: k = ${R.selected} (${R.status}).`;
+  }
+  function scene1() {
+    const R = ST.res, k = Math.min(ST.k, R.upper);
+    const med = R.obs.medoids[k - 1];
+    const owners = ST.pos.map(p => { let b = 0; med.forEach((m, j) => { if (Math.abs(p - m) < Math.abs(p - med[b])) b = j; }); return b; });
+    drawDots(roads[1], owners, med); sepLabel(roads[1]);
+    setT(roads[1].lab, `k = ${k}: ${k} medoid${k > 1 ? 's' : ''} among the members' positions`);
+    const lo = Math.floor(Math.min(...R.logW) - 0.3), hi = Math.ceil(Math.max(...R.logW) + 0.3);
+    const yv = frame(chart[1], 'log ~W~_{~k~} (observed)', lo, hi);
+    S('polyline', { points: R.logW.map((v, i) => `${kx(i + 1)},${yv(v)}`).join(' '), class: 'curve' }, chart[1]);
+    R.logW.forEach((v, i) => S('circle', { cx: kx(i + 1), cy: yv(v), r: i + 1 === k ? 8 : 4.5, class: 'dot ' + (i + 1 === k ? 'f-gold' : 'f-teal') }, chart[1]));
+    ui.k.max = R.upper; ui.k.value = k; ui.kO.textContent = k;
+    ui.kOut.innerHTML = 'W<sub>k</sub> in metres: ' + R.obs.objectives.map((v, i) => `k=${i + 1}: ${fmt(v)}`).join(', ') + `<br>Medoids at k = ${k}: ${med.map(m => fmt(m) + ' m').join(', ')}`;
+  }
+  let drawTimer = null;
+  function scene2(animate) {
+    const R = ST.res, r = roads[2];
+    clear(r.tick); R.pool.forEach(v => S('path', { d: `M${px(v)},${RY - 9}V${RY + 9}`, class: 'axis' }, r.tick));
+    let b = 0;
+    const show = () => { clear(r.dots); clear(r.over); R.draws[b].forEach(m => S('circle', { cx: px(m) + (Math.random() - 0.5) * 2, cy: RY, r: 5.5, class: 'noise' }, r.dots)); setT(r.lab, `reference draw ${b + 1} of 10: 16 members on random road vertices`); b = (b + 1) % R.draws.length; };
+    show(); if (drawTimer) clearInterval(drawTimer); if (animate && !RM) drawTimer = setInterval(show, 650);
+    const all = [...R.logW, ...R.mean.map((m, k) => m + R.se[k]), ...R.mean.map((m, k) => m - R.se[k])];
+    const lo = Math.floor(Math.min(...all) - 0.2), hi = Math.ceil(Math.max(...all) + 0.2);
+    const yv = frame(chart[2], 'log ~W~_{~k~}: observed (solid), reference mean ± ~s~ (dashed)', lo, hi);
+    S('polyline', { points: R.logW.map((v, i) => `${kx(i + 1)},${yv(v)}`).join(' '), class: 'curve' }, chart[2]);
+    S('polyline', { points: R.mean.map((v, i) => `${kx(i + 1)},${yv(v)}`).join(' '), class: 'mean' }, chart[2]);
+    R.mean.forEach((m, i) => { S('path', { d: `M${kx(i + 1)},${yv(m - R.se[i])}V${yv(m + R.se[i])}M${kx(i + 1) - 5},${yv(m - R.se[i])}h10M${kx(i + 1) - 5},${yv(m + R.se[i])}h10`, class: 'arw gold' }, chart[2]); S('circle', { cx: kx(i + 1), cy: yv(m), r: 4, class: 'dot f-gold' }, chart[2]); });
+    R.logW.forEach((v, i) => S('circle', { cx: kx(i + 1), cy: yv(v), r: 4.5, class: 'dot f-teal' }, chart[2]));
+  }
+  function scene3() {
+    const R = ST.res;
+    drawDots(roads[3], R.owners, R.medoids); sepLabel(roads[3]);
+    setT(roads[3].lab, R.selected > 1 ? `selected k = ${R.selected}` : 'selected k = 1: the cluster stays as it is');
+    const all = [...R.gap.map((g, k) => g + R.se[k]), ...R.gap.map((g, k) => g - R.se[k])];
+    const lo = Math.floor(Math.min(...all) * 2) / 2 - 0.1, hi = Math.ceil(Math.max(...all) * 2) / 2 + 0.1;
+    const yv = frame(chart[3], 'Gap(~k~) ± ~s~_{~k~}', lo, hi);
+    if (lo < 0 && hi > 0) S('path', { d: `M${CX0 - 20},${yv(0)}H${CX1 + 16}`, class: 'guide' }, chart[3]);
+    S('polyline', { points: R.gap.map((v, i) => `${kx(i + 1)},${yv(v)}`).join(' '), class: 'curve' }, chart[3]);
+    R.gap.forEach((g, i) => {
+      S('path', { d: `M${kx(i + 1)},${yv(g - R.se[i])}V${yv(g + R.se[i])}M${kx(i + 1) - 5},${yv(g - R.se[i])}h10M${kx(i + 1) - 5},${yv(g + R.se[i])}h10`, class: 'arw' }, chart[3]);
+      S('circle', { cx: kx(i + 1), cy: yv(g), r: i + 1 === R.selected ? 9 : 4.5, class: 'dot ' + (i + 1 === R.selected ? 'f-gold' : 'f-teal') }, chart[3]);
+    });
+    const rows = [];
+    for (let j = 0; j < R.upper - 1; j++) { const ok = R.gap[j] >= R.gap[j + 1] - R.se[j + 1]; rows.push(`k=${j + 1}: ${R.gap[j].toFixed(3)} ${ok ? '≥' : '<'} ${R.gap[j + 1].toFixed(3)} − ${R.se[j + 1].toFixed(3)} = ${(R.gap[j + 1] - R.se[j + 1]).toFixed(3)}${ok ? ' → <span class="v-ok">stop</span>' : ''}`); if (ok) break; }
+    ui.sel.innerHTML = rows.join('<br>') + `<br>Selected <b>k = ${R.selected}</b> · status <code>${R.status}</code>`;
+  }
+  function scene4() {
+    const R = ST.res;
+    let ids = null;
+    if (R.selected > 1) {
+      // the child holding the first member keeps ID 3; others get 7, 8, … (sector maximum assumed 6)
+      const first = R.owners[0], map = {}; let next = 7;
+      map[first] = 3; [...new Set(R.owners)].sort((a, b) => a - b).forEach(o => { if (map[o] === undefined) map[o] = next++; });
+      ids = [...new Set(R.owners)].map(o => { const ms = ST.pos.filter((_, i) => R.owners[i] === o); return [(px(Math.min(...ms)) + px(Math.max(...ms))) / 2, 'cluster ' + map[o], COLS[o % COLS.length]]; });
+      R.ids = Object.values(map).sort((a, b) => a - b);
+    } else R.ids = [3];
+    drawDots(roads[4], R.owners, null, ids || [[(px(ST.pos[0]) + px(ST.pos[15])) / 2, 'cluster 3 (unchanged)', 'f-teal']]); sepLabel(roads[4]);
+    setT(roads[4].lab, 'final clusters → stage 11 computes one 1-median for each');
+    const g = chart[4]; clear(g);
+    S('rect', { x: 70, y: 176, width: 460, height: 226, rx: 6, class: 'bx' }, g);
+    const lines = ['median_gap_audit.json → clusters[ ]', `"type": "X:Y:Z", "hdbscan_cluster": 3,`, `"observations": 16, "distinct_demand_nodes": ${R.distinct},`, `"sampled_observations": 16, "reference_vertex_pool": ${R.pool.length},`, `"selected_k": ${R.selected}, "outcome": "${R.status}",`, `"new_cluster_ids": [${R.ids.join(', ')}],`, `"sampled_approximation": false`];
+    lines.forEach((l, i) => T(g, 86, 202 + i * 27, l, 'sm mono' + (i === 0 ? ' f-muted' : '')));
+    ui.aud.innerHTML = R.selected > 1 ? `Selected k = ${R.selected}: every member goes to its nearest medoid; all children have at least 5 members. IDs: ${R.ids.join(', ')} (3 is kept by the child with the first member).` : `Selected k = 1 (${R.status}): the HDBSCAN* cluster is kept unchanged as cluster 3.`;
+  }
+  let cur = 0;
+  function renderAll() {
+    compute();
+    ui.sep.value = ST.sep; ui.sep2.value = ST.sep; ui.sepO.textContent = ST.sep + ' m'; ui.sep2O.textContent = ST.sep + ' m';
+    scene0(); scene1(); scene2(cur === 2); scene3(); scene4();
+  }
+  [ui.sep, ui.sep2].forEach(e => e.addEventListener('input', () => { ST.sep = +e.value; renderAll(); }));
+  ui.k.addEventListener('input', () => { ST.k = +ui.k.value; scene1(); });
+  $('#g-redraw', sec).addEventListener('click', () => { ST.seed += 1; renderAll(); });
+  renderAll();
+  return {
+    step(i) {
+      ctx.clear(); showScene(sc, i); cur = i;
+      if (drawTimer) { clearInterval(drawTimer); drawTimer = null; }
+      if (i === 2) scene2(true);
+      if (i === 1) { const k0 = ST.k; if (!RM) { [1, 2, 3].forEach((k, j) => ctx.after(300 + 700 * j, () => { ST.k = k; scene1(); })); ctx.after(2500, () => { ST.k = k0; scene1(); }); } }
+    }
+  };
+};
+
+/* ================= Part 5a: route publication ================= */
+FIGS.routes = (svg, sec) => {
+  plate(svg); const ctx = Ctx(); const AH = markers(svg);
+  const sc = scenes(svg, 3);
+  /* scene 0: numbers, not geometry */
+  const g0 = sc[0];
+  ['M40,120H560', 'M40,250H560', 'M150,60V330', 'M450,60V330'].forEach(d => S('path', { d, class: 'road' }, g0));
+  const tri = (g, x, y, c) => S('path', { d: `M${x},${y - 11}L${x + 11},${y + 8}L${x - 11},${y + 8}Z`, class: 'dot ' + c }, g);
+  tri(g0, 150, 120, 'f-teal'); T(g0, 132, 104, 'Food · cluster 2', 'sm halo', { 'text-anchor': 'end' });
+  tri(g0, 450, 250, 'f-blue'); T(g0, 468, 276, 'Retail · cluster 5', 'sm halo');
+  S('path', { d: 'M164,124Q330,140 438,240', class: 'arw ink', 'marker-end': AH('ink'), 'stroke-width': 2.4 }, g0);
+  S('rect', { x: 60, y: 300, width: 480, height: 124, rx: 6, class: 'bx' }, g0);
+  ['sigma_X_edges.csv (one row)', 'technical_coefficient 0.20 · shares 0.50 and 0.25', 'road_distance 1,240 m · effective_road_distance 1,610 m', 'weight = 0.20 × 0.50 × 0.25 / 1,610 = 1.55 × 10⁻⁵', 'route geometry: none in the numerical record'].forEach((t, i) => T(g0, 76, 324 + i * 21, t, 'sm' + (i === 0 ? ' f-muted' : i === 4 ? ' f-rose' : ' mono')));
+  /* scene 1: contraction */
+  const g1 = sc[1], Y = 200;
+  const V = [{ x: 60, k: 'road' }, { x: 180, k: 'est' }, { x: 260, k: 'ctr' }, { x: 410, k: 'est' }, { x: 540, k: 'road' }];
+  const LEN = [120, 80, 150, 130];
+  S('path', { d: `M${V[0].x},${Y}H${V[4].x}`, class: 'road' }, g1);
+  const segT = LEN.map((l, i) => T(g1, (V[i].x + V[i + 1].x) / 2, Y - 18, l + ' m', 'sm mono f-muted', { 'text-anchor': 'middle' }));
+  const mergedT = [T(g1, (V[0].x + V[2].x) / 2, Y - 18, '200 m', 'sm mono f-teal off', { 'text-anchor': 'middle' }), T(g1, (V[2].x + V[4].x) / 2, Y - 18, '280 m', 'sm mono f-teal off', { 'text-anchor': 'middle' })];
+  const vEl = V.map(v => v.k === 'est' ? S('rect', { x: v.x - 7, y: Y - 7, width: 14, height: 14, class: 'dot f-gold' }, g1) : v.k === 'ctr' ? tri(g1, v.x, Y, 'f-ink') : S('circle', { cx: v.x, cy: Y, r: 7, class: 'vtx' }, g1));
+  T(g1, 60, Y + 34, 'road vertex', 'xs f-muted', { 'text-anchor': 'middle' }); T(g1, 540, Y + 34, 'road vertex', 'xs f-muted', { 'text-anchor': 'middle' });
+  const eLab = [T(g1, 180, Y + 34, 'establishment snap', 'xs f-gold', { 'text-anchor': 'middle' }), T(g1, 410, Y + 34, 'establishment snap', 'xs f-gold', { 'text-anchor': 'middle' })];
+  T(g1, 260, Y + 34, 'cluster center', 'xs', { 'text-anchor': 'middle' });
+  const sumT = T(g1, 300, 300, '', 'hd', { 'text-anchor': 'middle' });
+  const fileT = T(g1, 300, 340, '', 'sm mono f-muted', { 'text-anchor': 'middle' });
+  T(g1, 300, 64, 'one original straight road segment', 'sm f-muted', { 'text-anchor': 'middle' });
+  function contract() {
+    ctx.clear();
+    vEl.forEach(e => e.classList.remove('off')); eLab.forEach(e => vis(e, true)); segT.forEach(t => vis(t, true)); mergedT.forEach(t => vis(t, false));
+    setT(sumT, 'analysis graph: 5 vertices, 4 edges'); setT(fileT, '');
+    ctx.after(1000, () => { vis([vEl[1], vEl[3], eLab[0], eLab[1]], false); });
+    ctx.after(1800, () => { segT.forEach(t => vis(t, false)); mergedT.forEach(t => vis(t, true)); setT(sumT, 'published graph: 3 vertices, 2 edges · 120 + 80 = 200, 150 + 130 = 280'); setT(fileT, 'sigma_routing_graph.bin · SIGRTE01 · no establishment positions'); });
+  }
+  $('#rt-replay', sec).addEventListener('click', () => { if (sec.querySelectorAll('.step')[1].classList.contains('active')) contract(); });
+  /* scene 2: Dijkstra in a Web Worker with a length check */
+  const g2 = sc[2];
+  const N = { S: [80, 220], a: [200, 120], b: [200, 320], c: [330, 120], d: [330, 320], e: [450, 220], T: [540, 220] };
+  const EDGES = [['S', 'a', 160], ['S', 'b', 180], ['a', 'c', 130], ['b', 'd', 130], ['a', 'b', 200], ['c', 'e', 150], ['d', 'e', 140], ['c', 'd', 210], ['e', 'T', 90]];
+  const eEl = {};
+  EDGES.forEach(([u, v]) => { const [x1, y1] = N[u], [x2, y2] = N[v]; eEl[u + v] = S('path', { d: `M${x1},${y1}L${x2},${y2}`, class: 'road', 'stroke-width': 5 }, g2); });
+  const path = S('path', { d: 'M80,220L200,120L330,120L450,220L540,220', class: 'trace', pathLength: 1 }, g2);
+  EDGES.forEach(([u, v, l]) => { const [x1, y1] = N[u], [x2, y2] = N[v]; T(g2, (x1 + x2) / 2 + 6, (y1 + y2) / 2 - 6, l, 'xs mono f-muted halo'); });
+  const nEl = {}, dT = {};
+  Object.entries(N).forEach(([k, [x, y]]) => { nEl[k] = (k === 'S' || k === 'T') ? tri(g2, x, y, k === 'S' ? 'f-teal' : 'f-blue') : S('circle', { cx: x, cy: y, r: 7, class: 'vtx' }, g2); dT[k] = T(g2, x, y + (y > 220 ? 28 : -16), '', 'xs mono halo', { 'text-anchor': 'middle' }); });
+  T(g2, 80, 258, 'source center', 'xs f-muted', { 'text-anchor': 'middle' }); T(g2, 540, 258, 'target center', 'xs f-muted', { 'text-anchor': 'middle' });
+  const resT = T(g2, 300, 384, '', 'hd', { 'text-anchor': 'middle' }), resT2 = T(g2, 300, 410, '', 'sm f-muted', { 'text-anchor': 'middle' });
+  const ORDER = [['S', 0], ['a', 160], ['b', 180], ['c', 290], ['d', 310], ['e', 440], ['T', 530]];
+  const rtOut = $('#rt-out', sec), rtBad = $('#rt-bad', sec);
+  function route() {
+    ctx.clear(); setDash(path, 0);
+    Object.values(dT).forEach(t => setT(t, '')); Object.entries(nEl).forEach(([k, e]) => { if (k !== 'S' && k !== 'T') e.setAttribute('class', 'vtx'); });
+    setT(resT, ''); setT(resT2, ''); rtOut.innerHTML = 'Searching from the source center…';
+    ORDER.forEach(([k, d], i) => ctx.after(300 + 380 * i, () => { setT(dT[k], d + ' m'); if (k !== 'S' && k !== 'T') nEl[k].setAttribute('class', 'dot f-teal'); }));
+    ctx.after(300 + 380 * ORDER.length, () => {
+      const pub = rtBad.checked ? 540 : 530, diff = Math.abs(530 - pub), tol = Math.max(1e-6, pub * 1e-8);
+      if (diff <= tol) {
+        ctx.tween(900, k => setDash(path, k));
+        setT(resT, 'found 530 m = published 530 m → route drawn'); resT.setAttribute('class', 'hd f-teal');
+        setT(resT2, 'tolerance max(10⁻⁶, 10⁻⁸ × 530) = 5.3 × 10⁻⁶ m');
+        rtOut.innerHTML = `Browser length 530 m · published road_distance ${pub} m · difference ${diff} m ≤ ${tol.toExponential(1)} m → <span class="v-ok">route drawn</span> and cached.`;
+      } else {
+        setT(resT, 'found 530 m ≠ published 540 m → no route'); resT.setAttribute('class', 'hd f-rose');
+        setT(resT2, 'error: Route distance disagrees with SIGMA X edge');
+        rtOut.innerHTML = `Browser length 530 m · published road_distance ${pub} m · difference ${diff} m &gt; ${tol.toExponential(1)} m → <span class="v-bad">error, no route drawn</span>. The bundle and the analysis do not match; rebuild Explorer with <code>sigma view AREA --refresh</code>.`;
+      }
+    });
+  }
+  $('#rt-run', sec).addEventListener('click', () => { if (sec.querySelectorAll('.step')[2].classList.contains('active')) route(); });
+  rtBad.addEventListener('change', () => { if (sec.querySelectorAll('.step')[2].classList.contains('active')) route(); });
+  return {
+    step(i) {
+      ctx.clear(); showScene(sc, i);
+      if (i === 1) contract();
+      if (i === 2) route();
     }
   };
 };
@@ -2159,23 +3283,24 @@ FIGS.score = (svg, sec) => {
 function dag() {
   const svg = $('#fig-dag'); if (!svg) return;
   const AH = markers(svg);
-  const col = [10, 170, 330, 490, 650, 810], row = [20, 112, 204], W = 140, H = 52;
+  const col = [10, 170, 330, 490, 650, 810, 970], row = [20, 112, 204], W = 140, H = 52;
   const nodes = {
-    places: [1, 0, 'canonical +', 'classified places'], points: [2, 0, 'spatial points', ''], clusters: [3, 0, 'clusters', ''],
+    places: [1, 0, 'canonical +', 'classified places'], points: [2, 0, 'spatial points', ''], clusters: [3, 0, 'clusters', '(8–10)'],
     centers: [4, 0, 'centers, partitions,', 'point distances'], scores: [5, 0, 'scores', ''],
     src: [0, 1, 'area boundary +', 'source snapshots'], roads: [1, 1, 'managed roads', ''], cent: [5, 1, 'centrality', ''],
-    econ: [0, 2, 'economy', 'definition'], trans: [1, 2, 'transactions', 'raw → effective'], coef: [2, 2, 'coefficients', ''],
+    export: [6, 1, 'export bundle', 'routes for browser'],
+    econ: [0, 2, 'economy definition', '(sectors 5, 9)'], trans: [1, 2, 'transactions', 'raw → effective'], coef: [2, 2, 'coefficients', ''],
     egraph: [3, 2, 'economy graph', ''], X: [4, 2, 'graph X', '']
   };
   const box = k => { const [c, r] = nodes[k]; return { x: col[c], y: row[r], cx: col[c] + W / 2, cy: row[r] + H / 2 }; };
   const E = [['src', 'places'], ['src', 'roads'], ['places', 'points'], ['roads', 'points'], ['points', 'clusters'], ['clusters', 'centers'], ['centers', 'X'], ['centers', 'scores'],
-    ['econ', 'trans'], ['trans', 'coef'], ['coef', 'egraph'], ['egraph', 'X'], ['X', 'cent'], ['cent', 'scores']];
+    ['econ', 'trans'], ['trans', 'coef'], ['coef', 'egraph'], ['egraph', 'X'], ['X', 'cent'], ['cent', 'scores'], ['scores', 'export'], ['X', 'export']];
   const pathOf = (a, b) => {
     const A = box(a), B = box(b);
     if (A.y === B.y) return `M${A.x + W},${A.cy}H${B.x - 4}`;
     if (A.x === B.x) return A.y < B.y ? `M${A.cx},${A.y + H}V${B.y - 4}` : `M${A.cx},${A.y}V${B.y + H + 4}`;
     if (a === 'X' && b === 'cent') return `M${A.x + W},${A.cy}H${B.cx}V${B.y + H + 4}`;
-    if (a === 'src') return `M${A.x + W},${A.cy}L${B.x - 4},${B.cy}`;
+    if (a === 'X' && b === 'export') return `M${A.x + W},${A.cy + 10}H${B.cx}V${B.y + H + 4}`;
     return `M${A.x + W},${A.cy}L${B.x - 4},${B.cy}`;
   };
   const eEls = E.map(([a, b]) => ({ a, b, p: S('path', { d: pathOf(a, b), class: 'de', 'marker-end': AH('muted') }, svg) }));
@@ -2189,21 +3314,30 @@ function dag() {
     nEls[k] = g;
   }
   const kids = {}; E.forEach(([a, b]) => (kids[a] = kids[a] || []).push(b));
-  const start = { katz: 'cent', vertex: 'roads', match: 'places', io: 'econ' };
-  const label = { katz: 'Katz α', vertex: 'vertex_digits', match: 'matching thresholds', io: 'IO table' };
-  const names = { places: 'places', points: 'spatial points', clusters: 'clusters', centers: 'centers/partitions', scores: 'scores', src: 'sources', roads: 'roads', cent: 'centrality', econ: 'economy definition', trans: 'transactions', coef: 'coefficients', egraph: 'economy graph', X: 'graph X' };
+  const start = { katz: ['cent'], vertex: ['roads'], match: ['places'], io: ['econ'], rollup: ['econ', 'points'], gap: ['clusters'], workers: [], route: ['export'] };
+  const label = { katz: 'Katz α', vertex: 'vertex_digits', match: 'matching thresholds', io: 'IO table', rollup: 'roll-up on/off', gap: 'Gap on/off', workers: 'Gap worker count', route: 'route geometry' };
+  const names = { places: 'places', points: 'spatial points', clusters: 'clusters', centers: 'centers/partitions', scores: 'scores', src: 'sources', roads: 'roads', cent: 'centrality', econ: 'economy definition', trans: 'transactions', coef: 'coefficients', egraph: 'economy graph', X: 'graph X', export: 'export bundle' };
+  const extra = {
+    rollup: ' The effective sectors change the economy and the sector label of each analysed place; the loaded places themselves are reused.',
+    gap: ' Gap settings are part of the clustering recipe.',
+    workers: '',
+    route: ' Only the publication changes; numerical X, centrality and scores are reused.'
+  };
   const out = $('#dag-out'); const timers = [];
   function run(key) {
     timers.forEach(clearTimeout); timers.length = 0;
     Object.values(nEls).forEach(g => g.setAttribute('class', 'dn')); eEls.forEach(e => e.p.setAttribute('class', 'de'));
-    const s0 = start[key], depth = { [s0]: 0 }, q = [s0];
+    const s0 = start[key], depth = {}, q = [];
+    s0.forEach(s => { depth[s] = 0; q.push(s); });
     while (q.length) { const u = q.shift(); (kids[u] || []).forEach(v => { if (depth[v] === undefined || depth[v] < depth[u] + 1) { depth[v] = depth[u] + 1; q.push(v); } }); }
     Object.entries(depth).forEach(([k, d]) => {
-      const f = () => { nEls[k].setAttribute('class', 'dn stale' + (k === s0 ? ' src' : '')); eEls.forEach(e => { if (e.a === k && depth[e.b] !== undefined) e.p.setAttribute('class', 'de stale'); }); };
+      const f = () => { nEls[k].setAttribute('class', 'dn stale' + (s0.includes(k) ? ' src' : '')); eEls.forEach(e => { if (e.a === k && depth[e.b] !== undefined) e.p.setAttribute('class', 'de stale'); }); };
       if (RM) f(); else timers.push(setTimeout(f, d * 260));
     });
     const re = Object.keys(depth), keepN = Object.keys(nodes).filter(k => !re.includes(k));
-    out.innerHTML = `Change <strong>${label[key]}</strong> → recompute ${re.length} stages: ${re.map(k => names[k]).join(', ')}.<br>Reuse ${keepN.length} stages: ${keepN.map(k => names[k]).join(', ')}.`;
+    out.innerHTML = re.length
+      ? `Change <strong>${label[key]}</strong> → recompute ${re.length} stages: ${re.map(k => names[k]).join(', ')}.<br>Reuse ${keepN.length} stages: ${keepN.map(k => names[k]).join(', ')}.${extra[key] || ''}`
+      : `Change <strong>${label[key]}</strong> → recompute nothing. The worker count is not part of any recipe: 1 to 4 workers give identical clusters, because each cluster has its own seed and the parent process assigns IDs in a fixed order.`;
     $$('[data-change]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.change === key)));
   }
   $$('[data-change]').forEach(b => b.addEventListener('click', () => run(b.dataset.change)));

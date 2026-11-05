@@ -1,6 +1,6 @@
 # SIGMA Explorer — interactive map and directed network
 
-This additive module renders **existing published SIGMA results** as a static browser site. No SIGMA spatial, economic, classification, or network computations are rerun. The QGIS `.qgz` and all published analytical artifacts are left unchanged.
+SIGMA Explorer renders **existing published SIGMA results** as a static browser site. No SIGMA spatial, economic, classification, or network computations are rerun. The QGIS `.qgz` and all published analytical artifacts are left unchanged.
 
 ## Get started
 
@@ -10,14 +10,14 @@ Install SIGMA from its current source checkout in your active Python environment
 python -m pip install -e .
 ```
 
-Run the normal SIGMA analysis once, or reuse previously published results:
+Run the normal SIGMA analysis once, or reuse results that are already published:
 
 ```powershell
 sigma run pasig
 sigma view pasig
 ```
 
-`view` generates or refreshes a derived `explorer/` site from SIGMA's existing output files, then starts a **local-only** HTTP server and normally opens your default browser. Press `Ctrl+C` in that terminal to stop the server. No separate QGIS installation, Node.js installation, or Explorer ZIP patch is required for ordinary use. The browser visualization does not recompute the analytical model.
+`view` generates or refreshes a derived `explorer/` site from SIGMA's existing output files, then starts a **local-only** HTTP server and normally opens your default browser. Press `Ctrl+C` in that terminal to stop the server. No separate QGIS or Node.js installation is required for ordinary use. The browser visualization does not recompute the analytical model.
 
 For a run stored in a nondefault workspace or output location, pass `--workspace`, `--source-dir`, or `--output-dir` (see `sigma view --help`). The output directory must already contain a complete published SIGMA export.
 
@@ -28,8 +28,8 @@ The [README walkthrough](README.md) and [Explorer chapter in the SIGMA Jupyter B
 ```powershell
 sigma view pasig                        # build if stale and open at http://127.0.0.1:8765/
 sigma view pasig --refresh              # force rebuild of the local bundle
-sigma view pasig --fast               # fast UI-only refresh for an existing bundle
-sigma view pasig --no-roads              # omit visual road context; exact routes remain
+sigma view pasig --fast                 # fast UI-only refresh for an existing bundle
+sigma view pasig --no-roads             # omit visual road context; exact routes remain
 sigma export-web pasig --force           # replace the existing full local bundle
 sigma export-web pasig --public          # create a reduced public-review bundle
 sigma export-web pasig --public --force
@@ -38,11 +38,11 @@ sigma view pasig --public               # view the public bundle; it stays publi
 
 By default `sigma view` reads the SIGMA workspace's published output directory, then serves `<output>\explorer`. It accepts `--workspace`, `--source-dir`, and `--output-dir`. The Python server listens on loopback only; change `--port` if needed.
 
-`export-web --public` writes to `<output>\explorer-public` and **excludes individual establishment records, names, identifiers, positions, and PSIC codes**. It retains aggregate counts, cluster centers, cluster polygons, X edges, and exact X routes. Public-profile export is a privacy-reduction measure, **not** a legal review or a guarantee of safe publication; inspect input-output, source-data, attribution, and licensing obligations. The default `export-web` profile includes individual establishments and **must not** be published without such review. A public bundle is never rebuilt with establishment-level data: `sigma view` keeps the public profile for `explorer-public` (or any folder whose marker says public), and the builder refuses to write the full local profile into such a folder.
+`export-web --public` writes to `<output>\explorer-public` and **excludes individual establishment records, names, identifiers, positions, and PSIC codes**. It retains aggregate counts, cluster centers, cluster polygons, X edges, and the compact routing data used to draw exact X routes. Public-profile export is a privacy-reduction measure, **not** a legal review or a guarantee of safe publication; inspect input-output, source-data, attribution, and licensing obligations. The default `export-web` profile includes individual establishments and **must not** be published without such review. A public bundle is never rebuilt with establishment-level data: `sigma view` keeps the public profile for `explorer-public` (or any folder whose marker says public), and the builder refuses to write the full local profile into such a folder.
 
 ## Fast UI-only refresh
 
-For changes to Explorer or Guided Tutorial **HTML, CSS, JavaScript, logo or favicon**, first make sure an Explorer bundle has already been generated. Then run:
+For changes to Explorer or Under the Hood **HTML, CSS, JavaScript, logo or favicon**, first make sure an Explorer bundle has already been generated. Then run:
 
 ```powershell
 sigma view pasig --fast
@@ -52,13 +52,13 @@ sigma view quezon_city --fast
 
 This copies the current UI assets into the existing SIGMA-owned bundle, starts the usual loopback-only local server, and opens the browser. It **does not** regenerate tiles, routes, cluster polygons, graph JSON or establishment data; it also **does not** recompute the analytical model. The existing public/private bundle profile remains unchanged, and a missing or unrecognized bundle is refused. It may be used with `--public`, `--workspace`, `--source-dir`, `--output-dir` and `--no-browser` as appropriate.
 
-If your installed CLI reports `No such option: --fast`, apply this repository update, ensure you are using this checkout, and run `python -m pip install -e .` if necessary. Confirm with `sigma view --help`.
+If your installed CLI reports `No such option: --fast`, make sure you are using this checkout and run `python -m pip install -e .`. Confirm with `sigma view --help`. `--ui-only` is an alias for `--fast`.
 
 **Safety and freshness:** `--fast` deliberately skips source-data checks and leaves the generated ownership/freshness marker unchanged. Only use it when the published SIGMA data are unchanged. Ordinary `sigma view pasig` checks freshness and may perform a full rebuild, including after code or UI changes. `sigma view pasig --refresh` explicitly forces a full rebuild; it cannot be combined with `--fast`. If the generated Explorer's data schema has changed, use `--refresh` instead.
 
 ## Interface
 
-The initial network view uses **Direct links** with the **3 per cluster** strongest-link limit. Both can be changed from the toolbar. The optional OpenStreetMap raster background has been removed; the published SIGMA roads remain available.
+The initial network view uses **Direct links** with the **3 per cluster** strongest-link limit. Both can be changed from the toolbar. The map uses no third-party background tiles; the published SIGMA roads give the geographic context.
 
 - MapLibre GL JS map: sector-colored establishments, partitions, centers, boundary and optional published roads. Click an establishment or cluster center to select the corresponding X node.
 - **Depth-based map opacity:** when a cluster is selected, its linked establishments, cluster-center triangles, and partition polygons fade according to **1/sqrt(network step)**. At step 1, linked establishments retain 90% opacity; at steps 2, 3, and 5 they retain about 63.6%, 52.0%, and 40.2%. Cluster triangles and polygon fills/outlines follow the same scaling relative to their own first-step opacity. The selected cluster and any selected establishment remain prominent. Colored road routes still use their existing depth-dependent width and opacity scaling; their paths, colors and the Cytoscape diagram are unchanged. The fade follows the current Links, Depth, Strongest, and sector filters.
@@ -66,58 +66,20 @@ The initial network view uses **Direct links** with the **3 per cluster** strong
 - **Collapsible right panel:** the Establishment Finder starts collapsed to leave space for the network. Selected location, Cluster network, Linked clusters, and Most central clusters can each be collapsed independently. The network starts expanded. Selecting an establishment from finder results automatically collapses the finder; reopening the network resizes its diagram.
 - Cytoscape.js directed graph: direct, two-step or all reachable neighborhoods; outgoing, incoming, or both directions; top-N strongest connections per visited cluster. Direction controls how the neighborhood is discovered; the diagram shows all permitted directed edges among those discovered clusters, including edges between clusters at the maximum selected depth and reciprocal pairs. Arrowheads and coefficients follow the published X edge direction.
 - **Theater view:** expand the network to a full-screen work surface; `Esc` returns to the normal layout, `Fit graph` restores the extent.
-- **Exact road routes, browser-native by default (PR #29):** numerical X exports the center-to-center road distances and weights **without** precomputing all route geometries. The default browser bundle instead contains a validated compact road graph and center-node IDs; a Web Worker runs shortest-path reconstruction **on demand** for displayed links and checks each route length against the numerical X distance. Its route cache is bounded. This is not a Euclidean chord or an approximation of the weighted `effective_road_distance`. Incoming routes remain dashed blue and outgoing solid red; edge weights and hover explanations remain those of the published numerical model. `sigma run AREA --route-geometry precomputed` explicitly materializes GIS route paths at export, and that legacy bundle mode may use route files and `reverse_of` reuse. The normal browser mode does not store an individual route file for each X edge.
+- **Exact road routes, computed in the browser by default:** numerical X exports the center-to-center road distances and weights **without** precomputing route geometries. The default bundle contains a validated compact road graph (road vertices and cluster centers only; establishment snap points are removed) and the center-node IDs. A Web Worker runs shortest-path reconstruction **on demand** for displayed links and checks each route length against the numerical X distance (tolerance `max(1e-6, 1e-8 × distance)`); it keeps up to 256 routes in a cache. A route is not a Euclidean chord or an approximation of the weighted `effective_road_distance`. Incoming routes are dashed blue and outgoing routes solid red; edge weights and hover explanations are those of the published numerical model. `sigma run AREA --route-geometry precomputed` instead writes GIS route paths into the GeoPackage at export, and a bundle built from that output reads them (with `reverse_of` reuse for reciprocal links). The browser mode does not store a route file for each X edge.
 - **Large views:** when more than 150,000 individual establishments lie in the visible zoom-13 tiles, the map shows density shading built from establishment counts on a grid of about 1 km (zoom-15 cells, placed at cell centers, not at establishments) rather than an empty establishment layer. Zoom in to see individual records. This is an aggregation fallback, **not** a full vector-tile implementation.
 - **Network limits:** a maximum of 300 network nodes and 1,500 **directed** edges are visualized per selection; the interface marks truncated views. Graph weights and provenance remain available in the source CSV/GeoPackage.
 
-The network is **cluster-level**, not firm-to-firm. The presence of an X edge represents SIGMA's modeled input-output-spatial coupling with road-network reachability, **not a confirmed commercial transaction**. The graph direction represents modeled sector input supply, while road routing is computed on SIGMA's undirected road network. A numeric X `edge_weight` is `technical_coefficient * source_cluster_sector_share * target_cluster_sector_share / max(effective_road_distance_metres, 1) ** x_distance_decay_lambda` (exponent 1 by default), bounded by the coefficient; it is **not** a trade probability. The effective separation adds each cluster's mean establishment-to-median road distance to the actual center-to-center route length; published route geometry remains center-to-center. Existing exported Explorer bundles retain their previous weights until analysis is rerun and the browser bundle refreshed.
+The network is **cluster-level**, not firm-to-firm. The presence of an X edge represents SIGMA's modeled input-output-spatial coupling with road-network reachability, **not a confirmed commercial transaction**. The graph direction represents modeled sector input supply, while road routing is computed on SIGMA's undirected road network. A numeric X `edge_weight` is `technical_coefficient * source_cluster_sector_share * target_cluster_sector_share / max(effective_road_distance_metres, 1) ** x_distance_decay_lambda` (exponent 1 by default), bounded by the coefficient; it is **not** a trade probability. The effective separation adds each cluster's mean establishment-to-median road distance to the actual center-to-center route length; a drawn route is always center-to-center. A bundle shows the weights of the analysis it was built from; after a new `sigma run`, refresh it with `sigma view AREA --refresh`.
 
-<!-- sigma-docs-20261104-v1:begin -->
 ## Fixed sector colors, rolled-up industries, and contextual polygons
 
-- **Fixed sector palette:** SIGMA uses the supplied 336-color specification:
-  16 IO16, 80 IO80, and 240 IO240 colors. A sector's color is stable across
-  areas and sector order, including canonical sparse and supported legacy
-  identifiers. An `o` residual inherits the nearest retained parent color.
-  Sector swatches, scored-point circles, cluster triangles, and polygon
-  boundaries use the effective sector's palette color except for points whose
-  original classification is intentionally shown separately.
-- **Rolled-up original industries:** In the local Explorer, an affected sector
-  has an expandable breakdown of original industry codes, labels and place
-  counts. Each child has a fixed-color swatch and an independent *point-layer*
-  checkbox. Child-specific points retain their original industry's fixed
-  color; their economic type for scoring remains the effective rolled-up
-  parent. Visibility does not split the parent's X nodes, cluster counts,
-  Voronoi surfaces or scores. Counts refer to classified establishments, not
-  only HDBSCAN-retained members.
-- **Two different opt-in unclustered views:** The existing unclustered toggle
-  shows classified-but-unscored points without a selected X network. With a
-  scored point or cluster selected, **Unclustered within highlighted partitions**
-  instead displays matching-effective-sector unclustered points spatially
-  inside published Voronoi polygons for the focused and linked X clusters.
-  Focus markers use opacity 0.96; a linked cluster at step `d` has opacity
-  `0.90 / sqrt(d)`. Points outside that context stay hidden. This is
-  geographic context, **not** inferred HDBSCAN membership, Voronoi-based
-  reassignment, a new X node, or an imputed SIGMA score. Different sectors'
-  partition polygons may overlap.
-- **Cluster-center hover boundary:** After selecting a scored establishment
-  or cluster, hovering a visible cluster-center triangle temporarily outlines
-  that center's already-exported Voronoi partition in the center's sector
-  color. This works even with the ordinary partitions setting off. The
-  overlay clears when the pointer leaves, the map moves, or the selection or
-  filters change. It never rewrites the partitions or alters the selected X
-  neighborhood.
+- **Fixed sector palette:** SIGMA uses one 336-color specification: 16 IO16, 80 IO80, and 240 IO240 colors. A sector's color is stable across areas and sector order, for sparse hierarchy codes and for plain numeric codes alike. An `o` residual uses its parent's color. Sector swatches, scored-point circles, cluster triangles, and polygon boundaries use the effective sector's color, except for points whose original industry is shown separately.
+- **Rolled-up original industries (stage 9):** In the local Explorer, a sector that received places from zero-cluster roll-up has an expandable breakdown of original industry codes, labels and place counts. Each child has a fixed-color swatch and an independent *point-layer* checkbox. Child-specific points keep their original industry's fixed color; their economic type for scoring is the effective rolled-up parent. Visibility does not split the parent's X nodes, cluster counts, Voronoi surfaces or scores. Counts refer to classified establishments, not only HDBSCAN-retained members.
+- **Two different opt-in unclustered views:** The unclustered toggle shows classified-but-unscored points without a selected X network. With a scored point or cluster selected, **Unclustered within highlighted partitions** instead displays unclustered points of the matching effective sector that lie inside the published Voronoi polygons of the focused and linked X clusters. Focus markers use opacity 0.96; a linked cluster at step `d` has opacity `0.90 / sqrt(d)`. Points outside that context stay hidden. This is geographic context, **not** inferred HDBSCAN membership, Voronoi-based reassignment, a new X node, or an imputed SIGMA score. Different sectors' partition polygons may overlap.
+- **Cluster-center hover boundary:** After selecting a scored establishment or cluster, hovering a visible cluster-center triangle temporarily outlines that center's exported Voronoi partition in the center's sector color. This works even with the ordinary partitions setting off. The overlay clears when the pointer leaves, the map moves, or the selection or filters change. It never rewrites the partitions or alters the selected X neighborhood.
 
-These are browser presentation rules. They do not change network HDBSCAN,
-1-medians, the road graph, national IO transactions, Leontief/technical
-coefficients, network X, centrality or establishment scores. The local
-point-level overlays are **not available** in public bundles. Newly built
-Explorer bundles can include per-establishment original-sector provenance;
-metadata-only migration of an existing local bundle can use its already
-validated rolled-up published inputs and a compact original-ID override. A
-static-only `sigma view AREA --fast` does not regenerate data, metadata, routes,
-or establishment tiles.
-<!-- sigma-docs-20261104-v1:end -->
+These are browser presentation rules. They do not change network HDBSCAN, Gap refinement, 1-medians, the road graph, national IO transactions, technical coefficients, network X, centrality or establishment scores. The local point-level overlays are **not available** in public bundles. Explorer bundles include per-establishment original-sector provenance; a metadata-only migration of an existing local bundle can use its validated rolled-up published inputs and a compact original-ID override. A static-only `sigma view AREA --fast` does not regenerate data, metadata, routing data, or establishment tiles.
 
 ## Inputs
 
@@ -167,38 +129,22 @@ The full local export contains individual establishment locations; do not upload
 
 The output directory must not overwrite the SIGMA source export directory or its ancestors. Avoid manually modifying the generated `.sigma-explorer` ownership marker or force-replacing unknown directories.
 
-## Guided tutorial (area and economy aware)
+## Under the Hood (area and economy aware)
 
-Open **Guided tutorial** in the Explorer header. The tutorial retains the
-original *SIGMA, Step by Step* interactive mathematical walkthrough and adds
-read-only evidence panels tailored to this Explorer bundle's **area**, selected
-**economy**, **sectors**, **cluster centers**, **X links**, **coefficients**,
-**centrality**, and **score range**. The sector and cluster selectors let you
-change the real-world case study; choose **Examine this cluster in Explorer**
-to jump back to the map and its exact computed road paths. A currently selected
-Explorer X node is passed to the tutorial when opened from the header.
+Open **Under the Hood** in the Explorer header. It explains the whole SIGMA pipeline in its 17 stages, each with a worked, interactive example:
 
-The static Under the Hood narrative now distinguishes the **baseline**
-area-specific hierarchy, **K=0** iterative roll-up, **post-HDBSCAN Gap**
-refinement (four workers by default), final **network-node 1-medians**, and
-subsequent network Voronoi, X, centrality and point scoring. The explanatory
-pipeline is the canonical default, **not a claim that every previously
-published Explorer bundle ran with those settings**. Audit the specific run's
-configuration and clustering artifact for that distinction. The tutorial does
-not rerun Gap or read `median_gap_audit.json` as a browser input.
+| Part | Stages | Interactive examples |
+|---|---|---|
+| 1 Places and sectors (`sigma load`) | 1–5 | source matching; the administrative-office rule; PSIC → IO candidates; the ownership evidence ladder; area sectors with `min_places` and the residual or contain coarse-place policy; review and augmentation between load and run |
+| 2 Roads, clusters and territories (`sigma run`) | 6–12 | road graph and snapping; network HDBSCAN*; zero-cluster roll-up (why a sector of fewer than 10 places always has K=0, and the residual-first trials); network Gap k-medoids, computed live on a road example; 1-median centers; network Voronoi |
+| 3 Economy (`sigma run`) | 13 | technical coefficients and the default graph |
+| 4 Graph X and scores (`sigma run`) | 14–17 | X weights, directed Katz, balanced centrality, establishment scores |
+| 5 Routes and limits | publication | browser route reconstruction from the compact routing graph, the precomputed alternative, what each setting recomputes, and limitations |
 
-The additional panels use `data/metadata.json` and `data/graph.json` and do not
-run classification, clustering, route-finding, IO recalculation, or scoring.
-The tutorial's animated diagrams and example numbers remain **illustrative**:
-matching candidate scores, core distances, the transaction matrix Z, raw Katz
-components, and individual point scores are not all part of the exported graph.
-The tutorial never invents them. On `--public` bundles, the tutorial reads only
-published aggregate data and does not seek individual establishment records.
+Read-only evidence panels are tailored to this Explorer bundle's **area**, selected **economy**, **sectors**, **cluster centers**, **X links**, **coefficients**, **centrality**, and **score range**, and a note under every step shows what the bundle publishes for that stage (for example its sector codes, rolled-up sectors, final cluster counts and route mode). The sector and cluster selectors change the real-world case study; choose **Examine this cluster in Explorer** to return to the map and its shortest road routes. An Explorer X node that is selected when you open Under the Hood is passed to it.
 
-For a CSS or tutorial-only change, use `sigma view pasig --fast` on an existing bundle.
-For changed SIGMA outputs or a required data-schema rebuild, use
-`sigma view pasig --refresh` (or another existing area slug). A plain
-`sigma view pasig` also rebuilds when the fingerprint changes. The tutorial
-is included in both local and reduced public-profile bundles.
+The worked examples show the canonical defaults (Gap refinement with four worker processes, zero-cluster roll-up for generated hierarchies); they are **not a claim that a given bundle ran with those settings**. Audit the run's configuration in `run.json`, `rollup_audit.json` and `median_gap_audit.json`. The Gap example runs in the browser on its own small road graph; Under the Hood does not rerun Gap on the bundle's data or read `median_gap_audit.json` as a browser input.
 
-The previous `--ui-only` spelling remains supported as an alias for `--fast`.
+The panels use `data/metadata.json` and `data/graph.json` and do not run classification, clustering, route-finding on the bundle's data, IO recalculation, or scoring. The animated diagrams and example numbers are **illustrative**: matching candidate scores, core distances, the transaction matrix Z, raw Katz components, and individual point scores are not all part of the exported graph, and Under the Hood never invents them. On `--public` bundles, it reads only published aggregate data and does not look for individual establishment records.
+
+For a CSS or Under the Hood-only change, use `sigma view pasig --fast` on an existing bundle. For changed SIGMA outputs or a required data-schema rebuild, use `sigma view pasig --refresh` (or another existing area slug). A plain `sigma view pasig` also rebuilds when the fingerprint changes. Under the Hood is included in both local and reduced public-profile bundles.

@@ -17,7 +17,7 @@ Exactly **four columns are mandatory**. The user may add unlimited extra columns
 | **`io240`** | string | no | Exact PSA IO240 industry code |
 | *Any additional columns* | CSV or Arrow-compatible | no | Kept as namespaced source attributes for future analyses |
 
-**Do not use a single `io_code` field**: the previous draft schema is superseded by these three columns. The command refuses an input containing legacy `io_code` instead of silently ignoring it. IO codes should be written as **strings**, preserving any leading zeros. CSV and Parquet are both supported. The `lon`/`lat` fields always define the point; an additional `geometry` column is preserved as a user-supplied attribute.
+**Do not use a single `io_code` field**: IO codes are given in these three columns. The command refuses an input containing an `io_code` column instead of silently ignoring it. IO codes should be written as **strings**, preserving any leading zeros. CSV and Parquet are both supported. The `lon`/`lat` fields always define the point; an additional `geometry` column is preserved as a user-supplied attribute.
 
 Example:
 
@@ -74,5 +74,3 @@ Unmatched places are processed through the existing PSIC/IO classifiers. Since t
 The editable handoff is `workspaces/<area>/places/places.parquet`. Augmentation uses a temporary, roundtrip-validated GeoParquet and atomically replaces this handoff only after successful matching/classification. The first augmentation preserves `places.pre-first-augment.parquet` and records hashes/counts in `places/augmentations.json`. Re-running the same source and file returns `already_applied`; replacing an old snapshot requires restoring/reloading the original handoff first. The command does not modify OSM, Overture, road caches, managed C8 artifacts, or previously published scores.
 
 On the next `sigma run`, SIGMA regenerates the per-area hierarchical economy from the changed handoff (or you can explicitly invoke `sigma economy hierarchical-refresh --workspace ...`). Fixed-IO workspaces rebuild their previews from the changed handoff. No expensive network/centrality recomputation happens *inside* `sigma augment`.
-
-The installer is guarded and reversible (`--check`, `--apply`, `--undo`) with SHA-based backups; it does **not** upgrade an already-applied v1 installer in place. Undo v1 first if necessary. Both the installer and this document preserve the rest of SIGMA's load/run behavior.

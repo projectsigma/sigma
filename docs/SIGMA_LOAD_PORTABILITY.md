@@ -1,6 +1,6 @@
 # SIGMA load portability: IO resolution chosen at load time
 
-This page describes how `sigma load` chooses the economic model for an area, where the national and per-area data live, and how the national PSA IO240 reference is prepared and checked. It was added by the load portability patch v4.
+This page describes how `sigma load` chooses the economic model for an area (pipeline stage 5), where the national and per-area data live, and how the national PSA IO240 reference is prepared and checked.
 
 ## Commands
 
@@ -35,11 +35,7 @@ Settings, in the SIGMA data folder (not in Git):
 <SIGMA_HOME>/hierarchical-defaults.json
 ```
 
-The first hierarchical `sigma load` creates this file if it does not exist. Its paths are the text `package:psa_2018_io240`, which SIGMA resolves to the installed reference when it reads the file, so the file stays valid if the repository moves. Its **new-install default** parameters are `coarse_policy=residual`, `min_places=5`,
-`max_straddle_share=0.25`, `check_psa=true`. An existing explicit local configuration,
-including explicitly selected `contain`, is not silently changed by code defaults. Edit the file, or run `sigma economy hierarchical-configure`, to change them. Without a local configuration, `read_profile()` remains `None` for backward compatibility.
-The `contain` policy remains available explicitly. Only an explicit hierarchical `sigma load` adopts the packaged default and creates the
-local configuration, after checking the actual reference inputs.
+The first hierarchical `sigma load` creates this file if it does not exist. Its paths are the text `package:psa_2018_io240`, which SIGMA resolves to the installed reference when it reads the file, so the file stays valid if the repository moves. Its default parameters are `coarse_policy=residual`, `min_places=5`, `max_straddle_share=0.25`, `check_psa=true`. An existing explicit local configuration, including an explicitly selected `contain` policy, is not changed by code defaults. Edit the file, or run `sigma economy hierarchical-configure`, to change them. Without a local configuration, `read_profile()` returns `None`. Only an explicit hierarchical `sigma load` adopts the packaged default and creates the local configuration, after checking the actual reference inputs.
 
 Per-area outputs, in the workspace (regenerable):
 
@@ -63,17 +59,10 @@ Per-area outputs, in the workspace (regenerable):
 
 - **Fixed levels:** `run` uses the national economy and the fixed preview. If you edited `places/places.parquet` after loading, the preview is regenerated from the edited file; your edits are kept.
 - **Custom:** `run` uses the recorded economy; if that economy changed, `run` stops and asks for `sigma load ... --economy`.
-- **Hierarchical, same settings:** if the hierarchy is missing or older than the handoff,
-  `run` rebuilds it using the recorded settings and the verified reference source.
+- **Hierarchical, same settings:** if the hierarchy is missing or older than the handoff, `run` rebuilds it using the recorded settings and the verified reference source.
 - **Hierarchical, different settings:** if the current settings differ from those recorded at load time and the hierarchy is stale, `run` stops with a message that lists the differences. To adopt the new settings and keep your handoff edits, run `sigma economy hierarchical-refresh --workspace <workspace>`; to reload the area, run `sigma load <area>`; or restore the previous settings.
-- **No selection file** (areas loaded before the patch): `run` preserves the area's
-  existing economic choice. A legacy IO80 workspace remains IO80; a prior hierarchy
-  is not automatically reconstructed under a new policy. Run `sigma load AREA` to
-  explicitly adopt the current default hierarchy. If an old hierarchy is stale,
-  explicitly refresh or reload it rather than changing its typology implicitly.
-- **Fixed IO16/IO80 or custom:** opening the global hierarchy configuration does not
-  verify or load the national IO240 reference. These modes run even if IO240 files
-  are temporarily unavailable (provided their own required references exist).
+- **No selection file:** `run` keeps the area's existing economic choice. A workspace without a recorded selection uses IO80, and an existing hierarchy is not reconstructed under a new policy. Run `sigma load AREA` to adopt the default hierarchy explicitly. If an existing hierarchy is stale, refresh or reload it explicitly rather than changing its typology implicitly.
+- **Fixed IO16/IO80 or custom:** opening the global hierarchy configuration does not verify or load the national IO240 reference. These modes run even if IO240 files are temporarily unavailable (provided their own required references exist).
 - When `run` or `load` rebuilds a hierarchy, the build report is written to stderr, so `--json` output on stdout stays one JSON document.
 
 ## Preparing the national IO240 reference
@@ -86,7 +75,7 @@ python scripts/sigma_pack_io240_repo.py --repo . `
     --classification-xlsx "PATH\2018 Input-Output Industry Classification.xlsx"
 ```
 
-Use `--replace-existing` to rebuild a package written by an older packager (for example patch v2).
+Use `--replace-existing` to rebuild a package written by an older packager version.
 
 The packager accepts the 240 table only if, under SIGMA's `io240_parents.csv` parents, it aggregates to SIGMA's bundled IO80 and IO16 transaction matrices and gross-output vectors. Each check passes if either criterion holds:
 
@@ -110,24 +99,12 @@ python -m build --wheel
 
 `git add --intent-to-add` records the new paths in Git's index without staging their content, so `git diff --check` covers them.
 
-## Early preflight and compatibility safeguards (v4)
+## Early preflight and compatibility safeguards
 
-A hierarchical `sigma load` validates its intended source economy and crosswalk
-**before** OSM/Overture reconciliation or economic tagging. This includes the
-packaged SHA-256 manifest (if using packaged references), all 240 source sectors,
-parent consistency with the committed PR #17 IO240→IO80→IO16 table, and consistency
-with the current PSIC/IO tagging references. Missing old absolute paths fail
-with instructions to migrate to `package:psa_2018_io240`.
+A hierarchical `sigma load` validates its intended source economy and crosswalk **before** OSM/Overture reconciliation or economic tagging. This includes the packaged SHA-256 manifest (if using packaged references), all 240 source sectors, parent consistency with SIGMA's versioned IO240→IO80→IO16 table (`src/sigma/resources/classification/io/io240_parents.csv`), and consistency with the current PSIC/IO tagging references. A configuration that points to an absolute path that no longer exists fails with instructions to use `package:psa_2018_io240`.
 
-The builder and classifiers from PRs #15, #17 and #18 are not modified.
-`X:Y:Z`, `X:Y:o`, `X:Y`, `X:o` and `X` remain the canonical sparse identities
-assigned by the existing hierarchical builder. The area-specific transactions
-are still generated as `M Z Mᵀ`, and outputs as `M x`.
+`X:Y:Z`, `X:Y:o`, `X:Y`, `X:o` and `X` are the canonical sparse identities assigned by the hierarchical builder. The area-specific transactions are generated as `M Z Mᵀ`, and outputs as `M x`. See [Hierarchical economy](book/content/methods/hierarchical.md).
 
-The source bodies of `sigma init` and `sigma run` are unchanged. The shared
-`profile_is_current` and `auto_economy` helpers now distinguish an explicit
-hierarchical choice from a legacy area, avoiding implicit IO80→hierarchy migration.
+The `profile_is_current` and `auto_economy` helpers distinguish an explicit hierarchical choice from an area without a recorded selection, so an IO80 area is never migrated to a hierarchy implicitly.
 
-A previously created `economy-selection.json` with a hierarchical choice but
-without a recorded policy/source fingerprint cannot be silently rebuilt under
-v4. It must be deliberately reloaded or refreshed.
+An `economy-selection.json` with a hierarchical choice but without a recorded policy/source fingerprint is not rebuilt silently; reload or refresh the area deliberately.

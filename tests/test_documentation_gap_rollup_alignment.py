@@ -37,7 +37,7 @@ def test_docs_pipeline_and_command_overrides():
     ]
     assert all("Gap" in d and "HDBSCAN" in d for d in docs)
     assert "**on**" in docs[-1]
-    assert "Network Gap worker processes | **4**" in docs[-1]
+    assert "Network Gap worker limit | **4**" in docs[-1]
     assert "--no-median-gap" in docs[0]
     assert "--median-gap-workers 1" in docs[0]
     assert "--equivalent" in docs[0]
@@ -65,7 +65,7 @@ def test_under_the_hood_explains_not_reimplements():
     html = read("src/sigma/web/static/tutorial.html")
     assert html.count('id="gap-refinement"') == 1
     assert html.index('id="clusters"') < html.index('id="gap-refinement"') < html.index('id="centers"')
-    for token in ("4 independent worker processes", "median_gap_audit.json", "nonrecursive", "K=0", "--no-median-gap"):
+    for token in ("up to 4 independent worker processes", "median_gap_audit.json", "nonrecursive", "K=0", "--no-median-gap"):
         assert token.lower() in html.lower()
     assert "not proof that this particular published bundle" in html
 
@@ -87,7 +87,7 @@ def test_algorithm_docs_no_longer_use_stale_io80_or_precomputed_default():
     cli = read("docs/SIGMA_RUN_VIEW_CLI.md")
     explorer = read("SIGMA_EXPLORER.md")
     assert 'single-pass network Gap k-medoids' in root
-    assert 'four workers' in root
+    assert 'up to four workers' in root
     assert 'browser-native route publication' in root
     assert 'Network Gap k-medoids refinement (opt-in)' not in cli
     assert '--route-geometry {browser,precomputed}' in cli
@@ -102,10 +102,24 @@ def test_underhood_overview_and_fallback_are_current():
     assert 'Default X route geometry' in tutorial
     assert 'sigma load pasig' in tutorial
     assert 'routePresentation = meta.route_mode' in live
+    assert "meta.route_mode === 'precomputed'" in live
+    assert 'does not record its route publication mode' in live
     assert 'precomputed' in live and 'on demand' in live
     generated = read('src/sigma/export/spatial.py')
     assert 'The default browser mode leaves this layer empty' in generated
     assert 'native-CRS Step-4 cluster polygons' not in generated
+
+def test_underhood_metadata_absence_does_not_imply_no_rollup_or_routes():
+    live = read("src/sigma/web/static/tutorial-live.js")
+    assert "meta.profile === 'local'" in live
+    assert 'rollupDetailAvailable' in live
+    assert 'whether roll-up occurred is unknown' in live
+    assert 'Missing roll-up details are not evidence' in live
+    assert "meta.route_mode === 'precomputed'" in live
+    assert 'Route mode is not recorded in this bundle' in live
+    assert 'local Explorer exposes selected sector-basis evidence' in live
+    assert 'full registry match, promotion trace or source references' in live
+
 
 def test_institutional_production_docs_are_visible_and_precise():
     places = read('docs/book/content/methods/places.md')
@@ -121,7 +135,7 @@ def test_institutional_production_docs_are_visible_and_precise():
     assert 'per-area hierarchical PSA 2018' in places
     assert 'PSIC 84120' in places
     assert 'production `places.classified`' in institutions
-    assert 'Historical registry-backed shadow v3 diagnostic' in institutions
+    assert 'Registry-backed shadow diagnostic (opt-in)' in institutions
     assert 'content/methods/shadow_classification' in toc
     assert 'registry verification' in hierarchy
     assert 'Tibshirani, R., Walther' in references
@@ -136,3 +150,20 @@ def test_internal_docstrings_match_current_methods():
     assert 'Canonical SIGMA enables this single-pass' in gapsrc
     assert 'opt-in and audited' not in gapsrc
     assert 'default browser-native route reconstruction' in worker
+
+
+def test_under_the_hood_covers_all_seventeen_stages_in_order():
+    import re
+    html = read("src/sigma/web/static/tutorial.html")
+    sections = ("evidence", "hierarchy", "handoff", "clusters", "rollup",
+                "gap-refinement", "centers", "territories", "scores", "routes")
+    positions = [html.index(f'id="{name}"') for name in sections]
+    assert positions == sorted(positions)
+    shields = [int(n) for n in re.findall(r'<span class="shield">(\d+)</span>', html)]
+    assert shields == sorted(shields)
+    assert set(shields) == set(range(1, 18))
+    for stale in ("Stage 3A", "Stage 6A", "stage 3A", "stage 6A"):
+        assert stale not in html
+    for doc in ("docs/book/content/methods/iterative_rollup.md",
+                "docs/book/content/methods/routing.md"):
+        assert doc.replace("docs/book/", "").removesuffix(".md") in read("docs/book/_toc.yml")

@@ -7,4 +7,4 @@ SIGMA uses two independent identity references, not a combined school-and-hospit
 
 The shared runtime national registry in `SIGMA_HOME/references/institution_national_v1.csv` contains **hospitals only**. Verified links must be independently documented; identity, ownership, and PSIC/IO safeguards remain in force. The four separately reviewed QC hospital links live in the QC workspace and are not part of the national reference or repository.
 
-Do not publish bundled reference data without applicable data-rights review. The change does not recompute classifications, X, Voronoi, clustering or scores.
+Do not publish bundled reference data without applicable data-rights review. These references affect classification only through `sigma load` (stage 4); they do not by themselves recompute classifications, X, Voronoi, clustering or scores.

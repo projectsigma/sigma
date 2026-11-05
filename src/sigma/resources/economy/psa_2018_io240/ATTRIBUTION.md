@@ -4,7 +4,7 @@ Official source: Philippine Statistics Authority (PSA), 2018 Input-Output Tables
 
 The 240-sector transaction table and gross-output vector are taken from the official *240-Industry Transaction Table, 2018* workbook. The industry classification is checked against the official *2018 Input-Output Industry Classification* workbook when its layout can be read.
 
-The IO240→IO80 parent mapping is SIGMA's versioned classifier reference, `src/sigma/resources/classification/io/io240_parents.csv` (introduced in PR #17). Some parent assignments (column `basis` = `sector_name` or `code_order`) are SIGMA methodological decisions, not PSA-published concordances. The packager accepts the national table only if it reconciles numerically with SIGMA's bundled PSA IO80 and IO16 tables under this mapping; see `validation.json` for the criteria and results.
+The IO240→IO80 parent mapping is SIGMA's versioned classifier reference, `src/sigma/resources/classification/io/io240_parents.csv`. Some parent assignments (column `basis` = `sector_name` or `code_order`) are SIGMA methodological decisions, not PSA-published concordances. The packager accepts the national table only if it reconciles numerically with SIGMA's bundled PSA IO80 and IO16 tables under this mapping; see `validation.json` for the criteria and results.
 
 Sector labels come from `io240_parents.csv`; the PSA workbook supplies a label only where that file has none.
 

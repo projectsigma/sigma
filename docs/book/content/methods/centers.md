@@ -1,11 +1,8 @@
-# Cluster centers: the network-node 1-median
+# Cluster centers: the network-node 1-median (stage 11)
 
-After HDBSCAN and canonical [network Gap k-medoid refinement](network_gap_medians.md)
-(default on; `--no-median-gap` disables it), SIGMA chooses one road-network
-node to represent **each final** `(economic type, cluster)`. If a retained
-HDBSCAN cluster split into children, each child receives its own full-network
-1-median. These centers are not merely the sampled observed-node medoids
-chosen during Gap model selection.
+*Pipeline stage 11 of 17 · `sigma run`.*
+
+After HDBSCAN* (stage 8), any zero-cluster roll-up (stage 9) and the [network Gap refinement](network_gap_medians.md) (stage 10, on by default; `--no-median-gap` disables it), SIGMA chooses one road-network node to represent **each final** `(economic type, cluster)`. If a retained HDBSCAN* cluster was split, each child receives its own full-network 1-median. These centers are not the observed-node medoids used during Gap model selection: the 1-median may be any road vertex of the cluster's component.
 
 ## Objective
 

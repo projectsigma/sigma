@@ -1,6 +1,8 @@
-# The spatial-economic graph X
+# The spatial-economic graph X (stage 14)
 
-The X graph is where the economic and spatial branches meet.
+*Pipeline stage 14 of 17 · `sigma run`. Under the Hood shows overlap, weights and the effect of road distance with interactive examples (section “Stage 14”).*
+
+The X graph is where the economic and spatial branches meet. Its nodes are the final clusters of stages 8–10, and its economic edges come from the effective sectors of stages 5 and 9 through the coefficients of stage 13.
 
 ## Nodes
 
@@ -43,54 +45,24 @@ pass through both 1-medians. On SIGMA's undirected road graph it is an upper
 bound on the mean direct establishment-to-establishment shortest-road distance;
 it is not necessarily an unbiased estimator of that distance. The sums are
 **averaged**, so larger clusters are not penalized solely for having more
-establishments. Disconnected center pairs remain omitted as before.
+establishments. Disconnected center pairs are omitted and logged as diagnostics.
 
-## Numerical Network X versus geographical route publication
+## Numerical X and route publication
 
-The canonical `analysis.x` stage (PR #29) performs **numerical** modeling:
-positive-area Voronoi overlap plus an IO coefficient produces a candidate
-cluster-level edge; exact shortest-road **distances** between final
-network-node 1-medians qualify it. The kernel uses mean hub-mediated
-separation and both exact-type clustered-establishment shares. The managed
-X computation calls the road distance-only solver, with `include_paths=False`.
-It does not generate route predecessors, polyline geometry or per-edge route
-files. The authoritative analytical fields are the immutable
-`analysis.x/x_edges.csv` and published `sigma_X_edges.csv`.
+The `analysis.x` stage is **numerical**: positive-area Voronoi overlap plus a positive IO coefficient produces a candidate cluster-level edge, and an exact shortest-road **distance** between the final network-node 1-medians qualifies it. The weight uses the mean hub-mediated separation and both exact-type clustered-establishment shares. The managed X computation calls the distance-only road solver (`include_paths=False`); it does not generate route predecessors, polyline geometry or per-edge route files. The authoritative analytical fields are the immutable `analysis.x/x_edges.csv` and the published `sigma_X_edges.csv`.
 
-For compatibility the numerical artifact may still contain
-`x_paths.parquet`, but in the current canonical numerical path it is an
-**empty GeoParquet placeholder**, not a second source of X edge geometry or
-weights. A retained legacy helper named `_reuse_x_routes_for_weight_only_change`
-and `x_paths_overlay.json` handling exist in source for earlier artifacts,
-but the current `_exec_x` no longer calls that route-reuse shortcut. Do not
-describe hardlinked route files or route geometry reuse as the canonical X
-pipeline. A new X recipe reuses matching numeric artifacts or computes the
-necessary distances under normal immutable-artifact rules; changing a
-spatial dependency requires numerical X reevaluation.
+For compatibility the numerical artifact can contain `x_paths.parquet`, but in the canonical numerical path it is an **empty GeoParquet placeholder**, not a second source of X edge geometry or weights. The source contains a helper (`_reuse_x_routes_for_weight_only_change`) for artifacts that stored route geometry, but `_exec_x` does not call it. Do not describe hardlinked route files or route geometry reuse as the canonical X pipeline. A new X recipe reuses matching numeric artifacts or computes the necessary distances under normal immutable-artifact rules; changing a spatial dependency requires numerical X reevaluation.
 
-**Route geometry is a downstream export choice**:
+**Route geometry is a downstream export choice** (see [Route publication](routing.md)):
 
-- `sigma run AREA` / `--route-geometry browser` (**default**) publishes the
-  compact `sigma_routing_graph.bin` and X-center routing IDs. SIGMA Explorer's
-  Web Worker computes geographic shortest paths **on request**, with a
-  distance-parity check against the stored numerical `road_distance`. No
-  per-edge route file is generated for all X links.
-- `sigma run AREA --route-geometry precomputed` materializes each X edge's
-  actual center-to-center route **during export** and writes it into the
-  published GeoPackage `paths` layer. The same numerical X weights and Katz
-  scores apply; the browser mode's paths layer is empty by design.
+- `sigma run AREA` / `--route-geometry browser` (**default**) publishes the compact `sigma_routing_graph.bin` and X-center routing IDs. SIGMA Explorer's Web Worker computes geographic shortest paths **on request**, with a length check against the stored numerical `road_distance`. No per-edge route file is generated.
+- `sigma run AREA --route-geometry precomputed` materializes each X edge's center-to-center route **during export** and writes it into the published GeoPackage `paths` layer. The numerical X weights and Katz scores are the same in both modes; in browser mode the `paths` layer is empty by design.
 
-Routes are shortest geographical paths from one cluster center to another,
-not the **mean hub-mediated** effective separation used in weighting.
-Uncertainty from the road graph (undirected routing, topology and coverage)
-applies in either mode. A browser reconstruction can follow a different
-*equal-length* shortest path if ties occur; distance parity, rather than
-path-coordinate identity, is the enforced numerical contract.
+Routes are shortest geographical paths from one cluster center to another, not the **mean hub-mediated** effective separation used in weighting. Uncertainty from the road graph (undirected routing, topology and coverage) applies in either mode. A browser reconstruction can follow a different *equal-length* shortest path if ties occur; equal length, not identical coordinates, is the enforced contract.
 
 ## Edge weight
 
-The direct technical coefficient continues to determine economic strength,
-attenuated by effective road distance:
+The direct technical coefficient determines economic strength, distributed by cluster shares and attenuated by effective road distance:
 
 $$
  w_{A\to B}=a_{s(A)s(B)}
@@ -99,9 +71,7 @@ $$
  \qquad \lambda_X=1\text{ by default}.
 $$
 
-The 1-metre floor is the preexisting distance-kernel convention; it is **not**
-applied to the observed distances. The established positive-area Voronoi-overlap
-rule continues to govern whether an X edge exists. `road_distance` remains the actual numerical **center-to-center shortest
+The 1-metre floor belongs to the distance kernel only; it is **not** applied to the observed distances. The positive-area Voronoi-overlap rule governs whether an X edge exists. `road_distance` remains the actual numerical **center-to-center shortest
 road distance**. The default X artifact contains **no per-edge route
 geometry**; an on-demand browser path or explicitly precomputed export path
 represents that center-to-center route. `effective_road_distance` is the
@@ -117,7 +87,7 @@ clusters; they do not use overlapping polygon *area* as a multiplier.
 Establishment counts are an imperfect proxy for economic scale (not revenue,
 employment, or transaction volume). This is a proposed modeling assumption,
 not an observed trade flow or a canonical gravity equation.
-The exponent, Katz centrality, and point-score tempering are unchanged.
+The X exponent $\lambda_X$ is separate from the Katz attenuation and from point-score tempering.
 
 ```{admonition} Interpretation of the weight
 :class: warning
@@ -133,4 +103,4 @@ A-versus-Leontief option is a proposed change, not a deployed feature.
 
 ## Self-use
 
-Positive sector self-use remains in the economic graph. To preserve the X graph topology policy, an X self-edge whose source and target are the same spatial cluster is still omitted, **even though its capped inverse-distance factor would equal 1**. Self-use can instantiate edges between different clusters of the same economic type when their partitions overlap and their centers are road-connected.
+Positive sector self-use remains in the economic graph. By the X topology policy, an X self-edge whose source and target are the same spatial cluster is omitted, **even though its capped inverse-distance factor would equal 1**. Self-use can instantiate edges between different clusters of the same economic type when their partitions overlap and their centers are road-connected.

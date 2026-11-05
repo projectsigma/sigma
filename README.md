@@ -17,102 +17,68 @@ SIGMA is designed so that the computational pipeline and the business decision l
 
 ---
 
+## How SIGMA works: 17 stages
+
+SIGMA runs in two commands. `sigma load` (stages 1–5) builds the classified list of places for one area. `sigma run` (stages 6–17) builds the road network, the clusters, the network X and the scores, and then publishes the results. Every stage below is explained with a worked, interactive example in **Under the Hood** (open it from the SIGMA Explorer header) and in the [SIGMA Jupyter Book](https://projectsigma.github.io/sigma/).
+
+| # | Stage | Command | What it does |
+|---:|---|---|---|
+| 1 | Sources | `load` | OpenStreetMap places from the shared Geofabrik PBF and Overture Places, clipped to the area boundary |
+| 2 | Matching | `load` | one-to-one OSM–Overture reconciliation within 120 m, by name similarity and distance |
+| 3 | Activity | `load` | deterministic PSIC classification; one narrow rule reassigns clear government administrative offices to PSIC 84120 |
+| 4 | IO tags and ownership evidence | `load` | PSIC → IO240/IO80/IO16 candidates; the public or private side of education and health is chosen only from strong evidence (verified registry link, official ID, explicit source attribute) |
+| 5 | Area sectors | `load` | per-area hierarchical PSA 2018 economy: an IO240 industry where at least 5 places support it, otherwise IO80 or IO16 groups and residual `o` sectors |
+| — | Review and augmentation (optional) | edit file / `sigma augment` | remove places from the editable handoff, or add places from a CSV or Parquet file |
+| 6 | Road graph | `run` | managed undirected road network from the same PBF, with a 5 km buffer around the area |
+| 7 | Snapping | `run` | each place is attached to its nearest road position; network distance is measured along roads from there |
+| 8 | Network HDBSCAN* | `run` | density clusters of each sector, with distance measured along roads; places outside clusters are noise |
+| 9 | Zero-cluster roll-up | `run` | generated hierarchies only: a sector with no retained cluster (K=0) is merged into a broader sector when the merge retains more establishments in clusters |
+| 10 | Network Gap k-medoids | `run` | one pass, on by default with up to four worker processes: an eligible cluster is split into road-medoid children when the Gap statistic supports it |
+| 11 | 1-median centers | `run` | the road position with the smallest total road distance to the members of each final cluster |
+| 12 | Network Voronoi | `run` | each cluster's territory: the roads nearer to its members than to members of the same sector's other clusters, drawn as polygons |
+| 13 | IO coefficients | `run` | the directed technical-coefficient graph of the area's sectors; cycles and reciprocal links are kept |
+| 14 | Network X | `run` | a directed link between two clusters when their sectors have an IO coefficient, their territories overlap and a road connects their centers |
+| 15 | Katz | `run` | incoming and outgoing weighted Katz centrality on X |
+| 16 | Balanced centrality | `run` | geometric mean of the two Katz values, then one L2 normalization |
+| 17 | Establishment scores | `run` | each establishment receives its cluster's centrality, tempered by its road distance to the cluster center |
+| — | Publication | `run`, `view` | GeoParquet, CSV, GeoPackage and QGIS outputs, and a compact routing graph from which Explorer draws routes on request |
+
+Stage 9 is decided on the HDBSCAN* clusters before any Gap split, and stage 10 then refines the clusters of the final sectors. HDBSCAN* noise stays noise in both stages. The original sector (`original_economy_code`) and the original HDBSCAN* label (`hdbscan_cluster`) of every place remain in the outputs, together with `rollup_audit.json` and `median_gap_audit.json`. A network X node is a `(sector, cluster)` pair, not one firm, and an X edge is a modeled spatial-economic relationship, not evidence that two establishments trade.
+
+```powershell
+sigma run quezon_city                                # canonical: roll-up + Gap, up to four workers
+sigma run quezon_city --no-median-gap                # keep the HDBSCAN* clusters (skip stage 10)
+sigma run quezon_city --median-gap-workers 1         # same Gap method, one process
+sigma run quezon_city --no-iterative-rollup          # keep the original sectors (skip stage 9)
+sigma run quezon_city --route-geometry precomputed   # also store route lines in the GeoPackage
+```
+
+Stage 9 applies only to generated hierarchical economies; fixed IO16/IO80/IO240 and custom economies keep their sectors, and stage 10 applies to every economy. The legacy `--equivalent` profile keeps unrefined HDBSCAN* clusters unless `--median-gap` is given. Splitting a cluster does not guarantee that the sector's combined Voronoi territory becomes smaller or that its Katz scores become less concentrated. See [Zero-cluster roll-up](docs/book/content/methods/iterative_rollup.md), [Network Gap refinement](docs/book/content/methods/network_gap_medians.md), [Hierarchical economy](docs/book/content/methods/hierarchical.md) and [End-to-end workflow](docs/book/content/workflow/end_to_end.md).
+
+---
+
 ## SIGMA Explorer — interactive results in your browser
 
-**[SIGMA Explorer](SIGMA_EXPLORER.md)** lets you inspect existing SIGMA results on an interactive map and a synchronized **directed cluster-network diagram**, without opening QGIS or rerunning analysis. Select an establishment to see its assigned `(type, cluster)` network neighborhood, inspect incoming and outgoing connections, expand to two hops, and highlight the **actual computed road paths** for X edges.
+**[SIGMA Explorer](SIGMA_EXPLORER.md)** shows existing SIGMA results on an interactive map and a synchronized **directed cluster-network diagram**, without QGIS and without running the analysis again. Select an establishment to see its assigned `(sector, cluster)` network neighborhood, inspect incoming and outgoing connections, expand to two steps, and draw the shortest road route between two linked cluster centers. By default the route is computed in the browser, on request, from a compact routing graph published with the results.
 
-After running SIGMA for an area, launch the visualizer locally:
+After running SIGMA for an area, open the Explorer locally:
 
 ```powershell
 sigma run pasig
 sigma view pasig
 ```
 
-The browser opens at `http://127.0.0.1:8765/` by default. Use `sigma view pasig --refresh` after changing published outputs, or `sigma view pasig --no-browser` to print the URL without launching a browser. To prepare a portable static site from published results, use `sigma export-web pasig`; see the [Explorer guide](SIGMA_EXPLORER.md) and [illustrated workflow in the documentation book](docs/book/content/intro/explorer.md).
+The browser opens at `http://127.0.0.1:8765/` by default. Use `sigma view pasig --refresh` after the published outputs change, or `sigma view pasig --no-browser` to print the address without opening a browser. To prepare a portable static site from published results, use `sigma export-web pasig`; see the [Explorer guide](SIGMA_EXPLORER.md) and the [Explorer chapter of the documentation](docs/book/content/intro/explorer.md).
 
-**Fast UI iterations:** After an Explorer bundle already exists, use `sigma view pasig --fast` to copy the current HTML, CSS, JS, logo and favicon into that bundle and open the browser **without regenerating** its graph, geographic tiles or routes. This is useful when changing visual design or Guided Tutorial styling. It does **not** check whether SIGMA's published analytical outputs changed; use ordinary `sigma view pasig` to validate freshness or `--refresh` for a full rebuild. `--fast` and `--refresh` cannot be combined. See the [Explorer guide](SIGMA_EXPLORER.md). The previous `--ui-only` spelling remains supported as an alias for `--fast`.
+**Under the Hood** (in the Explorer header) explains the 17 stages above with interactive figures. A panel and a note under every step show what the opened bundle publishes for that stage, for example its sector codes, rolled-up sectors, final cluster counts and route mode.
 
-**Interpretation:** Each X node represents an **economic-type cluster**, not one firm. An edge is a **modeled spatial-economic relationship**, not evidence that two establishments actually trade. The default Explorer bundle contains individual establishment locations and should remain private unless data rights, attribution, and publication risks have been reviewed. A reduced `--public` export omits establishment-level records but is **not a guarantee of anonymity**. The separate [SIGMA documentation website](https://projectsigma.github.io/sigma/) explains the methods; it does not automatically host your local Explorer data.
+**Fixed sector colors.** Sector colors come from one fixed 336-color specification (16 IO16, 80 IO80 and 240 IO240 colors). Sparse hierarchy codes resolve to the color of their industry, and residual `o` sectors use the color of their parent. In Explorer, a rolled-up sector can be expanded to show its original sub-sectors with their own colors and point-only visibility controls; the parent remains the effective sector for clustering, Voronoi territories, X nodes, centrality and scores. Colors are presentation only and never change an X weight or a score.
 
-<!-- sigma-docs-20261104-v1:begin -->
-### Hierarchical roll-up and visual exploration (November 2026)
+**Context displays.** **Unclustered within highlighted partitions** is an opt-in display of unclustered establishments of a matching sector inside the published Voronoi polygons of the displayed network (focus opacity 0.96; network step `d` uses `0.90 / sqrt(d)`). These establishments do **not** gain cluster membership or scores. Hovering a cluster-center triangle while a selection is active outlines that cluster's published Voronoi polygon in its sector color.
 
-For areas loaded with the generated hierarchical PSA 2018 economy, `sigma run AREA`
-uses **zero-cluster iterative roll-up by default**. SIGMA first clusters the
-original exclusively assigned sectors. Only a sector with **zero retained
-HDBSCAN clusters** (`K=0`) is eligible for residual-first coarsening and
-reclustering; the implementation retains a candidate only under its specified
-positive net-retention rule. There is no arbitrary minimum number of clusters,
-and sectors that already have clusters are not automatically merged. Use
-`sigma run AREA --no-iterative-rollup` to preserve the original hierarchy, or
-`--iterative-rollup` explicitly. This is a run-stage option, not a change to
-`load`; fixed IO16/IO80/IO240 and custom economies do not opt in implicitly.
+**Fast UI changes:** after an Explorer bundle exists, `sigma view pasig --fast` copies the current HTML, CSS, JavaScript, logo and favicon into it and opens the browser **without rebuilding** its graph, tiles or routing data. It does **not** check whether SIGMA's published results changed; use ordinary `sigma view pasig` to check freshness or `--refresh` for a full rebuild. `--fast` and `--refresh` cannot be combined, and `--ui-only` is an alias for `--fast`.
 
-**Colors are presentation, not economic data.** The canonical sector palette
-contains 16 IO16, 80 IO80 and 240 IO240 fixed colors. The hierarchy's sparse
-codes and legacy codes resolve to the same color. Residual sectors use the
-corresponding parent color. In Explorer, an expanded rolled-up sector can show
-its original sub-sectors with their fixed colors and independent **point-only**
-visibility controls; the parent remains the effective sector for clustering,
-Voronoi ownership, X nodes, centrality and scores.
-
-In the local Explorer, **Unclustered within highlighted partitions** is an
-opt-in display of unclustered establishments of matching effective sectors
-inside the displayed network's published Voronoi polygons. Focus opacity is
-0.96; network step `d` uses `0.90 / sqrt(d)`. Those establishments do **not**
-gain cluster membership or scores. Hover a visible cluster-center triangle
-while a selection is active to outline that cluster's published Voronoi
-partition in its sector color; this does not alter its geometry. The existing
-no-selection unclustered overlay remains separate. `sigma view AREA --fast`
-updates static UI files only, **not** analytical outputs or metadata.
-
-See [Hierarchical economy](docs/book/content/methods/hierarchical.md),
-[Explorer](docs/book/content/intro/explorer.md), [Explorer guide](SIGMA_EXPLORER.md),
-and [Under the Hood](src/sigma/web/static/tutorial.html). The published
-[Jupyter Book](https://projectsigma.github.io/sigma/) explains the methods;
-it does not publish your local establishment data.
-<!-- sigma-docs-20261104-v1:end -->
-
-## Default network Gap k-medoids refinement
-
-The canonical `sigma run AREA` now runs **network HDBSCAN*** followed by
-**Gap Statistic-guided k-medoid refinement** (four worker processes by default)
-for eligible retained clusters. The Gap stage uses exact road shortest-path
-distances, up to 10 reference draws, 64 sampled establishments and `k=6`, with
-the one-standard-error rule. It preserves HDBSCAN noise, and accepted children
-receive a newly computed **network-node 1-median** each before Voronoi, X,
-Katz centrality and point scoring. This is a **single pass**, not recursive
-subdivision. Some original clusters remain unsplit (`k=1`).
-
-The order matters for generated hierarchies: `sigma load` builds the baseline
-IO240/IO80/IO16 partition; baseline HDBSCAN `K=0` results determine whether
-residual-first iterative roll-up is admissible. Only after that decision does
-Gap refinement operate on retained clusters of the effective economic sectors.
-A successful nonzero-cluster sector is not eligible for automatic roll-up.
-The original economic tag and original HDBSCAN cluster remain auditable; an
-accepted Gap child becomes a final `(type, cluster)` X node. The pipeline
-never interprets these nodes as individual verified supplier relationships.
-
-```powershell
-sigma run quezon_city                                # canonical Gap + four workers
-sigma run quezon_city --no-median-gap                # original HDBSCAN only
-sigma run quezon_city --median-gap-workers 1         # same Gap method, serial
-sigma run quezon_city --no-iterative-rollup          # preserve baseline sector partition
-```
-
-Legacy `--equivalent` retains the historical unrefined configuration unless
-Gap is explicitly requested. Fixed IO-level/custom runs do not implicitly
-apply hierarchical roll-up, but canonical Gap refinement still applies.
-The original cluster labels and per-parent model-selection outcomes are
-recorded in `spatial.clusters` (`hdbscan_cluster` and `median_gap_audit.json`).
-The audit distinguishes the one-SE stopping decision from hitting the `k=6`
-search ceiling. Splitting a cluster does not guarantee that its sector's
-combined Voronoi territory shrinks or its Katz score becomes less concentrated.
-
-See [Gap method](docs/book/content/methods/network_gap_medians.md),
-[Hierarchical economy](docs/book/content/methods/hierarchical.md),
-[End-to-end workflow](docs/book/content/workflow/end_to_end.md), and
-[Under the Hood](src/sigma/web/static/tutorial.html).
+**Interpretation and privacy:** each X node represents a **sector cluster**, not one firm, and an edge is a **modeled spatial-economic relationship**, not evidence that two establishments trade. The default Explorer bundle contains individual establishment locations and should remain private unless data rights, attribution and publication risks have been reviewed. A reduced `--public` export omits establishment-level records but is **not a guarantee of anonymity**. The [SIGMA documentation website](https://projectsigma.github.io/sigma/) explains the methods; it does not host your local Explorer data.
 
 ## Objectives
 
@@ -418,15 +384,15 @@ For an ordinary run, this performs the **place branch only**:
 ```text
 area boundary
     ↓
-OSM places from the initialized national PBF
-+
-Overture Places for the area
+1  OSM places from the initialized national PBF + Overture Places for the area
     ↓
-source reconciliation / canonical places
+2  source reconciliation → canonical places
     ↓
-deterministic PSIC classification
+3  deterministic PSIC classification + administrative-office rule
     ↓
-PSIC → selected economy mapping
+4  PSIC → IO240/IO80/IO16 candidates + public/private ownership evidence
+    ↓
+5  area sectors (per-area hierarchical economy, or the fixed level you chose)
     ↓
 editable places handoff
 ```
@@ -539,7 +505,7 @@ managed Geofabrik road network (undirected, metre-based)
 area-specific hierarchical PSA 2018 IO240/80/16 economy for newly loaded areas
 network HDBSCAN EOM; network leaf recovery on error; Euclidean recovery if needed
 K=0 residual-first roll-up for generated hierarchical economies, before Gap
-single-pass network Gap k-medoids on retained HDBSCAN clusters (default, 4 workers)
+single-pass network Gap k-medoids on retained HDBSCAN clusters (default limit: 4 workers)
 final network-node 1-median for every retained/refined cluster
 network Voronoi partitions with resolution refinement + planar fallback
 full positive directed IO technical-coefficient graph (no transaction preprocessing)
@@ -565,11 +531,26 @@ one final L2 normalization
 balanced centrality
 ```
 
-The default attenuation is derived from `alpha_factor = 0.85`; `beta = 1`. The older weighted eigenvector method remains available explicitly.
+The default attenuation is derived from `alpha_factor = 0.85`; `beta = 1`. A weighted eigenvector method is available as an explicit alternative.
+
+Each line corresponds to one or more of the stages 6–17 in [How SIGMA works](#how-sigma-works-17-stages).
 
 Common run variants:
 
 ```powershell
+# Skip zero-cluster roll-up (stage 9) or Gap refinement (stage 10)
+sigma run pasig --no-iterative-rollup
+sigma run pasig --no-median-gap
+
+# Run Gap refinement serially (same results as the four-worker limit)
+sigma run pasig --median-gap-workers 1
+
+# Change the X distance-decay exponent (default 1.0)
+sigma run pasig --x-distance-decay-lambda 0.5
+
+# Also store route geometries in the GeoPackage (browser routing is the default)
+sigma run pasig --route-geometry precomputed
+
 # Explicit canonical Katz (already the default)
 sigma run pasig --centrality-method katz
 
@@ -721,12 +702,12 @@ It combines the useful establishment attributes from clustering, center-distance
 
 ### Explore the same results in a browser
 
-Run `sigma view pasig` to open **SIGMA Explorer**, an interactive counterpart to the `.qgz` output. It reuses the published point layer, cluster polygons, network nodes and edges, and exact road-path geometries. Click a mapped establishment or cluster center to see its **directed cluster-network neighborhood** on the map and in a linked network diagram. You can switch between incoming, outgoing and combined exploration, change network depth, and enlarge the diagram to theater view.
+Run `sigma view pasig` to open **SIGMA Explorer**, an interactive counterpart to the `.qgz` output. It reuses the published point layer, cluster polygons, network nodes and edges, and the compact routing graph from which it draws shortest road routes on request. Click a mapped establishment or cluster center to see its **directed cluster-network neighborhood** on the map and in a linked network diagram. You can switch between incoming, outgoing and combined exploration, change network depth, and enlarge the diagram to theater view.
 
 ```powershell
 sigma view pasig                # local browser view; uses existing exports
 sigma view pasig --refresh      # refresh the derived visualization bundle
-sigma view pasig --fast      # copy current UI files only; reuse existing graph/routes
+sigma view pasig --fast         # copy current UI files only; reuse existing graph and routing data
 sigma export-web pasig          # write <output>\explorer for portable hosting
 sigma export-web pasig --public # reduced-data bundle in <output>\explorer-public
 ```
@@ -861,11 +842,7 @@ places.canonical
 
 ### 1.4 PSIC classification and economic tagging
 
-Canonical places are classified against the Philippine Standard Industrial Classification (PSIC), then mapped into the selected economic sector system. The ordinary `sigma load AREA` default is now an area-specific hierarchical
-PSA 2018 IO240/IO80/IO16 economy. Fixed IO16, IO80, and IO240 resolutions can
-instead be selected with `--io-level`; custom economies use `--economy`.
-`Economy.default()` and legacy areas without an explicit recorded selection
-remain IO80 for compatibility.
+Canonical places are classified against the Philippine Standard Industrial Classification (PSIC) (stage 3). A narrow administrative-function rule reassigns unmistakable government health and education offices to PSIC 84120 and sends ambiguous names to review. PSIC is then mapped to IO240/IO80/IO16 candidates, and the public or private side of education and health industries is chosen only from strong ownership evidence (stage 4). Finally the places are grouped into the sectors of the area (stage 5). The ordinary `sigma load AREA` default is an area-specific hierarchical PSA 2018 IO240/IO80/IO16 economy. Fixed IO16, IO80, and IO240 resolutions can instead be selected with `--io-level`; custom economies use `--economy`. `Economy.default()` and areas without a recorded selection use IO80.
 
 Relevant stages:
 
@@ -931,7 +908,7 @@ The 5 km buffered road network is an **internal analytical object**. Final GIS p
 
 ### 1.7 Network-constrained clustering
 
-Classified establishments are normalized to the selected economic sector identity and clustered over the road-network context. Clustering is type-wise: each economic type may form one or more geographically distinct clusters.
+Classified establishments are snapped to the road network (stage 7) and clustered separately for each sector by network HDBSCAN* (stage 8): each sector may form one or more geographically distinct clusters. For generated hierarchies, a sector with no retained cluster can be merged into a broader sector (zero-cluster roll-up, stage 9). Each retained cluster is then tested once by network Gap k-medoids and split into road-medoid children where the Gap statistic supports it (stage 10). Every final cluster receives a network 1-median center (stage 11) and a network Voronoi territory (stage 12).
 
 Relevant stages:
 
@@ -981,7 +958,7 @@ Canonical SIGMA centrality is **balanced weighted directed Katz** on the full di
 C_i = \operatorname{L2Normalize}\left(\sqrt{K_i^{in}K_i^{out}}\right).
 \]
 
-This retains direction and cycles while reducing pure-source and pure-sink dominance. The default attenuation uses `alpha_factor = 0.85` with `beta = 1`; the effective `alpha` is scaled safely from the graph's spectral radius (or a conservative safe scale for zero-radius/fallback cases). The previous weighted eigenvector rule remains available explicitly and uses the positive-weight **undirected projection** of X.
+This retains direction and cycles while reducing pure-source and pure-sink dominance. The default attenuation uses `alpha_factor = 0.85` with `beta = 1`; the effective `alpha` is scaled safely from the graph's spectral radius (or a conservative safe scale for zero-radius/fallback cases). A weighted eigenvector rule is available as an explicit alternative and uses the positive-weight **undirected projection** of X.
 
 Point scores are then tempered by a business's road-network distance from its cluster center.
 
@@ -1009,7 +986,7 @@ This is not a black-box probability model. Instead, SIGMA infers a directed conn
 2. their spatial partitions have positive-area overlap; and
 3. their cluster centers are connected through the road network.
 
-For each qualifying pair, SIGMA computes the exact shortest road path between cluster centers and instantiates a directed X-graph edge.
+For each qualifying pair, SIGMA computes the exact shortest road distance between the cluster centers and instantiates a directed X-graph edge. The X graph stores this distance, not the route line; route lines are drawn later for display (see the end of this section).
 
 The edge retains:
 
@@ -1021,7 +998,6 @@ target cluster
 technical coefficient
 road distance
 effective road distance (center route plus both mean member-to-median road radii)
-road path
 combined edge weight
 ```
 
@@ -1031,7 +1007,7 @@ The canonical combined edge weight is:
 technical coefficient * (source_cluster_count / source_sector_clustered_count) * (target_cluster_count / target_sector_clustered_count) / max(mean_source_radius + center_road_distance + mean_target_radius, 1) ** x_distance_decay_lambda
 ```
 
-The default `x_distance_decay_lambda = 1.0` gives inverse-road-distance attenuation, with a one-metre floor so the spatial factor stays in `(0, 1]`. The X weight is at most the economic coefficient; longer effective hub-mediated distances weaken rather than strengthen the modeled link. Actual center-road path geometry and road_distance remain unchanged. The exponent is distinct from Katz `alpha_factor = 0.85` and establishment `distance_tempering = 0.15`. Same-cluster self-edges remain omitted by the X topology policy. Changing the exponent invalidates `analysis.x` and its downstream centrality/score artifacts, not the upstream clusters, centers, roads, or economic graph.
+The default `x_distance_decay_lambda = 1.0` gives inverse-road-distance attenuation, with a one-metre floor so the spatial factor stays in `(0, 1]`. The X weight is at most the economic coefficient; longer effective hub-mediated distances weaken rather than strengthen the modeled link. The exponent does not change `road_distance`. The exponent is distinct from Katz `alpha_factor = 0.85` and establishment `distance_tempering = 0.15`. Same-cluster self-edges remain omitted by the X topology policy. Changing the exponent invalidates `analysis.x` and its downstream centrality/score artifacts, not the upstream clusters, centers, roads, or economic graph.
 
 
 This produces a **multi-relational or multiplex-like ecosystem graph**: economic dependence, spatial co-location, and transport connectivity are represented together. The implementation uses a directed graph (`DiGraph`) rather than a literal `MultiDiGraph`, but the analytical interpretation is multigraph-like because each connection is supported by multiple relationship dimensions.
@@ -1052,7 +1028,7 @@ Relevant combined stage:
 analysis.x
 ```
 
-This operationalizes the project's link-prediction objective by estimating **which localized economic ecosystems are structurally capable of linking to which other ecosystems, in which economic direction, and through what road path**.
+This operationalizes the project's link-prediction objective by estimating **which localized economic ecosystems are structurally capable of linking to which other ecosystems, in which economic direction, and at what road distance**. For display, SIGMA publishes a compact routing graph (`sigma_routing_graph.bin`), and Explorer reconstructs the shortest road route of an edge on request and checks it against the stored distance. `--route-geometry precomputed` instead writes all route lines into the GeoPackage `paths` layer at export. Neither display mode changes the X graph or the scores.
 
 ---
 
@@ -1068,7 +1044,7 @@ SIGMA produces the components needed to identify:
 - high-priority establishments;
 - directed cluster-to-cluster relationships;
 - economically related neighboring ecosystems;
-- shortest-road paths connecting linked ecosystems;
+- shortest road routes connecting linked ecosystems (drawn on request in Explorer);
 - disconnected or unsupported candidate relationships; and
 - spatial contexts for ecosystem-level product and acquisition strategy design.
 
@@ -1098,7 +1074,7 @@ managed undirected roads → snap → network HDBSCAN per sector
     │    → verify unrefined HDBSCAN counts for effective sectors
     └─ otherwise keep original economy / clusters
     │
-network Gap k-medoids (one pass, default ON, 4 workers)
+network Gap k-medoids (one pass, default ON, up to 4 workers)
     │   └─ split eligible retained HDBSCAN clusters; noise remains noise
     ↓
 final clusters → independent full-network 1-medians → point distances
@@ -1127,7 +1103,7 @@ Neither visualization mode changes the numerical X graph or its scores.
 
 # Human-in-the-Loop Review Workflow
 
-SIGMA now has an explicit three-part user lifecycle:
+SIGMA has an explicit three-part user lifecycle:
 
 ```text
 install SIGMA
@@ -1168,7 +1144,7 @@ sigma --quiet run quezon_city --workspace ".\workspaces\quezon_city"
 sigma load quezon_city
 ```
 
-This command owns the place branch only: OSM + Overture acquisition, reconciliation into canonical places, PSIC classification, and mapping to the selected economy. It then publishes the explicit handoff:
+This command owns the place branch only (stages 1–5): OSM + Overture acquisition, reconciliation into canonical places, PSIC classification with the administrative-office rule, IO tags with ownership evidence, and the sectors of the area. It then publishes the explicit handoff:
 
 ```text
 <workspace>\places\places.parquet
@@ -1193,7 +1169,7 @@ Only after the prepared GeoParquet exists:
 sigma run quezon_city
 ```
 
-`run` no longer acquires Overture or classifies places. It consumes the exact current bytes of `<workspace>\places\places.parquet`, prepares/reuses roads, runs spatial clustering/centers/partitions, builds the economic and X graphs, computes centrality/scores, and exports results. If the GeoParquet has been filtered, the filtered file is the analysis input and its content hash invalidates the necessary descendants.
+`run` does not acquire Overture or classify places. It consumes the exact current bytes of `<workspace>\places\places.parquet`, prepares or reuses roads, runs clustering, roll-up, Gap refinement, centers and partitions, builds the economic and X graphs, computes centrality and scores, and exports results (stages 6–17). If the GeoParquet has been filtered, the filtered file is the analysis input and its content hash invalidates the necessary descendants.
 
 If `sigma run` is invoked before `sigma load`, it stops immediately and tells the user which GeoParquet is missing.
 
@@ -1224,7 +1200,7 @@ sigma run quezon_city
 sigma status quezon_city
 ```
 
-For a **newly loaded area**, the default economic selection is hierarchical PSA 2018 IO240/IO80/IO16 (legacy unselected areas remain IO80). The other defaults are `transaction_preprocessing=none`, the full positive directed technical-coefficient graph, managed Geofabrik roads, network-first spatial methods with documented fallbacks, deterministic PSIC classification during `load`, balanced directed Katz centrality, and no LLM requirement. Network X further uses both clustered-sector shares and mean hub-mediated road separation before Katz centrality.
+For a **newly loaded area**, the default economic selection is hierarchical PSA 2018 IO240/IO80/IO16 (areas without a recorded selection use IO80). The other defaults are `transaction_preprocessing=none`, the full positive directed technical-coefficient graph, managed Geofabrik roads, network-first spatial methods with documented fallbacks, deterministic PSIC classification during `load`, balanced directed Katz centrality, and no LLM requirement. Generated hierarchies use zero-cluster roll-up after HDBSCAN*, every economy uses single-pass network Gap refinement with up to four worker processes, and network X uses both clustered-sector shares and mean hub-mediated road separation before Katz centrality.
 
 ---
 
@@ -1258,7 +1234,7 @@ sigma classification-check --json
 
 ## Area catalog
 
-The default catalog now exposes **1,727 areas**: 1,493 municipalities, 149 cities, 82 provinces, and the three composites `metro_manila`, `metro_cebu`, and `metro_davao`. The unchanged packaged `areas.yml` defines the 1,645 original areas; provincial areas are derived from their `province` metadata. Each province is clipped to the exact union of its member PSGC locality polygons, rather than a bounding box. Localities without a province assignment, including independent highly urbanized cities, are excluded from administrative provinces.
+The default catalog exposes **1,727 areas**: 1,493 municipalities, 149 cities, 82 provinces, and the three composites `metro_manila`, `metro_cebu`, and `metro_davao`. The packaged `areas.yml` defines 1,645 municipal, city and composite areas; provincial areas are derived from their `province` metadata. Each province is clipped to the exact union of its member PSGC locality polygons, rather than a bounding box. Localities without a province assignment, including independent highly urbanized cities, are excluded from administrative provinces.
 
 ### List every area
 
@@ -1340,6 +1316,7 @@ Available options:
 --output-dir PATH                 optional; set durable export location at workspace creation
 --areas-file FILE
 --economy SPEC
+--io-level 16|80|240             fixed national level instead of the per-area hierarchy
 --refresh-geofabrik
 --refresh-overture
 --clip / --no-clip
@@ -1407,7 +1384,7 @@ Available options:
 --json
 ```
 
-This prepares the spatial branch through:
+This command uses the default network Gap settings of stage 10; zero-cluster roll-up (stage 9) is part of `sigma run`. It prepares the spatial branch through:
 
 ```text
 spatial.centers
@@ -1417,11 +1394,11 @@ spatial.partitions
 
 with `spatial.points` and `spatial.clusters` as prerequisites.
 
-The default spatial policy is **network-first with graceful Euclidean fallback**, preserving
-the sigma-engine behavior:
+The default spatial policy is **network-first with graceful Euclidean fallback**:
 
 ```text
 clustering:  network HDBSCAN EOM -> network HDBSCAN leaf (EOM exception only) -> Euclidean HDBSCAN EOM by road component
+refinement:  network Gap k-medoids on each eligible retained cluster (one pass)
 1-median:    network 1-median -> Euclidean centroid -> road/network snap fallback
 Voronoi:     network Voronoi -> finer network retries -> planar Euclidean Voronoi fallback
 ```
@@ -1490,6 +1467,7 @@ Available options:
 --mwas-method VALUE
 --centrality-method VALUE        katz (default) or eigenvector
 --centrality-direction VALUE     compatibility option; balanced Katz uses both directions
+--x-distance-decay-lambda FLOAT  X distance-decay exponent (default 1.0)
 --distance-tempering FLOAT
 --min-cluster-size INTEGER
 --min-samples INTEGER
@@ -1507,7 +1485,7 @@ analysis.centrality
 analysis.scores
 ```
 
-Canonical `--centrality-method katz` computes raw incoming and outgoing directed Katz, combines them with the geometric mean, and performs one final L2 normalization. Use `--centrality-method eigenvector` only when the older undirected-projection centrality is desired.
+Canonical `--centrality-method katz` computes raw incoming and outgoing directed Katz, combines them with the geometric mean, and performs one final L2 normalization. Use `--centrality-method eigenvector` only when the undirected-projection eigenvector centrality is wanted.
 
 ---
 
@@ -1534,12 +1512,23 @@ Available options:
 --mwas-method VALUE
 --min-cluster-size INTEGER
 --min-samples INTEGER
+--median-gap / --no-median-gap   stage 10 Gap refinement (on; off with --equivalent)
+--median-gap-max-k INTEGER       largest tested k (6)
+--median-gap-replicates INTEGER  reference draws B (10)
+--median-gap-max-sites INTEGER   members used for fitting per cluster (64)
+--median-gap-seed INTEGER        base seed (20261105)
+--median-gap-workers 1-4         maximum worker processes (default: 4)
 --allow-single-cluster
 --voronoi-resolution FLOAT
 --centrality-method VALUE        katz (default) or eigenvector
 --centrality-direction VALUE     compatibility option; balanced Katz uses both directions
+--x-distance-decay-lambda FLOAT  X distance-decay exponent (default 1.0)
 --distance-tempering FLOAT
---force
+--iterative-rollup / --no-iterative-rollup
+                                 stage 9 zero-cluster roll-up (on for generated hierarchies)
+--refresh                        recompute analytical stages from the loaded places
+--force                          legacy: force only final scoring
+--route-geometry VALUE           browser (default) or precomputed
 --json
 ```
 
@@ -1566,6 +1555,7 @@ Available options:
 --equivalent
 --mwas-method VALUE
 --force
+--route-geometry VALUE           browser (default) or precomputed
 --json
 ```
 
@@ -1584,7 +1574,7 @@ sigma export-web pasig               # generate a static local-profile bundle
 sigma export-web pasig --public      # omit individual establishment records
 ```
 
-Both commands accept `--workspace PATH`, `--source-dir PATH` (published SIGMA outputs), `--output-dir PATH` (web bundle), and `--roads/--no-roads`. `view` supports `--refresh`, `--port`, `--no-browser`, and `--public`; `export-web` supports `--force` and `--public`. Use `--help` for the complete options. `view` binds to localhost (`127.0.0.1`) rather than exposing data on the local network. The site must be served over HTTP, not opened using `file://`.
+Both commands accept `--workspace PATH`, `--source-dir PATH` (published SIGMA outputs), `--output-dir PATH` (web bundle), and `--roads/--no-roads`. `view` supports `--refresh`, `--fast`, `--port`, `--no-browser`, and `--public`; `export-web` supports `--force` and `--public`. Use `--help` for the complete options. `view` binds to localhost (`127.0.0.1`) rather than exposing data on the local network. The site must be served over HTTP, not opened using `file://`.
 
 The full local profile contains individual establishment positions and attributes. The `--public` profile is a **reduction of exposed data**, not a certification that a dataset is safe to publish. Publishing externally requires separate attribution, source-license, confidentiality, and inference-risk checks. [Full Explorer documentation](SIGMA_EXPLORER.md).
 
@@ -1777,6 +1767,7 @@ sigma_X_nodes.csv
 sigma_X_edges.csv
 sigma_disconnected_overlap_pairs.csv
 sigma_spatial_outputs.gpkg
+sigma_routing_graph.bin
 
 sigma_run_metadata.json
 sigma_manifest.json
@@ -1803,13 +1794,14 @@ The published road layer is clipped to the exact area boundary; the wider buffer
 - `sigma_X_nodes.csv` — cluster-level spatial-economic nodes and graph measures.
 - `sigma_X_edges.csv` — inferred directed cluster-to-cluster links with economic and road-distance attributes.
 - `sigma_disconnected_overlap_pairs.csv` — candidate links that fail road-network connectivity.
-- `sigma_spatial_outputs.gpkg` — GIS-ready partitions, X nodes, and X paths.
+- `sigma_spatial_outputs.gpkg` — GIS-ready partitions, X nodes, and a `paths` layer that is empty in the default browser route mode and filled with `--route-geometry precomputed`.
+- `sigma_routing_graph.bin` — compact routing graph (road vertices and cluster centers only, no establishment positions) from which Explorer draws shortest routes on request.
 - `sigma_run_metadata.json` — workflow/profile counts, CRS metadata, artifact IDs, and run summary.
 - `sigma_manifest.json` — reproducible lineage and file manifest for the exported bundle.
 
 ### QGIS presentation
 
-For the built-in IO80 economy, the QGIS project uses the reviewed 80-sector color palette. `sigma_points` is categorized by mutually exclusive economic `type`, marker size follows `sigma_score`, and the point label expression is equivalent to:
+The QGIS project uses SIGMA's fixed 336-sector color specification (IO16, IO80 and IO240 colors; residual `o` sectors use their parent's color). `sigma_points` is categorized by mutually exclusive economic `type`, marker size follows `sigma_score`, and the point label expression is equivalent to:
 
 ```text
 concat("canonical_name", '-', round(100 * "sigma_score", 2))
@@ -1825,7 +1817,7 @@ Partition layers are present per type but start unchecked. Centers remain one la
 |---|---|---|---|
 | Geospatial Ecosystem Discovery | `places.*`, `transport.roads`, `spatial.points`, `spatial.clusters`, `spatial.centers`, `spatial.partitions` | classified POIs, clusters, centers, partitions | Where are the localized MSME ecosystems? |
 | Network Influence Scoring | `analysis.x`, `analysis.centrality`, `analysis.scores` | X nodes, point centrality/scores | Which ecosystem nodes and establishments are influential acquisition entry points? |
-| Graph Link Prediction / Structural Link Inference | `economy.graph`, `analysis.x` | X edges, road paths, disconnected-pair audit | Which ecosystems are structurally linked, in what direction, and by what spatial-economic pathway? |
+| Graph Link Prediction / Structural Link Inference | `economy.graph`, `analysis.x` | X edges, road distances, routing graph, disconnected-pair audit | Which ecosystems are structurally linked, in what direction, and by what spatial-economic pathway? |
 | Strategic Insights | `export.bundle` | GeoPackage, GeoParquet, CSVs, manifests | Which zones and MSMEs should be prioritized, and what ecosystem relationships should strategy teams investigate? |
 
 ---

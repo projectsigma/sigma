@@ -1,4 +1,6 @@
-# From cluster centrality to establishment scores
+# From cluster centrality to establishment scores (stage 17)
+
+*Pipeline stage 17 of 17 · `sigma run`.*
 
 Centrality is defined at the `(economic type, cluster)` level. SIGMA transfers it to individual establishments with a bounded road-distance penalty.
 

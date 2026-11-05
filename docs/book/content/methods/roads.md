@@ -1,4 +1,6 @@
-# Roads, snapping, and network distance
+# Roads, snapping, and network distance (stages 6–7)
+
+*Pipeline stages 6–7 of 17 · `sigma run`. Under the Hood shows graph construction, topology, snapping and the river example (section “Stages 6–7”).*
 
 All primary spatial methods use one common road-distance semantics.
 
@@ -20,7 +22,7 @@ Included `highway=*` values are:
 
 Roads with `access` equal to `no`, `private`, `agricultural`, or `forestry` are excluded.
 
-OSM `oneway` is retained as audit metadata, but the current routing graph is **undirected**. Thus SIGMA currently models symmetric road distance rather than legal driving direction.
+OSM `oneway` is retained as audit metadata, but the routing graph is **undirected**. SIGMA therefore models symmetric road distance rather than legal driving direction.
 
 ## Graph topology
 

@@ -1,6 +1,8 @@
-# Network Voronoi ownership and 2-D surface partitions
+# Network Voronoi ownership and 2-D surface partitions (stage 12)
 
-SIGMA needs two related but distinct objects:
+*Pipeline stage 12 of 17 · `sigma run`. Under the Hood shows the multi-source search, the split point inside an edge and the grid rendering (section “Stage 12”).*
+
+For each sector separately, every road position is owned by the nearest member of one of the sector's **final** clusters (after stages 8–10). SIGMA needs two related but distinct objects:
 
 1. **exact ownership on the one-dimensional road graph**, and
 2. a polygon surface that allows spatial overlap tests between clusters of different economic types.
@@ -44,7 +46,6 @@ The default cell resolution is 500 m with a one-million-cell guard. If a coarse 
 The ownership decision attached to each cell is network-based, but the resulting polygon boundary is a finite-resolution **rendering**. It should not be described as an exact planar network Voronoi boundary.
 ```
 
-<!-- sigma-docs-20261104-v1:begin -->
 ## Browser highlighting and unclustered contextual points
 
 The Explorer may temporarily outline the **published** polygon for a hovered
@@ -64,7 +65,6 @@ In cross-sector overlapping polygons, a point can be geographic context for
 more than one sector; the effective-sector match prevents cross-sector
 membership inference. The polygon is a finite-grid approximation, not an
 exact planar road-network boundary.
-<!-- sigma-docs-20261104-v1:end -->
 
 ## Euclidean recovery fallback
 

@@ -3,7 +3,7 @@
 Large libosmium node-location indexes are removed automatically after road and POI
 extraction finishes, whether extraction succeeds or raises an exception. A Windows
 file-lock failure yields a warning; it must not mask the extraction result.
-Each road and national POI scan now has a unique per-scan node-location index.
+Each road and national POI scan has a unique per-scan node-location index.
 The owning scan tries to remove its own file when it finishes. Normal SIGMA jobs
 never sweep indexes left by other scans.
 
@@ -98,11 +98,11 @@ before manual deletion.
 
 ## Resumable stage savepoints
 
-Long-running clustering, Voronoi, Network X and export work units now persist under
-`<workspace>/state/savepoints/<stage>/<recipe-fingerprint>/` until the complete
+Long-running clustering, Voronoi, Network X and export work units persist under
+`<workspace>/state/savepoints/<stage>/<recipe-fingerprint>-<code-signature>/` until the complete
 stage artifact commits. Each unit has a SHA-256-verified manifest, and only a
 complete, matching unit can be reused. Successful stage commits clear their
-savepoints. Abandoned unsuccessful runs may leave older savepoints behind;
-review these only while SIGMA is idle. The ordinary `sigma storage prune` command
-currently does not remove `state/savepoints/`. See
+savepoints. Abandoned unsuccessful runs may leave savepoints behind;
+review these only while SIGMA is idle. `sigma storage prune` does not remove
+`state/savepoints/`. See
 [Resumable stage savepoints](docs/SIGMA_SAVEPOINTS.md) for recovery boundaries.

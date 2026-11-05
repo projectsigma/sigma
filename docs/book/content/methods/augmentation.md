@@ -1,6 +1,8 @@
 # Augment user-provided places after loading
 
-`sigma augment` supplements an **already loaded** SIGMA area with observations from a user-supplied CSV or Parquet. It merges places using SIGMA's existing name-and-distance reconciliation method, keeps unmatched establishments, and preserves arbitrary additional fields. It does not re-fetch OpenStreetMap or Overture Places, and it does not ingest Foursquare. The current Overture policy still excludes Foursquare-attributed records.
+*Optional step between `sigma load` (stages 1–5) and `sigma run` (stages 6–17). Under the Hood shows the weighted position update and the explicit-tag rule with interactive examples (section “Between load and run”).*
+
+`sigma augment` supplements an **already loaded** SIGMA area with observations from a user-supplied CSV or Parquet. It merges places using SIGMA's existing name-and-distance reconciliation method, keeps unmatched establishments, and preserves arbitrary additional fields. It does not re-fetch OpenStreetMap or Overture Places, and it does not ingest Foursquare. The Overture policy excludes Foursquare-attributed records.
 
 ## Command sequence
 
@@ -34,7 +36,7 @@ Use string types for all classification codes to preserve leading zeros; blank c
 
 Example (codes are illustrative; actual parentage is checked against SIGMA's bundled reference):
 
-```csv
+```text
 source_id,name,lon,lat,category,io16,io80,io240,employees,annual_revenue
 P001,Example State School,121.050,14.640,education,14,74,,85,
 P002,Example Factory,121.048,14.641,manufacturing,,,001,120,50000000
@@ -54,7 +56,7 @@ P003,Example Shop,121.047,14.642,retail trade,,,,12,8000000
 | All three | Validate both links |
 | All blank | Apply SIGMA's existing automatic classification |
 
-**Contradictory manual codes** (including parent-child disagreements) fail before any write, with affected `source_id` and row reported. Disagreements between an explicit valid tag and a *previously inferred* tag are emitted as warnings, not silently ignored: manual evidence takes priority. Compatible prior manual tags on a matched record are preserved, rather than downgraded. National IO16/80/240 fields must not contain local residual `:o` sector IDs; these local groups are created during the subsequent hierarchical economy rebuild. See [Hierarchical IO](hierarchical.md).
+**Contradictory manual codes** (including parent-child disagreements) fail before any write, with affected `source_id` and row reported. Disagreements between an explicit valid tag and an *automatically inferred* tag are emitted as warnings, not silently ignored: manual evidence takes priority. Compatible prior manual tags on a matched record are preserved, rather than downgraded. National IO16/80/240 fields must not contain local residual `:o` sector IDs; these local groups are created during the subsequent hierarchical economy rebuild. See [Hierarchical IO](hierarchical.md).
 
 ## Reconciliation, identity, and retained attributes
 

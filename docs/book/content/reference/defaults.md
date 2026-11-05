@@ -1,38 +1,28 @@
 # Canonical defaults
 
-These are the main current defaults exposed by `SigmaConfig`.
-**Economy-resolution selection is a CLI/workspace policy, not a field of
-`SigmaConfig`:** `sigma load AREA` defaults to a per-area hierarchical
-IO240/IO80/IO16 economy (packaged IO240 reference, `min_places=5`,
-`coarse_policy=residual` for new profiles). Explicit `--io-level 16|80|240`
-selects a fixed national resolution; `--economy` chooses a custom system.
-`Economy.default()` and unselected legacy areas continue to use IO80.
-`sigma run` honors the area's recorded load choice instead of silently
-migrating it. See [Hierarchical economy](../methods/hierarchical.md).
+These are the main defaults, grouped by pipeline stage. Most are fields of `SigmaConfig`. **Economy-resolution selection is a CLI/workspace policy, not a field of `SigmaConfig`:** `sigma load AREA` defaults to a per-area hierarchical IO240/IO80/IO16 economy; `--io-level 16|80|240` selects a fixed national resolution and `--economy` a custom system. The Python API's `Economy.default()` and a workspace without a recorded selection use IO80. `sigma run` follows the area's recorded load choice instead of migrating it. See [Hierarchical economy](../methods/hierarchical.md).
 
-<!-- sigma-docs-20261104-v1:begin -->
-## Hierarchical run and Explorer presentation defaults
+## Sector policies (stages 5 and 9) and presentation
 
-| Policy | Current behavior |
+| Policy | Default |
 |---|---|
-| Generated hierarchical economy at `sigma load` | Build baseline sparse IO240/IO80/IO16 classification; no spatial roll-up during load |
-| `sigma run AREA` on generated hierarchy | Iterative roll-up **on** by default, triggered only when a sector has `K=0` retained HDBSCAN clusters |
-| `sigma run AREA --no-iterative-rollup` | Preserve the original hierarchical economic partition |
-| Fixed IO16, IO80, IO240, custom/equivalent runs | No implicit iterative roll-up |
-| Built-in sector colors | Exact 336-color fixed lookup (16/80/240); nearest parent color for `o` residuals |
+| Economy for a new area (`sigma load`) | per-area hierarchical PSA 2018 IO240/IO80/IO16 |
+| `min_places` (stage 5) | 5 |
+| `coarse_policy` (stage 5) | `residual` (`contain` optional) |
+| `max_straddle_share` (stage 5, `contain` only) | 0.25 |
+| `check_psa` (stage 5) | `true` |
+| Zero-cluster roll-up (stage 9) | **on** for generated hierarchies; acts only on sectors with `K=0` retained HDBSCAN* clusters; `--no-iterative-rollup` disables it |
+| Fixed IO16/IO80/IO240, custom and `--equivalent` runs | no roll-up |
+| Route publication (`--route-geometry`) | `browser`: compact routing graph, routes drawn on request (`precomputed` optional) |
+| Built-in sector colors | exact 336-color lookup (16/80/240); `o` residuals use the parent color |
 | Explorer Strongest selector | 3 links per explored cluster |
-| Explorer original roll-up children | Collapsed initially; independently filter establishment points only |
-| Explorer contextual unclustered overlay | Off until opted into; focused 0.96, depth `d`: `0.90/sqrt(d)` |
-| Explorer hovered center outline | Display-only, in sector color, when a selection is active |
+| Explorer original roll-up children | collapsed initially; filter establishment points only |
+| Explorer contextual unclustered overlay | off until chosen; focus 0.96, depth `d`: `0.90/sqrt(d)` |
+| Explorer hovered center outline | display only, in sector color, when a selection is active |
 
-The **iterative roll-up** default is an economy/workspace-specific
-CLI policy, not a `SigmaConfig` constant. In contrast, Gap refinement is a
-canonical `SigmaConfig`/spatial pipeline default, independent of the
-selected IO level (except the legacy `--equivalent` profile). Neither
-changes HDBSCAN's `min_cluster_size=5`.
-<!-- sigma-docs-20261104-v1:end -->
+The stage 5 settings live in `<SIGMA_HOME>/hierarchical-defaults.json` (written by the first hierarchical `sigma load`; change them with `sigma economy hierarchical-configure`). The roll-up default is a CLI policy for generated hierarchies, not a `SigmaConfig` constant. Gap refinement, in contrast, is a `SigmaConfig` default that applies to every selected economy except the legacy `--equivalent` profile. Neither changes HDBSCAN*'s `min_cluster_size=5`.
 
-## Places
+## Places (stages 1–4)
 
 | Parameter | Default |
 |---|---:|
@@ -42,21 +32,24 @@ changes HDBSCAN's `min_cluster_size=5`.
 | minimum classification score | 0.45 |
 | minimum margin | 0.12 |
 
-## Spatial
+## Spatial (stages 6–12)
 
 | Parameter | Default |
 |---|---:|
 | `vertex_digits` | 11 |
 | `min_cluster_size` | 5 |
 | Network Gap k-medoids refinement | **on** (canonical; `--no-median-gap` disables; legacy `--equivalent` off) |
-| Network Gap worker processes | **4** (configurable 1–4) |
+| Network Gap worker limit | **4** (configurable 1–4; actual processes may be fewer) |
 | Network Gap passes | **1** per retained original HDBSCAN cluster (no recursion) |
 | Network Gap maximum tested k | 6 |
 | Network Gap reference draws | 10 |
 | Network Gap fitted observations per HDBSCAN cluster | 64 maximum |
+| Network Gap seed | 20261105 (per cluster: SHA-256 of seed, sector, cluster) |
+| Network Gap minimum child size | `min_cluster_size` (5) |
+| Network Gap eligibility | at least `2 × min_cluster_size` members and 3 distinct road positions |
 | `min_samples` | `None` → cluster size |
 | cluster selection | `eom` |
-| allow single cluster | `False` |
+| allow single cluster | `False` (so a sector needs a split into two groups of at least `min_cluster_size` to keep any cluster) |
 | HDBSCAN max distance | 5,000 m |
 | HDBSCAN distance mode | `adaptive` |
 | distance growth | 1.5 |
@@ -69,7 +62,7 @@ changes HDBSCAN's `min_cluster_size=5`.
 | Voronoi refine factor | 0.5 |
 | max refinements | 5 |
 
-## Economy
+## Economy (stage 13)
 
 | Parameter | Default |
 |---|---:|
@@ -78,7 +71,7 @@ changes HDBSCAN's `min_cluster_size=5`.
 | RAS relative tolerance | $10^{-10}$ |
 | RAS max iterations | 10,000 |
 
-## Analysis
+## Analysis (stages 14–17)
 
 | Parameter | Default |
 |---|---:|
@@ -91,7 +84,7 @@ changes HDBSCAN's `min_cluster_size=5`.
 | X cluster size shares | cluster members / all clustered members in the identical economic type, at each endpoint |
 | distance tempering (establishments) | 0.15 |
 
-## Managed roads
+## Managed roads (stage 6)
 
 | Policy | Current value |
 |---|---|
