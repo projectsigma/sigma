@@ -227,7 +227,96 @@
   };
   const routeCache = new Map();
   const ROUTE_CACHE_LIMIT = 96; // bounded *expanded* route collections, not establishment tiles
-  const getRoutes = path => {
+  const browserRouteCache = new Map();
+  const BROWSER_ROUTE_CACHE_LIMIT = 512;
+  let routingWorker = null, routingSerial = 0;
+  const routingRequests = new Map();
+  // Hard-preempt an obsolete Dijkstra calculation. Termination interrupts even
+  // a synchronous worker search, unlike a queued cancellation message.
+  function cancelBrowserPending() {
+    if (!routingRequests.size) return;
+    const obsolete = [...routingRequests.values()];
+    routingRequests.clear();
+    if (routingWorker) { routingWorker.terminate(); routingWorker = null; }
+    for (const pending of obsolete) pending.reject(new Error('SIGMA_ROUTE_CANCELLED'));
+  }
+  function workerBatch(jobs) {
+    if (!routingWorker) {
+      routingWorker = new Worker('route-worker.js');
+      routingWorker.onmessage = event => {
+        const {requestId, routes, error} = event.data || {};
+        const request = routingRequests.get(requestId);
+        if (!request) return;
+        routingRequests.delete(requestId);
+        if (error) request.reject(new Error(error));
+        else request.resolve(routes || []);
+      };
+      routingWorker.onerror = event => {
+        for (const request of routingRequests.values())
+          request.reject(new Error(event.message || 'Routing worker failed'));
+        routingRequests.clear();
+        routingWorker.terminate(); routingWorker = null;
+      };
+    }
+    return new Promise((resolve, reject) => {
+      const requestId = ++routingSerial;
+      routingRequests.set(requestId, {resolve, reject});
+      routingWorker.postMessage({requestId, jobs});
+    });
+  }
+  function browserRoutes(path, requested) {
+    const host = path.slice(5);
+    const jobs = [];
+    const entries = [];
+    const seen = new Set();
+    for (const edge of requested) {
+      const from = edge.source || edge.from, to = edge.target || edge.to;
+      const key = JSON.stringify([from, to]);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const a = nodeIndex.get(from), b = nodeIndex.get(to);
+      if (!a || !b || !Number.isSafeInteger(a.routing_node) || !Number.isSafeInteger(b.routing_node))
+        return Promise.reject(new Error('Missing published augmented road center'));
+      const original = pairIndex.get(from)?.get(to)?.out;
+      if (!original || !Number.isFinite(Number(original.distance)))
+        return Promise.reject(new Error('Missing published X distance'));
+      if (!browserRouteCache.has(key)) {
+        jobs.push({id: key, source: a.routing_node, target: b.routing_node,
+          distance: Number(original.distance)});
+      }
+      entries.push({key, original});
+    }
+    if (jobs.length) {
+      const batch = workerBatch(jobs).then(rows => new Map(rows.map(row => [row.id, row.coordinates])));
+      for (const job of jobs) {
+        const promise = batch.then(map => {
+          const coordinates = map.get(job.id);
+          if (!coordinates) throw new Error('Routing worker omitted an X edge');
+          return coordinates;
+        });
+        browserRouteCache.set(job.id, promise);
+        promise.catch(() => { if (browserRouteCache.get(job.id) === promise) browserRouteCache.delete(job.id); });
+      }
+    }
+    const selected = entries.map(({key, original}) => ({key, original, promise: browserRouteCache.get(key)}));
+    // Cache eviction must happen AFTER capturing in-flight selections.
+    while (browserRouteCache.size > BROWSER_ROUTE_CACHE_LIMIT)
+      browserRouteCache.delete(browserRouteCache.keys().next().value);
+    return Promise.all(selected.map(async ({key, original, promise}) => {
+      const coordinates = await promise;
+      if (!coordinates) throw new Error('Selected routing result was evicted');
+      const from = original.from, to = original.to;
+      const other = host === from ? to : from;
+      return {type: 'Feature', properties: {
+        other, other_type: nodeIndex.get(other)?.type,
+        from, to, direction: host === from ? 'outgoing' : 'incoming',
+        coefficient: original.coefficient, distance: original.distance,
+        effective_distance: original.effective_distance, weight: original.weight,
+      }, geometry: {type: 'LineString', coordinates}};
+    })).then(features => ({type: 'FeatureCollection', features}));
+  }
+  const getRoutes = (path, requested = []) => {
+    if (path.startsWith('lazy:')) return browserRoutes(path, requested);
     if (routeCache.has(path)) {
       const cached = routeCache.get(path);
       routeCache.delete(path);
@@ -935,32 +1024,13 @@
       if (!bySource.has(source.route_file)) bySource.set(source.route_file, []);
       bySource.get(source.route_file).push(descriptor);
     }
-    const entries = [...bySource.entries()];
+    const entries = [...bySource.entries()].sort((a, b) =>
+      Math.min(...a[1].map(d => d.depth)) - Math.min(...b[1].map(d => d.depth)));
     const output = [];
     let cursor = 0;
-    // Fetch at most eight route files simultaneously; cached files are reused.
-    async function worker() {
-      while (cursor < entries.length) {
-        const [file, wanted] = entries[cursor++];
-        const fc = await getRoutes(file);
-        if (epoch !== routeEpoch) return;
-        const needed = new Map(wanted.map(d => [JSON.stringify([d.edge.source, d.edge.target]), d]));
-        for (const f of (fc.features || [])) {
-          const p = f.properties || {};
-          const descriptor = needed.get(JSON.stringify([p.from, p.to]));
-          if (!descriptor || !f.geometry) continue;
-          const c = isNum(p.coefficient) ? Math.max(0, p.coefficient) : 0;
-          output.push({...f, properties: {...p,
-            depth: descriptor.depth, anchor: descriptor.anchor,
-            pair_key: descriptor.pairKey,
-            kind: p.from === descriptor.anchor ? 'outgoing' : 'incoming',
-            wn: Math.min(1, Math.sqrt(c / strongest))}});
-        }
-      }
-    }
-    try {
-      await Promise.all(Array.from({length: Math.min(8, entries.length)}, worker));
-      if (epoch !== routeEpoch) return;
+    const progressive = meta?.route_mode === 'browser';
+    let lastPaint = -Infinity;
+    function paintRoutes() {
       // A reciprocal pair has two independent directed X edges. Their road
       // paths may or may not coincide, and both coefficients must survive.
       // Only combine features when their published geometries truly coincide.
@@ -998,6 +1068,37 @@
       setData('routes', {type: 'FeatureCollection', features});
       if (sigmaPerfEnabled) console.debug('[SIGMA perf]', 'routesIncludingFetchAndGeoJSON',
         (performance.now() - routeStarted).toFixed(1), 'ms', 'features', features.length);
+    }
+    // Browser mode prioritizes the direct ring and paints as groups resolve.
+    // Legacy precomputed mode keeps its existing concurrent file-loading path.
+    // Fetch at most eight route files simultaneously; cached files are reused.
+    async function worker() {
+      while (cursor < entries.length) {
+        const [file, wanted] = entries[cursor++];
+        const fc = await getRoutes(file, wanted.map(d => d.edge));
+        if (epoch !== routeEpoch) return;
+        const needed = new Map(wanted.map(d => [JSON.stringify([d.edge.source, d.edge.target]), d]));
+        for (const f of (fc.features || [])) {
+          const p = f.properties || {};
+          const descriptor = needed.get(JSON.stringify([p.from, p.to]));
+          if (!descriptor || !f.geometry) continue;
+          const c = isNum(p.coefficient) ? Math.max(0, p.coefficient) : 0;
+          output.push({...f, properties: {...p,
+            depth: descriptor.depth, anchor: descriptor.anchor,
+            pair_key: descriptor.pairKey,
+            kind: p.from === descriptor.anchor ? 'outgoing' : 'incoming',
+            wn: Math.min(1, Math.sqrt(c / strongest))}});
+        }
+        if (progressive && epoch === routeEpoch && performance.now() - lastPaint >= 100) {
+          lastPaint = performance.now();
+          paintRoutes();
+        }
+      }
+    }
+    try {
+      await Promise.all(Array.from({length: Math.min(progressive ? 1 : 8, entries.length)}, worker));
+      if (epoch !== routeEpoch) return;
+      paintRoutes();
     } catch (err) {
       if (epoch === routeEpoch) { setData('routes', EMPTY()); showError(err); }
     }
@@ -1008,7 +1109,9 @@
     const n = network && nodeIndex.get(network.focus);
     if (!other || !n || !n.route_file) { setData('route-hover', EMPTY()); return; }
     try {
-      const fc = await getRoutes(n.route_file);
+      const related = pairIndex.get(n.id)?.get(other);
+      const requested = [related?.out, related?.in].filter(Boolean);
+      const fc = await getRoutes(n.route_file, requested);
       if (epoch !== hoverEpoch || !network || network.focus !== n.id) return;
       setData('route-hover', {type: 'FeatureCollection', features: fc.features.filter(f =>
         f.properties.other === other && (!direction || f.properties.direction === direction))});
@@ -1391,6 +1494,7 @@
     // Invalidate in-flight route/hover work BEFORE any synchronous render work.
     sigmaSetHoveredPartition(null);  // Clear stale outline on focus/filter changes.
     const epoch = ++refreshEpoch;
+    if (meta?.route_mode === 'browser') cancelBrowserPending();
     ++routeEpoch;
     ++hoverEpoch;
     pendingHoverEvent = null;
@@ -2429,3 +2533,5 @@
 // sigma-explorer-hollow-overlay-header-repair-20261029-v1
 // sigma-explorer-scope-dedup-link-outline-20261029-v2
 // sigma-explorer-strict-triangle-sources-header-paint-v3.1-20261029
+
+// SIGMA_BROWSER_ROUTING_V4_1_20261105

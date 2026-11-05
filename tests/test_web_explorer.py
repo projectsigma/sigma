@@ -484,6 +484,7 @@ def _synthetic_city(root: Path):
         Area("explorer_fixture", "Explorer Fixture", "city", (west, south, east, north)),
         workspace=root / "workspace", source_store=root / "sources", output_dir=root / "output",
         roads=roads, roads_layer="roads", place_services=services,
+        route_geometry="precomputed",
         config=SigmaConfig(sources=SourceConfig(), spatial=SpatialConfig(min_cluster_size=5, voronoi_resolution=500.0)),
     )
     job.load()
@@ -653,3 +654,5 @@ def test_about_sigmapage_is_shared_and_not_copied_into_area_bundle(published: Pa
     finally:
         server.shutdown()
         server.server_close()
+
+# SIGMA_BROWSER_ROUTING_V4_1_20261105

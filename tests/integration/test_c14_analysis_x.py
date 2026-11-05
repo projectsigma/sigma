@@ -96,7 +96,7 @@ def test_managed_analysis_x_accepts_full_directed_economy_and_reciprocal_edges(t
     assert set(result.edges["technical_coefficient"]) == {0.4, 0.6}
     expected = result.edges["technical_coefficient"] / result.edges["effective_road_distance"].clip(lower=1.0)
     assert all(abs(actual - wanted) < 1e-12 for actual, wanted in zip(result.edges["edge_weight"], expected, strict=True))
-    assert len(result.paths) == 2
+    assert result.paths.empty  # X has no geometry; exporters select the route mode.
     assert str(result.paths.crs) == "EPSG:4326"
     metadata = ws.manifest("analysis.x").metadata
     assert metadata["economic_graph_is_dag"] is False
@@ -177,76 +177,43 @@ def test_forced_x_same_recipe_is_deterministic(tmp_path):
     second = analysis.x(force=True)
     assert second.artifact_id == first.artifact_id
 
-def test_weight_only_change_reuses_all_saved_routes_without_running_road_engine(tmp_path, monkeypatch):
+def test_weight_change_recomputes_numerical_x_without_predecessor_routes(tmp_path, monkeypatch):
     from sigma.analysis import AnalysisRunConfig
-    import sigma.analysis.pipeline as module
-
-    ws, spatial, economic, first_analysis = _pipelines(tmp_path)
-    first = first_analysis.x()
-    previous = first_analysis.load_x(first)
-
-    def forbidden(*_args, **_kwargs):
-        raise AssertionError("weight-only X update invoked road-routing graph construction")
-
-    monkeypatch.setattr(module, "instantiate_network", forbidden)
-    second_analysis = AnalysisPipeline(
-        ws, spatial_pipeline=spatial, economy_pipeline=economic,
-        config=AnalysisRunConfig(x_distance_decay_lambda=2.0),
-    )
-    second = second_analysis.x()
-    assert second.artifact_id != first.artifact_id
-    assert ws.manifest("analysis.x").metadata["x_route_geometry_reused_from"] == first.artifact_id
-    # Reused route data occupies only one set of filesystem blocks. The raw
-    # GeoParquet is the immutable base, while load_x overlays current numbers.
-    assert (second.path / "x_paths_overlay.json").is_file()
-    overlay = json.loads((second.path / "x_paths_overlay.json").read_text(encoding="utf-8"))
-    assert overlay["source_x_artifact_id"] == first.artifact_id
-    assert (second.path / "x_paths.parquet").samefile(first.path / "x_paths.parquet")
-    assert ws.manifest("analysis.x").metadata["x_route_geometry_storage"] == "ntfs-hardlink-with-current-edge-overlay"
-    assert ws.manifest("analysis.x").metadata["cluster_share_denominator"] == "clustered_establishments_per_exact_type"
-    result = second_analysis.load_x(second)
-    assert len(result.paths) == len(previous.paths)
-    assert result.paths.geometry.geom_equals(previous.paths.geometry).all()
-    for row in result.edges.itertuples(index=False):
-        expected = row.technical_coefficient / max(row.effective_road_distance, 1.0) ** 2
-        assert row.edge_weight == pytest.approx(expected)
-    # GeoParquet, not just the CSV or in-memory graph, must contain fresh values.
-    for row, pathrow in zip(result.edges.itertuples(index=False), result.paths.itertuples(index=False), strict=True):
-        assert pathrow.edge_weight == pytest.approx(row.edge_weight)
-        assert pathrow.effective_road_distance == pytest.approx(row.effective_road_distance)
-
-
-def test_forced_same_recipe_after_route_reuse_is_deterministic(tmp_path, monkeypatch):
-    """Force must not switch an immutable overlay recipe to full-route layout."""
-    from sigma.analysis import AnalysisRunConfig
-    import sigma.analysis.pipeline as module
+    from sigma.transport.network import AugmentedNetwork
 
     ws, spatial, economic, original = _pipelines(tmp_path)
-    base = original.x()
-    updated = AnalysisPipeline(
-        ws, spatial_pipeline=spatial, economy_pipeline=economic,
-        config=AnalysisRunConfig(x_distance_decay_lambda=2.0),
-    )
-    reused = updated.x()
-    assert (reused.path / "x_paths_overlay.json").is_file()
-    original_csv = (reused.path / "x_edges.csv").read_bytes()
-    original_overlay = (reused.path / "x_paths_overlay.json").read_bytes()
-    assert json.loads(original_overlay)["source_x_artifact_id"] == base.artifact_id
-    assert ws.artifacts.validate(reused).valid
+    first = original.x()
+    assert len(original.load_x(first).paths) == 0
 
     def forbidden(*_args, **_kwargs):
-        pytest.fail("forcing an overlay recipe must not reconstruct road routes")
+        pytest.fail("numerical X must never request route predecessors")
 
-    monkeypatch.setattr(module, "instantiate_network", forbidden)
-    forced = updated.x(force=True)
-    assert forced.artifact_id == reused.artifact_id
-    assert forced.path == reused.path
+    monkeypatch.setattr(AugmentedNetwork, "shortest_route_nodes_to_targets", forbidden)
+    changed = AnalysisPipeline(
+        ws, spatial_pipeline=spatial, economy_pipeline=economic,
+        config=AnalysisRunConfig(x_distance_decay_lambda=2.0))
+    second = changed.x()
+    assert second.artifact_id != first.artifact_id
+    assert not (second.path / "x_paths_overlay.json").exists()
+    assert ws.artifacts.validate(second).valid
+    result = changed.load_x(second)
+    assert result.paths.empty
+    assert ws.manifest("analysis.x").metadata["route_geometry"] == "none"
+    for row in result.edges.itertuples(index=False):
+        assert row.edge_weight == pytest.approx(
+            row.technical_coefficient / max(row.effective_road_distance, 1) ** 2)
+
+
+def test_forced_new_numerical_x_recipe_remains_deterministic(tmp_path):
+    ws, spatial, economic, original = _pipelines(tmp_path)
+    analysis = AnalysisPipeline(
+        ws, spatial_pipeline=spatial, economy_pipeline=economic)
+    first = analysis.x()
+    assert analysis.load_x(first).paths.empty
+    forced = analysis.x(force=True)
+    assert forced.artifact_id == first.artifact_id
     assert ws.artifacts.validate(forced).valid
-    assert (forced.path / "x_edges.csv").read_bytes() == original_csv
-    assert (forced.path / "x_paths_overlay.json").read_bytes() == original_overlay
-    assert (forced.path / "x_paths.parquet").samefile(base.path / "x_paths.parquet")
-    assert ws.artifacts.manifest(forced).metadata["x_route_geometry_reused_from"] == base.artifact_id
-    assert len(updated.load_x(forced).paths) == len(original.load_x(base).paths)
+    assert analysis.load_x(forced).paths.empty
 
 
 def test_clustered_sector_share_denominators_use_exact_type_and_clustered_members():
@@ -261,3 +228,5 @@ def test_clustered_sector_share_denominators_use_exact_type_and_clustered_member
     assert shares[("06:55:178", 1)] == pytest.approx(1 / 4)
     assert shares[("06:55:179", 0)] == pytest.approx(1 / 2)
     assert shares[("06:55:179", 1)] == pytest.approx(1 / 2)
+
+# SIGMA_BROWSER_ROUTING_V4_1_20261105

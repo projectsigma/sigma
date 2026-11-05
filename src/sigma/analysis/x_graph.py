@@ -181,6 +181,7 @@ def instantiate_network(
     x_distance_decay_lambda: float = 1.0,
     mean_road_radius_by_cluster: Mapping[tuple[str, int], float] | None = None,
     cluster_sector_shares: Mapping[tuple[str, int], float] | None = None,
+    include_paths: bool = True,
     savepoints=None,
 ) -> tuple[nx.DiGraph, pd.DataFrame]:
     """Instantiate cluster-level directed network ``X`` from overlapping partitions.
@@ -258,21 +259,23 @@ def instantiate_network(
         unit = f"source:{type1}"
         if savepoints is not None:
             stored = savepoints.read(unit)
-            if stored is not None and set(stored) == {
-                "edges.json", "route_lengths.bin", "route_nodes.bin"
-            }:
+            expected_files = ({"edges.json", "route_lengths.bin", "route_nodes.bin"}
+                              if include_paths else {"edges.json"})
+            if stored is not None and set(stored) == expected_files:
                 try:
                     saved = json.loads(stored["edges.json"])
                     if saved["source_type"] != type1:
                         raise ValueError("source mismatch")
-                    routes = _unpack_routes(stored, len(saved["edges"]))
+                    routes = (_unpack_routes(stored, len(saved["edges"])) if include_paths
+                              else [None] * len(saved["edges"]))
                     recovered = []
                     for row, route in zip(saved["edges"], routes, strict=True):
                         source, target, attributes = row
                         if (source not in graph or target not in graph or
                                 str(graph.nodes[source]["type"]) != type1):
                             raise ValueError("cached X edge node mismatch")
-                        attributes["route_nodes"] = route
+                        if include_paths:
+                            attributes["route_nodes"] = route
                         recovered.append((source, target, attributes))
                     for source, target, attributes in recovered:
                         graph.add_edge(source, target, **attributes)
@@ -332,9 +335,13 @@ def instantiate_network(
             target_nodes = np.fromiter(
                 (candidate[3] for candidate in candidates), dtype=np.int64, count=len(candidates)
             )
-            road_distances, routes = road.shortest_route_nodes_to_targets(
-                source_network_node, target_nodes
-            )
+            if include_paths:
+                road_distances, routes = road.shortest_route_nodes_to_targets(
+                    source_network_node, target_nodes)
+            else:
+                # Numerical X never computes predecessors or materializes road paths.
+                road_distances = road.distances_to_targets(source_network_node, target_nodes)
+                routes = [None] * len(target_nodes)
 
             for candidate, road_distance, route in zip(
                 candidates, road_distances, routes, strict=True
@@ -354,7 +361,7 @@ def instantiate_network(
                     continue
                 if road_distance < 0:
                     raise RuntimeError("shortest-path engine returned a negative road distance")
-                if route is None:
+                if include_paths and route is None:
                     raise RuntimeError("connected X edge is missing its shortest road route")
 
                 source_id = make_node_id(type1, cluster1)
@@ -397,7 +404,7 @@ def instantiate_network(
                     dag_weight=economic_weight,
                     road_distance=road_distance,
                     effective_road_distance=effective_distance,
-                    route_nodes=route,
+                    **({"route_nodes": route} if include_paths else {}),
                     weight=combined_weight,
                 )
 
@@ -422,7 +429,8 @@ def instantiate_network(
                     "diagnostics": diagnostics[diagnostic_start:],
                     "omitted_zero_self_edges": omitted_zero_self_edges - omitted_start,
                 }, default=checkpoint_value, sort_keys=True, separators=(",", ":")).encode("utf-8"),
-                **_pack_routes([data["route_nodes"] for _, _, data in saved_edges]),
+                **(_pack_routes([data["route_nodes"] for _, _, data in saved_edges])
+                   if include_paths else {}),
             })
             if progress is not None:
                 progress(f"network X: saved source type {type1!r} ({type_number:,}/{total_source_types:,})")
@@ -435,3 +443,5 @@ def instantiate_network(
         )
     disconnected = pd.DataFrame(diagnostics, columns=_DIAGNOSTIC_COLUMNS)
     return graph, disconnected
+
+# SIGMA_BROWSER_ROUTING_V4_1_20261105

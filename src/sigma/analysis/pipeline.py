@@ -163,7 +163,7 @@ class AnalysisPipeline:
     def _recipe_x(self, planner, deps) -> ArtifactRecipe:
         return ArtifactRecipe.build(
             "analysis.x",
-            implementation_version="directed-spatial-economic-x-v6-inverse-mean-hub-sector-shares",
+            implementation_version="directed-spatial-economic-x-v7-numerical-distance-only",
             dependencies={
                 name: deps[name]
                 for name in (*self._spatial_x_dependencies, "spatial.point_distances", self._economic_graph_stage)
@@ -177,6 +177,7 @@ class AnalysisPipeline:
                 "x_distance_decay_lambda": self.config.x_distance_decay_lambda,
                 "distance_floor_metres": 1.0,
                 "zero_distance_self_edges": "omit",
+                "route_geometry": "downstream-export-only",
             },
         )
 
@@ -203,9 +204,8 @@ class AnalysisPipeline:
         cluster_sector_shares = _clustered_sector_shares(member_distances)
         if set(cluster_sector_shares) != center_keys:
             raise ValueError("sector-share X cluster counts must match all X centers")
-        reused = self._reuse_x_routes_for_weight_only_change(recipe, deps, write, mean_radii, cluster_sector_shares)
-        if reused is not None:
-            return reused
+        # v4: numerical analysis never depends on a previous route-geometry artifact.
+        # Historical geometry remains available via explicit precomputed export.
         if hasattr(self.spatial, "analysis_road"):
             road = self.spatial.analysis_road(deps)
         else:
@@ -221,15 +221,13 @@ class AnalysisPipeline:
             x_distance_decay_lambda=self.config.x_distance_decay_lambda,
             mean_road_radius_by_cluster=mean_radii,
             cluster_sector_shares=cluster_sector_shares,
+            include_paths=False,
             savepoints=savepoints,
         )
 
         nodes = self._node_table(graph)
-        with detail_phase(
-            self.progress,
-            f"network X: assembling {graph.number_of_edges():,} edges and their road routes",
-        ):
-            edges, paths = self._edge_outputs(graph, road)
+        # Paths are optional export geometry, not part of the X numerical artifact.
+        edges, paths = self._numeric_edge_outputs(graph)
         disconnected_out = self._disconnected_output(disconnected)
         if self.progress is not None:
             self.progress(
@@ -254,6 +252,7 @@ class AnalysisPipeline:
             "x_distance_decay_lambda": self.config.x_distance_decay_lambda,
             "distance_floor_metres": 1.0,
             "road_distance_crs": str(road.crs),
+            "route_geometry": "none",
         }
         del graph  # release the X graph (and its route references) before serialization
         nodes.to_csv(write.output("x_nodes.csv"), index=False, lineterminator="\n")
@@ -512,6 +511,24 @@ class AnalysisPipeline:
                 "center_x", "center_y", "in_degree", "out_degree",
             ],
         )
+
+    @staticmethod
+    def _numeric_edge_outputs(graph: nx.DiGraph) -> tuple[pd.DataFrame, gpd.GeoDataFrame]:
+        """Publish identical numeric edge fields without path or predecessor allocation."""
+        rows = []
+        for u, v, data in sorted(graph.edges(data=True), key=lambda e: (str(e[0]), str(e[1]))):
+            a, b = graph.nodes[u], graph.nodes[v]
+            rows.append({
+                "source_type": str(a["type"]), "source_cluster": int(a["cluster"]),
+                "target_type": str(b["type"]), "target_cluster": int(b["cluster"]),
+                "technical_coefficient": float(data["technical_coefficient"]),
+                "road_distance": float(data["road_distance"]),
+                "effective_road_distance": float(data.get("effective_road_distance", data["road_distance"])),
+                "edge_weight": float(data["weight"]),
+            })
+        table = pd.DataFrame(rows, columns=_X_EDGE_COLUMNS)
+        paths = gpd.GeoDataFrame(geometry=gpd.GeoSeries([], crs="EPSG:4326"))
+        return table, paths
 
     @staticmethod
     def _edge_outputs(graph: nx.DiGraph, road) -> tuple[pd.DataFrame, gpd.GeoDataFrame]:
@@ -872,3 +889,5 @@ class AnalysisPipeline:
                 weight=float(row.edge_weight),
             )
         return XResult(graph, nodes, edges, disconnected, paths)
+
+# SIGMA_BROWSER_ROUTING_V4_1_20261105

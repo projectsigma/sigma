@@ -368,6 +368,7 @@ def _job(
     output_dir: Path | None, source_store: Path | None, economy: str | None,
     areas_file: Path | None, config: SigmaConfig, progress=None,
     prefer_hierarchical: bool = True,
+    route_geometry: str = "browser",
 ) -> Sigma:
     from .economy.hierarchical_auto import auto_economy
     resolved_economy = _economy(economy)
@@ -384,6 +385,7 @@ def _job(
         config=config,
         areas_file=areas_file,
         progress=progress,
+        route_geometry=route_geometry,
     )
 
 
@@ -519,10 +521,14 @@ def run_command(
         False, "--force",
         help="Legacy: force only final scoring; cached upstream stages may be reused.",
     ),
+    route_geometry: str = typer.Option(
+        "browser", "--route-geometry", help="browser (default) or precomputed GeoPackage paths"),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Run spatial/economic analysis from the previously loaded places GeoParquet."""
     try:
+        if route_geometry not in {"browser", "precomputed"}:
+            raise ValueError("--route-geometry must be browser or precomputed")
         if refresh and force:
             raise ValueError("--refresh and --force cannot be combined")
         road_source = _road_source(roads, managed_roads, roads_layer, required=True)
@@ -554,6 +560,7 @@ def run_command(
             area=area, workspace=workspace, roads=road_source, roads_layer=roads_layer,
             output_dir=output_dir, source_store=shared_store, economy=economy,
             areas_file=areas_file, config=config, progress=progress,
+            route_geometry=route_geometry,
         )
         # SIGMA_ITERATIVE_RESIDUAL_ROLLUP_CLI_V1: derive an alternative full
         # economic partition from baseline clustering BEFORE building network X.
@@ -591,6 +598,7 @@ def run_command(
                     output_dir=output_dir, source_store=shared_store,
                     economy=str(rollup_package / "economy"),
                     areas_file=areas_file, config=config, progress=progress,
+                    route_geometry=route_geometry,
                 )
                 # Validate the counterfactual clustering BEFORE routing, X or export.
                 import json as _rollup_preflight_json
@@ -1354,9 +1362,13 @@ def export_command(
     equivalent: bool = typer.Option(False, "--equivalent"),
     mwas_method: str = typer.Option("fast", "--mwas-method"),
     force: bool = typer.Option(False, "--force"),
+    route_geometry: str = typer.Option(
+        "browser", "--route-geometry", help="browser (default) or precomputed GeoPackage paths"),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     try:
+        if route_geometry not in {"browser", "precomputed"}:
+            raise ValueError("--route-geometry must be browser or precomputed")
         shared_store = _initialized_source_store()
         progress = _progress()
         road_source = _road_source(roads, managed_roads, roads_layer, required=True)
@@ -1365,7 +1377,8 @@ def export_command(
                          source_store=shared_store, roads_layer=roads_layer)
         bundle = _job(area=area, workspace=workspace, roads=road_source, roads_layer=roads_layer,
                       output_dir=output_dir, source_store=shared_store, economy=economy,
-                      areas_file=None, config=config, progress=progress).export(force=force)
+                      areas_file=None, config=config, progress=progress,
+                      route_geometry=route_geometry).export(force=force)
         payload = {"run_manifest": str(bundle.run_manifest),
                    "files": {k: str(v) for k, v in bundle.files.items()}}
         _echo_json(payload) if json_output else typer.echo(str(bundle.run_manifest))
@@ -1769,3 +1782,5 @@ def view_command(
 if __name__ == "__main__":
     app()
 # sigma-canonical-sparse-hierarchy-v1
+
+# SIGMA_BROWSER_ROUTING_V4_1_20261105

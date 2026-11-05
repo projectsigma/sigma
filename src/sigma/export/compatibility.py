@@ -178,6 +178,7 @@ class ExportPipeline:
         place_pipeline=None,
         compatibility: bool = True,
         unified: bool = True,
+        route_geometry: str = "browser",
         progress=None,
     ):
         self.workspace = workspace
@@ -187,6 +188,9 @@ class ExportPipeline:
         self.places = place_pipeline
         self.compatibility = bool(compatibility)
         self.unified = bool(unified)
+        if route_geometry not in {"browser", "precomputed"}:
+            raise ValueError("unknown route geometry mode")
+        self.route_geometry = route_geometry
         self.progress = progress
         stages = dict(analysis_pipeline.planner.stages)
         dependencies = [
@@ -217,7 +221,7 @@ class ExportPipeline:
     def _recipe(self, planner, deps) -> ArtifactRecipe:
         return ArtifactRecipe.build(
             "export.bundle",
-            implementation_version="unified-compatibility-export-qgis-v7-single-points-scalar-only",
+            implementation_version="unified-compatibility-export-qgis-v9-optional-browser-routes",
             dependencies=deps,
             parameters={
                 "compatibility": self.compatibility,
@@ -225,6 +229,7 @@ class ExportPipeline:
                 "legacy_mwas_method": self.economy.config.legacy_mwas_method,
                 "published_crs": WGS84,
                 "qgis_parquet_datasource": "bare-relative-v1",
+                "route_geometry": self.route_geometry,
             },
         )
 
@@ -289,8 +294,8 @@ class ExportPipeline:
             shutil.copy2(economic_ref.path / "economic_graph.csv", write.output("sigma_economic_graph.csv"))
             outputs["sigma_economic_graph.csv"] = "sigma_economic_graph.csv"
 
-        with detail_phase(self.progress, "export: loading directed X and its saved road paths"):
-            x = self.analysis.load_x(deps["analysis.x"])
+        with detail_phase(self.progress, "export: loading numerical X without saved road paths"):
+            x = self.analysis.load_x(deps["analysis.x"], include_paths=False)
         centrality = self.analysis.load_centrality(deps["analysis.centrality"])
         scores_analysis = self.analysis.read_scores(deps["analysis.scores"])
         centrality_table = self.analysis.read_centrality_table(deps["analysis.centrality"])
@@ -308,7 +313,22 @@ class ExportPipeline:
             )
         )
         node_table, node_geo = build_x_node_outputs(x.graph, centrality.values, centers_analysis.crs)
-        x_paths = as_wgs84(x.paths)
+        # Mode-specific downstream geometry is decoupled from the numerical X recipe.
+        from sigma.export.routing_geometry import materialize_x_paths
+        route_mode = self.route_geometry
+        if route_mode == "precomputed":
+            road = self.spatial.analysis_road(deps)
+            x_paths = materialize_x_paths(self.analysis, x.graph, road, progress=self.progress)
+        else:
+            from sigma.web.routing_binary import write_browser_routing_graph
+            road = self.spatial.analysis_road(deps)
+            center_nodes = [int(x.graph.nodes[node]["center_network_node"])
+                            for node in node_table["node_id"]]
+            new_ids = write_browser_routing_graph(
+                road, write.output("sigma_routing_graph.bin"), center_nodes=center_nodes)
+            node_table["routing_node"] = [new_ids[i] for i in center_nodes]
+            outputs["sigma_routing_graph.bin"] = "sigma_routing_graph.bin"
+            x_paths = as_wgs84(x.paths)
         node_table.to_csv(write.output("sigma_X_nodes.csv"), index=False, float_format="%.17g", lineterminator="\n")
         x.edges.to_csv(write.output("sigma_X_edges.csv"), index=False, float_format="%.17g", lineterminator="\n")
         x.disconnected.to_csv(write.output("sigma_disconnected_overlap_pairs.csv"), index=False, lineterminator="\n")
@@ -400,6 +420,9 @@ class ExportPipeline:
             "scored_points": len(published_points),
             "disconnected_overlap_pairs": len(x.disconnected),
             "road_distance_crs": str(centers_analysis.crs),
+            "route_mode": route_mode,
+            **({"routing_graph_privacy": "base_vertices_and_x_centers_only"}
+               if route_mode == "browser" else {}),
             "export_crs": WGS84,
             "published_roads_clipped_to_area": boundary is not None,
             "road_distance_unit": "CRS units",
@@ -498,3 +521,5 @@ class ExportPipeline:
             shutil.rmtree(tmp, ignore_errors=True)
         run_manifest = output_dir / "sigma_manifest.json"
         return ExportBundle(ref, output_dir, files, run_manifest)
+
+# SIGMA_BROWSER_ROUTING_V4_1_20261105
