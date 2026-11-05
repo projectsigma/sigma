@@ -8,18 +8,19 @@ STATIC = Path(__file__).resolve().parents[1] / "src" / "sigma" / "web" / "static
 def test_unscored_layer_has_unambiguous_hollow_paint_and_initially_empty_filter():
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     layer = js.split("map.addLayer({id: 'unclustered-establishments'", 1)[1].split("map.addLayer({id: 'establishments'", 1)[0]
-    assert "type: 'symbol', source: 'unscored-points'" in layer
+    assert "type: 'circle', source: 'unscored-points'" in layer
     assert "visibility: 'none'" in layer
-    assert "'icon-image': ['get', 'unscored_icon']" in layer
+    assert "'circle-radius': ['interpolate'" in layer
     assert "map.addSource('unscored-points', {type: 'geojson', data: EMPTY()})" in js
-    assert "ctx.fillStyle = 'rgba(0,0,0,0)'" in js
+    assert "'circle-color': 'rgba(0,0,0,0)'" in layer
 
 def test_redraw_never_removes_unscored_predicate_or_opt_in():
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     fn = js.split('function syncUnscoredOverlay() {', 1)[1].split('\n  }', 1)[0]
     assert "const general = Boolean(!network && control && control.checked && !control.disabled);" in fn
-    assert "const context = Boolean(network && linked && linked.checked && !linked.disabled);" in fn
-    assert "const enabled = general || context;" in fn
+    assert "const scored = Boolean(linked && linked.checked && !linked.disabled);" in fn
+    assert "const context = Boolean(network && scored);" in fn
+    assert "const enabled = general || scored;" in fn
     assert "setData('unscored-points'" in fn
     assert "visibility('unclustered-establishments', enabled)" in fn
     assert 'unscoredToggle.checked = false' in js

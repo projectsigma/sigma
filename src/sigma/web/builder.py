@@ -708,7 +708,23 @@ def _build_unstaged_bundle(
         if "sigma_score" in points
         else np.full(len(points), np.nan)
     )
+    # UI-only, source-backed labels; preserve any explicitly supplied title.
     psic = _column(points, "psic_code", "psic")
+    psic_labels = _column(points, "psic_label")
+    for source_title in ("psic_title", "psic_name"):
+        psic_labels = psic_labels.where(psic_labels.ne(""), _column(points, source_title))
+    if profile == "local" and psic.ne("").any():
+        from sigma.classification.reference import load_builtin_psic_taxonomy
+        titles = {code: node.title for code, node in load_builtin_psic_taxonomy().nodes.items()}
+        psic_labels = psic_labels.where(psic_labels.ne(""), psic.map(lambda code: titles.get(code, "")))
+    # The smallest point in each sector is determined across ALL scored records,
+    # not just loaded tiles. Display minimum is not a synthetic establishment score.
+    sector_min_scores: dict[str, float] = {}
+    unclustered_flags = points["unclustered"].tolist() if "unclustered" in points else [False] * len(points)
+    for code, score, unclustered in zip(types, scores, unclustered_flags, strict=True):
+        if unclustered or not math.isfinite(float(score)):
+            continue
+        sector_min_scores[code] = min(float(score), sector_min_scores.get(code, float("inf")))
     basis = [
         _sector_basis(status, provisional, evidence)
         for status, provisional, evidence in zip(
@@ -741,7 +757,8 @@ def _build_unstaged_bundle(
                 "id": ids[i], "name": names.iat[i], "type": types.iat[i],
                 "cluster": clusters[i], "node_id": node_ids[i], "score": score,
                 "unclustered": bool(points["unclustered"].iat[i]) if "unclustered" in points else False,
-                "psic": psic.iat[i], "sources": sources_text.iat[i], "basis": basis[i],
+                "psic": psic.iat[i], "psic_label": psic_labels.iat[i],
+                "sources": sources_text.iat[i], "basis": basis[i],
                 "evidence": evidence_text.iat[i],
                 "original_type": original_types.iat[i],
             },
@@ -858,6 +875,7 @@ def _build_unstaged_bundle(
     sectors = [{
         "code": code, "label": labels.get(code, code), "color": colors[code],
         "points": int(point_counts.get(code, 0)), "clusters": int(cluster_counts.get(code, 0)),
+        "min_score": sector_min_scores.get(code),
         "rollup_children": [
             {**child, "color": _fixed_sector_color(child["code"]) or colors[code]}
             for child in rollup_children.get(code, [])

@@ -34,7 +34,7 @@ def test_unscored_map_layer_never_starts_visible():
     a = js.index("map.addLayer({id: 'unclustered-establishments'")
     b = js.index("map.addLayer({id: 'establishments'", a)
     layer = js[a:b]
-    assert "type: 'symbol', source: 'unscored-points'" in layer
+    assert "type: 'circle', source: 'unscored-points'" in layer
     assert "visibility: 'none'" in layer
     assert "map.addSource('unscored-points', {type: 'geojson', data: EMPTY()})" in js
     assert "filter: ['!=', ['get', 'unclustered'], true]" in js[b:b+280]
@@ -46,6 +46,7 @@ def test_map_tile_loading_requires_explicit_opt_in():
     assert "setData('points', {type: 'FeatureCollection', features: scoredFeatures})" in loader
     sync = js.split('  function syncUnscoredOverlay() {', 1)[1].split('  function applyEmphasis()', 1)[0]
     assert "const general = Boolean(!network && control && control.checked && !control.disabled);" in sync
-    assert "const context = Boolean(network && linked && linked.checked && !linked.disabled);" in sync
-    assert "const enabled = general || context;" in sync
+    assert "const scored = Boolean(linked && linked.checked && !linked.disabled);" in sync
+    assert "const context = Boolean(network && scored);" in sync
+    assert "const enabled = general || scored;" in sync
     assert "setData('unscored-points'" in sync

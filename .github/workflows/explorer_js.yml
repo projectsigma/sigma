@@ -89,5 +89,8 @@ jobs:
           echo "::group::Browser shortest-road routing worker"
           node tests/test_browser_routing_worker.js || { echo "::error file=tests/test_browser_routing_worker.js::Browser routing regression failed"; failures=$((failures + 1)); }
           echo "::endgroup::"
-          echo "Explorer JavaScript failures: $failures / 17"
+          echo "::group::Unclustered sector and partition visibility"
+          node tests/test_explorer_unclustered_partition_visibility.js || { echo "::error file=tests/test_explorer_unclustered_partition_visibility.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "Explorer JavaScript failures: $failures / 18"
           if [ "$failures" -ne 0 ]; then exit 1; fi
