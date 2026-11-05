@@ -357,7 +357,7 @@
   };
   // Refinement overlay: all help icons use one viewport-positioned tooltip.
   // Unlike a CSS-only tooltip, this is not clipped by the scrolling side panel.
-  const statHelp = {'SIGMA score': 'Published SIGMA score for the selected establishment, when present; point size in the map reflects this score. Not a technical coefficient.', 'Cluster centrality': 'Published centrality of the selected sector-cluster node, distinct from individual input-output link strengths.', 'Establishments in cluster': 'Number of establishments assigned to this sector-cluster in the published result.', 'Linked clusters': 'Distinct adjacent cluster nodes in the full X graph, before the current sector, direction and strongest-link filters.', 'X edges in / out': 'Published number of directed edges entering / leaving this X node, before the current screen filters.', 'PSIC': 'Philippine Standard Industrial Classification code of the selected establishment when available. A dash means unavailable.', 'Sector basis': 'How the establishment\'s sector was assigned. An exact tag is not independent verification of actual activity. Draft concordances and inferred ownership are provisional; flagged assignments need review.'};
+  const statHelp = {'SIGMA score': 'Published SIGMA score for the selected establishment, when present; point size in the map reflects this score. Not a technical coefficient.', 'Cluster centrality': 'Published centrality of the selected sector-cluster node, distinct from individual input-output link strengths.', 'Establishments in cluster': 'Number of establishments assigned to this sector-cluster in the published result.', 'Linked clusters': 'Distinct adjacent cluster nodes in the full X graph, before the current sector, direction and strongest-link filters.', 'X edges in / out': 'Published number of directed edges entering / leaving this X node, before the current screen filters.', 'PSIC': 'Philippine Standard Industrial Classification code of the selected establishment when available. A dash means unavailable.', 'PSIC label': 'Published PSIC classification title for this code when available, using the bundled taxonomy; a dash means no matching label was supplied.', 'Sector basis': 'How the establishment\'s sector was assigned. An exact tag is not independent verification of actual activity. Draft concordances and inferred ownership are provisional; flagged assignments need review.'};
   const columnHelp = {'direct-cluster': 'Click a linked cluster to select it. The arrows indicate whether inputs flow from or toward the selected cluster.', 'out-a': "Outgoing technical coefficient a: the selected cluster supplies an input to this cluster, per unit of the receiving cluster's output.", 'in-a': "Incoming technical coefficient a: this cluster supplies an input to the selected cluster, per unit of the selected cluster's output.", 'road-distance': 'Published shortest-path road distance between cluster centers. Distance does not determine Strongest rankings.', 'central-cluster': 'Sector-cluster identifier; click to inspect its connected network.', 'centrality': 'Published centrality value. The list is ranked by this value, not by technical coefficient.', 'establishments': 'Count of establishments represented by the cluster in the published result.'};
   function helpIcon(label, description) {
     const tip = el('span', {className: 'control-help',
@@ -492,7 +492,8 @@
   async function loadVisiblePoints() {
     const epoch = ++tileEpoch;
     // Reassert the user-controlled gate before async tile loading or redraws.
-    // A scored selection suppresses unscored points even if opt-in is checked.
+    // A scored selection suppresses zero-cluster sectors; focus-scoped
+    // unclustered points of scored sectors remain independently opt-in.
     syncUnscoredOverlay();
     const b = map.getBounds(), z = tileIndex.zoom;
     const [xa, ya] = toTile(b.getWest(), b.getNorth(), z);
@@ -552,8 +553,10 @@
         if (feature.properties) feature.properties.original_type = sigmaOriginalType(feature.properties);
         if (feature.properties && feature.properties.unclustered === true) {
           // Only classified-but-unscored point rows may enter the optional source.
-          feature.properties.unscored_icon = unscoredSectorIcons.get(String(feature.properties.original_type)) ||
-            'sigma-unscored-triangle-default';
+          // This is display sizing only: no artificial SIGMA score is assigned.
+          const sector = sectors.get(String(feature.properties.type));
+          feature.properties.visual_min_score = isNum(sector?.min_score) ?
+            sector.min_score : (meta.score_range?.[0] ?? 0);
           classifiedOnly.push(feature);
         } else scoredFeatures.push(feature);
       }
@@ -603,7 +606,8 @@
     if (!feature || !feature.layer || !feature.properties) return false;
     if (!network) return true;
     const p = feature.properties;
-    if (feature.layer.id === 'unclustered-establishments') return false;
+    if (feature.layer.id === 'unclustered-establishments')
+      return network.ring.has(String(p.voronoi_node_id || ''));
     const id = feature.layer.id === 'centers' ? p.id :
       feature.layer.id === 'establishments' ? p.node_id : null;
     return id != null && network.ring.has(String(id));
@@ -837,66 +841,93 @@
     sigmaVoronoiBounds.set(geometry, bounds);
     return bounds;
   }
-  function sigmaHighlightedPartitions() {
-    if (!network) return new Map();
+  // For a scored selection, use only the *currently highlighted* published
+  // network partitions: focus plus linked nodes in network.ring. Geographic
+  // containment does not assign a cluster, SIGMA score or network membership.
+  function sigmaSelectedPartitions() {
     const bySector = new Map();
+    if (!network) return bySector;
     for (const feature of sigmaVoronoiFeatures) {
       const p = feature.properties || {};
-      const depth = network.ring.get(String(p.node_id));
+      const id = String(p.node_id || '');
+      const depth = network.ring.get(id);
       if (depth === undefined || !feature.geometry) continue;
       const type = String(p.type);
       if (!bySector.has(type)) bySector.set(type, []);
-      bySector.get(type).push({id: String(p.node_id), depth, geometry: feature.geometry,
+      bySector.get(type).push({id, depth, geometry: feature.geometry,
         bbox: sigmaBounds(feature.geometry)});
     }
-    for (const values of bySector.values()) values.sort((a, b) => a.depth-b.depth);
+    // Prefer the focus and nearer partitions in the event of overlapping
+    // sector polygons; selection never manufactures X relationships.
+    for (const values of bySector.values())
+      values.sort((a, b) => a.depth - b.depth || a.id.localeCompare(b.id));
     return bySector;
   }
-  function sigmaVoronoiForUnscored(feature, bySector) {
+
+  function sigmaContainingSelectedPartition(feature, partitions) {
     const p = feature.properties || {};
     const point = feature.geometry?.coordinates;
     if (!Array.isArray(point) || point.length !== 2) return null;
-    for (const candidate of bySector.get(String(p.type)) || []) {
+    for (const candidate of partitions.get(String(p.type)) || []) {
       const b = candidate.bbox;
       if (point[0] < b[0] || point[0] > b[2] || point[1] < b[1] || point[1] > b[3]) continue;
       if (sigmaInsideGeometry(point, candidate.geometry)) return candidate;
     }
     return null;
   }
+
   function syncUnscoredOverlay() {
     if (!map || !map.getLayer || !map.getLayer('unclustered-establishments')) return;
     const control = $('show-unscored');
     const linked = $('sigma-show-linked-unscored');
-    const context = Boolean(network && linked && linked.checked && !linked.disabled);
+    // Two INDEPENDENT opt-ins: zero-cluster sectors versus unclustered places
+    // in sectors that also have scored clusters.
     const general = Boolean(!network && control && control.checked && !control.disabled);
-    const enabled = general || context;
+    const scored = Boolean(linked && linked.checked && !linked.disabled);
+    const context = Boolean(network && scored);
+    const enabled = general || scored;
     const sectorKey = [...hidden].sort().join('|') + '/' + [...sigmaHiddenOriginals].sort().join('|');
-    const ringKey = context ? JSON.stringify([...network.ring]) : '';
-    const sourceKey = enabled ? `${lastRenderedTileSignature || ''}|${sectorKey}|${ringKey}|${context}` : null;
+    // The exact ring changes with depth, direction, strongest links and sector
+    // filters. A focus-only key would incorrectly reuse stale selected points.
+    const ringKey = context ? [...network.ring.entries()].map(([id, step]) => `${id}:${step}`).sort().join('|') : 'unselected';
+    const sourceKey = enabled ? `${lastRenderedTileSignature || ''}|${sectorKey}|${ringKey}|${general}|${scored}` : null;
     if (unscoredRenderedKey !== sourceKey) {
-      const partitions = context ? sigmaHighlightedPartitions() : null;
+      const partitions = context ? sigmaSelectedPartitions() : null;
       const locations = [];
       if (enabled) for (const f of unscoredCandidates) {
         const p = f.properties;
         if (!p || hidden.has(String(p.type)) || !sigmaOriginalAllowed(p)) continue;
-        if (context) {
-          const containing = sigmaVoronoiForUnscored(f, partitions);
+        const sectorHasClusters = (sectors.get(String(p.type))?.clusters || 0) > 0;
+        if (!sectorHasClusters) {
+          // Zero-cluster sectors have no X partitions to select.
+          if (general) {
+            delete p.voronoi_node_id;
+            locations.push(f);
+          }
+        } else if (!network) {
+          // At rest, show ALL opted-in unclustered places of scored sectors.
+          // They are hollow points, not fabricated scored establishments.
+          if (scored) {
+            delete p.voronoi_node_id;
+            locations.push(f);
+          }
+        } else if (context) {
+          // With a scored selection, only points geographically contained in
+          // the selected/highlighted focus or linked Voronoi partitions appear.
+          const containing = sigmaContainingSelectedPartition(f, partitions);
           if (!containing) continue;
-          p.voronoi_node_id = containing.id;
-          p.voronoi_depth = containing.depth;
+          p.voronoi_node_id = containing.id; // display-only provenance
+          locations.push(f);
         }
-        locations.push(f);
       }
       setData('unscored-points', {type: 'FeatureCollection', features: locations});
       unscoredRenderedKey = sourceKey;
     }
-    map.setPaintProperty('unclustered-establishments', 'icon-opacity', context ?
-      networkDepthOpacity('voronoi_node_id', 0.96,
-        step => fadeByStep(0.90, step), 0) : 0.84);
     visibility('unclustered-establishments', enabled);
     const key = $('unclustered-key');
     if (key) key.hidden = !enabled;
   }
+
   function applyEmphasis() {
     const ids = network ? [...network.ring.keys()] : null;
     const focus = network ? network.focus : '';
@@ -922,8 +953,8 @@
       networkDepthOpacity('id', 0, step => fadeByStep(1, step), 0.16) : 1);
     map.setFilter('establishments', ['all', ['!=', ['get', 'unclustered'], true],
       notHidden(), sigmaOriginalFilter()]);
-    // Unscored overlay is opt-in. A selected X cluster (or scored place)
-    // hides it completely; clearing selection restores the user's choice.
+    // Unscored visibility is opt-in: zero-cluster sectors when unselected,
+    // scored-sector unclustered points only inside the selected partition.
     syncUnscoredOverlay();
     updateCenterVisibility();
     if (map.getLayer('roads-line')) map.setPaintProperty('roads-line', 'line-opacity', ids ? 0.18 : 0.38);
@@ -1145,6 +1176,7 @@
       $('stats').replaceChildren(
         stat('SIGMA score', 'N/A'), stat('Cluster centrality', 'N/A'),
         stat('Linked clusters', 'N/A'), stat('PSIC', p.psic || '—'),
+        stat('PSIC label', p.psic_label || '—'),
         stat('Sector basis', p.basis || '—'),
         ...(rollupOriginText(p) ? [stat('Original industry', rollupOriginText(p))] : []));
       return;
@@ -1160,6 +1192,7 @@
       stat('Linked clusters', fmtNum(linked, 0)),
       stat('X edges in / out', `${fmtNum(n.in_degree, 0)} / ${fmtNum(n.out_degree, 0)}`),
       stat('PSIC', p && p.psic ? String(p.psic) : '—'),
+      stat('PSIC label', p && p.psic_label ? String(p.psic_label) : '—'),
       stat('Sector basis', p && p.basis ? String(p.basis) : '—'),
       ...(rollupOriginText(p) ? [stat('Original industry', rollupOriginText(p))] : []),
     );
@@ -2004,40 +2037,9 @@
   // ------------------------------------------------------------------ setup
   // A white inverted triangle with a sector-colored outline for each economic type.
   // Canvas images are registered once after MapLibre's style has loaded.
-  // Unscored locations: independent, hollow, UPRIGHT triangle icons.
+  // Unscored locations use separate, hollow circles.
   // Cluster centers remain the original, larger INVERTED triangles.
-  const unscoredSectorIcons = new Map();
-  function registerUnscoredTriangles() {
-    unscoredSectorIcons.clear();
-    let index = 0;
-    const add = (name, outline) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = 24;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw Error('Cannot render unscored place triangle: canvas 2D unavailable.');
-      ctx.clearRect(0, 0, 24, 24);
-      ctx.fillStyle = 'rgba(0,0,0,0)';
-      ctx.strokeStyle = outline;
-      ctx.lineWidth = 2.2;
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      ctx.moveTo(12, 4); ctx.lineTo(21, 20); ctx.lineTo(3, 20);
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-      map.addImage(name, ctx.getImageData(0, 0, 24, 24));
-    };
-    for (const [code, sector] of sectors) {
-      const name = `sigma-unscored-triangle-${index++}`;
-      add(name, sector.color || '#b11116');
-      unscoredSectorIcons.set(String(code), name);
-    }
-    for (const sector of sectors.values()) for (const child of (sector.rollup_children || [])) {
-      if (unscoredSectorIcons.has(String(child.code))) continue;
-      const name = `sigma-unscored-origin-${index++}`;
-      add(name, child.color || sector.color || '#b11116');
-      unscoredSectorIcons.set(String(child.code), name);
-    }
-    add('sigma-unscored-triangle-default', '#b11116');
-  }
+  // Unscored points use native circles; no symbol images are necessary.
 
   function centerIconExpression() {
     const size = 32;
@@ -2133,12 +2135,14 @@
     const [minimum, maximum] = meta.score_range || [null, null];
     // Circle AREA, not radius, is proportional to normalized SIGMA score.
     // Each zoom uses restrained min/max sizes so dense groups remain legible.
-    const normalizedScore = (isNum(minimum) && isNum(maximum) && minimum < maximum)
-      ? ['max', 0, ['min', 1, ['/',
-          ['-', ['coalesce', ['get', 'score'], minimum], minimum], maximum - minimum]]]
-      : 0.5;
-    const scoreRadius = (small, large) => ['sqrt', ['+', small * small,
-      ['*', large * large - small * small, normalizedScore]]];
+    const scoreRadius = (small, large, field = 'score') => {
+      const normalized = (isNum(minimum) && isNum(maximum) && minimum < maximum)
+        ? ['max', 0, ['min', 1, ['/',
+            ['-', ['coalesce', ['get', field], minimum], minimum], maximum - minimum]]]
+        : (field === 'score' ? 0.5 : 0);  // Preserve old uniform-score glyph sizing.
+      return ['sqrt', ['+', small * small,
+        ['*', large * large - small * small, normalized]]];
+    };
     const sectorColorExpr = ['match', ['get', 'type'], ...sectorMatchPairs(), '#657f78'];
     const sigmaPointColorExpr = sigmaEstablishmentColors();
     if (data.boundary) {
@@ -2237,13 +2241,15 @@
     // network clustering; no score or X node is implied. Draw beneath scores.
     // Separate EMPTY source by default: impossible to double-render an unscored point.
     map.addSource('unscored-points', {type: 'geojson', data: EMPTY()});
-    registerUnscoredTriangles();
-    map.addLayer({id: 'unclustered-establishments', type: 'symbol', source: 'unscored-points',
-      filter: ['==', ['get', 'unclustered'], true],
-      layout: {visibility: 'none', 'icon-image': ['get', 'unscored_icon'],
-        'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.32, 14, 0.38, 17, 0.50],
-        'icon-allow-overlap': true, 'icon-ignore-placement': true},
-      paint: {'icon-opacity': 0.84}});
+    map.addLayer({id: 'unclustered-establishments', type: 'circle', source: 'unscored-points',
+      filter: ['==', ['get', 'unclustered'], true], layout: {visibility: 'none'},
+      paint: {'circle-color': 'rgba(0,0,0,0)',
+        'circle-radius': ['interpolate', ['linear'], ['zoom'],
+          11, scoreRadius(1.4, 5.7, 'visual_min_score'),
+          14, scoreRadius(2.0, 10.5, 'visual_min_score'),
+          17, scoreRadius(3.2, 16.5, 'visual_min_score')],
+        'circle-opacity': 0.82, 'circle-stroke-color': sigmaPointColorExpr,
+        'circle-stroke-width': 1.2, 'circle-stroke-opacity': 0.95}});
     map.addLayer({id: 'establishments', type: 'circle', source: 'points',
       filter: ['!=', ['get', 'unclustered'], true], paint: {
       'circle-color': sigmaPointColorExpr,
@@ -2415,7 +2421,8 @@
       linkedBox.checked = false;
       linkedBox.disabled = meta.profile !== 'local' || !meta.counts?.classified_unclustered_points;
       const holder = el('label', {className: 'sigma-linked-unscored-control'},
-        linkedBox, el('span', {textContent: 'Unclustered within highlighted partitions'}));
+        linkedBox, el('span', {textContent: 'Show unclustered for scored sectors'}));
+      holder.title = 'Show unclustered places of scored sectors at rest. With a selection, show only those in the highlighted focus and linked Voronoi partitions; no network membership or score is assigned.';
       control.closest('.sector-overlay-control')?.after(holder);
       linkedBox.addEventListener('change', syncUnscoredOverlay);
     }
@@ -2535,3 +2542,5 @@
 // sigma-explorer-strict-triangle-sources-header-paint-v3.1-20261029
 
 // SIGMA_BROWSER_ROUTING_V4_1_20261105
+// SIGMA_UNCLUSTERED_CIRCLES_PSIC_LABELS_20261105
+// SIGMA_UNCLUSTERED_SELECTED_PARTITIONS_VISIBILITY_20261106_V2

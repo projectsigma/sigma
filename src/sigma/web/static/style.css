@@ -1034,3 +1034,37 @@ html[data-theme="dark"] .sector-panel .sector-list .sector-item.sector-item--uns
   border-bottom:1px solid var(--border);}
 .sigma-linked-unscored-control input {margin:0;flex:none;}
 html[data-theme='dark'] .sigma-linked-unscored-control {color:var(--muted);}
+
+/* SIGMA_UNCLUSTERED_CIRCLES_PSIC_LABELS_20261105: aligned opt-in rows. */
+.sector-panel .sector-overlay-control,
+.sector-panel .sigma-linked-unscored-control {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 6px 9px;
+  min-height: 29px;
+  border-bottom: 1px solid var(--border);
+}
+.sector-panel .sector-overlay-control label,
+.sector-panel .sigma-linked-unscored-control {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  color: var(--muted);
+}
+.sector-panel .sector-overlay-control input,
+.sector-panel .sigma-linked-unscored-control input {
+  box-sizing: border-box;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 13px;
+  accent-color: #b52e42;
+}
+.sector-panel .sigma-linked-unscored-control span {min-width: 0; overflow: hidden; text-overflow: ellipsis;}
+.sector-panel .sigma-linked-unscored-control:has(input:disabled) {opacity: .50; cursor: default;}
