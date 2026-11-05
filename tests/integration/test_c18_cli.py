@@ -342,9 +342,12 @@ def test_managed_roads_and_file_roads_are_mutually_exclusive(tmp_path: Path):
             "--roads", str(roads),
             "--managed-roads",
         ],
+        env={"COLUMNS": "200", "NO_COLOR": "1"},
     )
     assert result.exit_code == 2
-    assert "either --roads FILE or --managed-roads" in result.output
+    # Rich may wrap or color the message on different CI terminal widths.
+    from click import unstyle
+    assert "either --roads FILE or --managed-roads" in unstyle(result.output)
 
 def test_doctor_reports_complete_declared_runtime_dependency_surface():
     result = runner.invoke(app, ["doctor", "--json"])
