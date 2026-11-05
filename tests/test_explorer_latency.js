@@ -26,10 +26,12 @@ function section(start, end) {
     'computeNetworkTriangleStyles', 'renderSelection', 'ready', 'applyEmphasis', 'updateStatus',
     'renderSectors', 'drawGraph', 'renderConnections', 'showRoutes', 'setData', 'EMPTY',
     'requestAnimationFrame', 'setTimeout', 'document', 'sigmaSetHoveredPartition',
+    'meta', 'cancelBrowserPending',
     `let refreshEpoch=0, routeEpoch=0, hoverEpoch=0, pendingHoverEvent=null, sigmaTriangleStyleByNode=null, network=null;\n${script}\nreturn {refresh};`);
   const callbacks = ['renderSelection', 'applyEmphasis', 'updateStatus', 'renderSectors', 'drawGraph', 'renderConnections', 'showRoutes'];
   const cb = Object.fromEntries(callbacks.map(key => [key, () => work.push(`${key}:${lastSelectionId}`)]));
   const graphDetails = {open: false};
+  const mode = {route_mode: 'precomputed'};
   const handler = wrapped((_label, fn) => fn(), () => {}, new Map(), 640, () => {}, sharedSelection, nodeIndex, id => ({focus:id}), () => new Map(),
     cb.renderSelection, true, cb.applyEmphasis, cb.updateStatus, cb.renderSectors, cb.drawGraph,
     cb.renderConnections, cb.showRoutes, (name, data) => {
@@ -44,7 +46,7 @@ function section(start, end) {
     }}, id => {
       assert.equal(id, null, 'Refresh must clear the hovered partition');
       work.push('hover:clear');
-    });
+    }, mode, () => work.push('browser:cancel'));
   handler.refresh();
   assert.equal(graphDetails.open, true, 'selected network should expand graph');
   assert.deepEqual(work.slice(0,3), ['hover:clear','routes:clear','route-hover:clear'],
@@ -70,6 +72,13 @@ function section(start, end) {
   lastSelectionId = 'first';
   handler.refresh();
   assert.equal(graphDetails.open, true, 'new network should reopen graph');
+  // Switching to browser mode must synchronously cancel obsolete worker jobs.
+  const prior = work.length;
+  mode.route_mode = 'browser';
+  handler.refresh();
+  assert.deepEqual(work.slice(prior, prior + 4),
+    ['hover:clear', 'browser:cancel', 'routes:clear', 'route-hover:clear'],
+    'browser routing must cancel pending worker jobs before clearing old paths');
 }
 
 // Hover is coalesced, and a newer pointer event wins within a frame.
