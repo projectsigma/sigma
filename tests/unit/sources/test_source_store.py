@@ -391,3 +391,35 @@ def test_sigma_home_selects_default_shared_source_root(tmp_path, monkeypatch):
     monkeypatch.setenv("SIGMA_HOME", str(tmp_path / "sigma-home"))
     store = SourceStore()
     assert store.root == (tmp_path / "sigma-home" / "sources").resolve()
+
+def test_source_ref_defaults_are_independent_and_immutable(tmp_path):
+    """Python 3.11 dataclasses must accept the defaults; each source stays immutable."""
+    from dataclasses import MISSING, fields
+    from types import MappingProxyType
+
+    from sigma.sources import SourceRef
+
+    defaults = {item.name: item for item in fields(SourceRef)}
+    for name in ("selection", "metadata"):
+        assert defaults[name].default is MISSING
+        assert defaults[name].default_factory is not MISSING
+
+    def make_ref(name):
+        return SourceRef(
+            source_id=name,
+            kind="user-file",
+            provider="user",
+            name=name,
+            sha256="0" * 64,
+            size=0,
+            path=tmp_path / name,
+        )
+
+    first, second = make_ref("first"), make_ref("second")
+    for field_name in ("selection", "metadata"):
+        left, right = getattr(first, field_name), getattr(second, field_name)
+        assert isinstance(left, MappingProxyType)
+        assert dict(left) == dict(right) == {}
+        assert left is not right
+        with pytest.raises(TypeError):
+            left["unexpected"] = "mutation"
