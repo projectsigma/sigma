@@ -32,7 +32,8 @@ def test_marker_is_hollow_circle_and_different_from_cluster_center():
     layer = s.split("map.addLayer({id: 'unclustered-establishments'",1)[1].split("map.addLayer({id: 'establishments'",1)[0]
     assert "type: 'circle'" in layer
     assert "'circle-color': 'rgba(0,0,0,0)'" in layer
-    assert "scoreRadius(1.4, 5.7, 'visual_min_score')" in layer
+    assert "scoreRadius(2.0, 7.3, 'visual_min_score')" in layer
+    assert "scoreRadius(4.3, 19.0, 'visual_min_score')" in layer
     assert "'circle-stroke-color': sigmaPointColorExpr" in layer
     assert "'circle-radius': ['interpolate'" in layer
 
