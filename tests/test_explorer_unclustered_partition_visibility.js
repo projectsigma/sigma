@@ -83,4 +83,46 @@ check([]); assert.equal(visible, false);
 sandbox.network = null;
 controls['show-unscored'].checked = false;
 check([]); assert.equal(visible, false);
+// V11: selected X focus has a visible published Voronoi boundary, but linked
+// rings stay borderless. Ordinary All-sectors retains its own outlines.
+{
+  const visibilityState = new Map();
+  const filters = new Map();
+  const styles = new Map();
+  const ctx = {
+    state: {partitions: 'network'},
+    network: {focus: 'a1', ring: new Map([['a1', 0], ['b1', 1]])},
+    visibility: (id, shown) => visibilityState.set(id, shown),
+    map: {
+      setFilter: (id, value) => filters.set(id, value),
+      setPaintProperty: (id, property, value) => styles.set(`${id}.${property}`, value),
+    },
+    sectorMatchPairs: () => ['A', '#aabbcc', 'B', '#bbccdd'],
+    notHidden: () => ['all'],
+  };
+  vm.createContext(ctx);
+  vm.runInContext(extract('  function updatePartitions() {',
+    '  // Render the directed X edges'), ctx);
+  ctx.updatePartitions();
+  assert.equal(visibilityState.get('partition-focus-line'), true,
+    'The selected X focus must display its real partition boundary');
+  assert.equal(visibilityState.get('partition-linked-line'), false,
+    'Do not draw persistent borders on linked partitions');
+  assert.equal(visibilityState.get('partition-line'), false);
+  assert.equal(filters.get('partition-focus-line')[2], 'a1');
+  ctx.state.partitions = 'all'; ctx.network = null;
+  ctx.updatePartitions();
+  assert.equal(visibilityState.get('partition-line'), true,
+    'Normal sector overview must preserve original partition boundaries');
+  assert.equal(visibilityState.get('partition-focus-line'), false);
+  ctx.state.partitions = 'network';
+  ctx.updatePartitions();
+  assert.equal(visibilityState.get('partition-focus-line'), false,
+    'Do not show an empty selected outline with no focus');
+}
+// The actual native-vector source retains the score-dependent, zoom-outermost
+// MapLibre radius expression; only its presentation sizes have changed.
+assert.match(js, /8, 1\.1, 9, 1\.5, 10, 1\.9, 11, 2\.4,/);
+assert.match(js, /12, scoreRadius\(2\.6, 7\.4\), 13, scoreRadius\(3\.1, 9\.2\),/);
+assert.match(js, /'circle-radius': \['interpolate', \['linear'\], \['zoom'\]/);
 console.log('PASS: 10 visibility states; selected focus+linked partitions, independent toggles, ring cache invalidation');

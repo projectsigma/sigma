@@ -109,6 +109,11 @@ def test_bundle_has_directed_pairs_exact_paths_and_tiled_points(published: Path,
     graph = _json(dest / "data/graph.json")
     assert {(e["from"], e["to"]) for e in graph["edges"]} == {(A, B), (B, A), (C, A)}
     assert next(n for n in graph["nodes"] if n["id"] == A)["members"] == 1
+    # The Explorer panel reads graph-nodes.json, not graph.json.
+    lazy_nodes = _json(dest / "data/graph-nodes.json")["nodes"]
+    member_totals = {n["id"]: n["members"] for n in graph["nodes"]}
+    assert {n["id"]: n["members"] for n in lazy_nodes} == member_totals
+    assert member_totals == {A: 1, B: 1, C: 1}
 
     # Each directed X edge keeps its OWN SIGMA-computed route, even for reciprocal links.
     node_a = next(n for n in graph["nodes"] if n["id"] == A)
