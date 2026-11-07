@@ -63,7 +63,7 @@ export, without changing the numerical X graph. Neither edge weight nor directio
 sourcing relationship. The routing graph itself is undirected. See
 [The X graph](../methods/x_graph.md) for the exact equation and limitations.
 
-For large views, Explorer can switch to density shading rather than loading more than 150,000 establishments at once. The network view is capped at 300 nodes and 1,500 directed edges per selection and marks truncated displays. Neither cap modifies the original SIGMA outputs.
+At metro zoom levels, Explorer displays a deterministic preview of REAL establishment locations using native vector tiles, not generated centroids or heatmaps. Zoom 12 and above displays all scored establishments, including a 2 km scale-bar view of Metro Manila. Preview samples are incomplete counts; the industry table shows actual published counts. Exact original point records and establishment finder remain unchanged. Network X, scores, colors and overlapping Voronoi shapes remain analytically unchanged. The network view is capped at 300 nodes and 1,500 directed edges per selection and marks truncated displays. Neither cap modifies the original SIGMA outputs.
 
 ## Fixed industry colors, rolled-up sectors, and contextual inspection
 
