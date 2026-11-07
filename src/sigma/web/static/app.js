@@ -681,6 +681,101 @@
     visibility('aggregate-establishments', false);
   }
 
+  // SIGMA_EXPLORER_GHOST_CONTEXT_V12
+  // Show a very faint, one-zoom-behind sample of SCORED establishments that
+  // are NOT part of Network X, but fall inside a highlighted partition.
+  // Use MapLibre's supported `within` feature filter: no new GeoJSON point
+  // source, no generated membership, no modified Voronoi geometry, no clicks.
+  let lastGhostContextKey = null;
+  let lastGhostContextGeometry = null; // no filter rebuild on ordinary pan
+  const GHOST_MAX_PARTITIONS = 12;
+  const GHOST_MAX_VERTICES = 2800; // fail closed on extremely complex context
+
+  function ghostContextRate(zoom) {
+    // Two real-point LOD steps behind the main layer. Ghosts stay <=10%
+    // even at very high zoom; primary selected-network dots remain unchanged.
+    if (zoom < 11) return 0.015;
+    if (zoom < 12) return 0.04;
+    return 0.10;
+  }
+
+  function ghostVertexCount(values) {
+    if (!Array.isArray(values)) return 0;
+    if (values.length >= 2 && typeof values[0] === 'number' &&
+        typeof values[1] === 'number') return 1;
+    let total = 0;
+    for (const item of values) total += ghostVertexCount(item);
+    return total;
+  }
+
+  function syncGhostContextLayer() {
+    const layer = 'native-ghost-establishments';
+    if (!map || !map.getLayer || !map.getLayer(layer)) return;
+    // No ghost outside selected-network mode, including while async X edges
+    // or polygons are loading. The normal all-sector view remains unchanged.
+    if (!meta?.native_points_v7 || !network || !selection ||
+        state.partitions !== 'network' || !sigmaVoronoiFeatures.length) {
+      lastGhostContextKey = null;
+      lastGhostContextGeometry = null;
+      visibility(layer, false);
+      return;
+    }
+    const ringIds = [...network.ring.keys()];
+    const allowed = new Set(ringIds);
+    const rate = ghostContextRate(map.getZoom());
+    const key = [network.focus, ringIds.join('|'), state.partitions,
+      [...hidden].sort().join('|'), [...sigmaHiddenOriginals].sort().join('|'),
+      rate].join('/');
+    // Camera panning must NOT rebuild/recompile the expensive `within` filter.
+    // A new selection, visibility change, LOD bucket or polygon collection
+    // still invalidates the cached filter.
+    if (key === lastGhostContextKey && lastGhostContextGeometry === sigmaVoronoiFeatures) {
+      visibility(layer, true);
+      return;
+    }
+    // Keep the nearest X-ring polygons irrespective of viewport, so the
+    // filter remains stable as the user pans across the same selection.
+    const candidates = sigmaVoronoiFeatures.filter(feature => {
+      const p = feature.properties || {};
+      return allowed.has(String(p.node_id || '')) && !!feature.geometry &&
+        !hidden.has(String(p.type));
+    }).sort((a, b) =>
+      (network.ring.get(String(a.properties.node_id)) ?? 99) -
+      (network.ring.get(String(b.properties.node_id)) ?? 99) ||
+      String(a.properties.node_id).localeCompare(String(b.properties.node_id)));
+    const included = [];
+    let vertices = 0;
+    for (const feature of candidates) {
+      if (included.length >= GHOST_MAX_PARTITIONS) break;
+      const count = ghostVertexCount(feature.geometry.coordinates);
+      // Keep the geometry budget strict. An extremely detailed polygon is
+      // omitted from GHOSTS rather than slowing the selected-network map.
+      // The original, unsimplified Voronoi partition remains drawn normally.
+      if (vertices + count > GHOST_MAX_VERTICES) continue;
+      vertices += count;
+      included.push(feature);
+    }
+    if (!included.length) {
+      lastGhostContextKey = null;
+      lastGhostContextGeometry = null;
+      visibility(layer, false);
+      return;
+    }
+    // MapLibre `all` short-circuits left to right. Reject ~90-98.5% of
+    // potential points cheaply BEFORE evaluating the polygon containment.
+    const footprint = {type: 'FeatureCollection', features: included.map(f =>
+      ({type: 'Feature', properties: {}, geometry: f.geometry}))};
+    const filter = ['all', ['!=', ['get', 'unclustered'], true],
+      ['has', 'lod_rank'], ['<', ['get', 'lod_rank'], rate],
+      notHidden(), sigmaOriginalFilter(),
+      ['!', ['in', ['get', 'node_id'], ['literal', ringIds]]],
+      ['within', footprint]];
+    map.setFilter(layer, filter);
+    lastGhostContextKey = key;
+    lastGhostContextGeometry = sigmaVoronoiFeatures;
+    visibility(layer, true);
+  }
+
   async function loadVisiblePoints() {
     const epoch = ++tileEpoch;
     // Reassert the user-controlled gate before async tile loading or redraws.
@@ -711,6 +806,7 @@
       setData('points', EMPTY());
       setData('aggregates', EMPTY());
       syncNativePointLayer();
+      syncGhostContextLayer(); // sync on zoom and pan, not just on selection
       const general = $('show-unscored');
       const linked = $('sigma-show-linked-unscored');
       const wantUnscored = (general && general.checked && !general.disabled) ||
@@ -1244,6 +1340,7 @@
     // Native vector tiles eliminate per-pan scored GeoJSON rebuilds.
     if (meta.native_points_v7) syncNativePointLayer();
     else syncRenderedEstablishments();
+    if (meta.native_points_v7) syncGhostContextLayer();
     updateCenterVisibility();
     if (map.getLayer('roads-line')) map.setPaintProperty('roads-line', 'line-opacity', ids ? 0.18 : 0.38);
     if (map.getLayer('roads-line') && themeMode === 'dark')
@@ -1901,6 +1998,7 @@
         setData('aggregates', EMPTY());
         updatePartitions();
         syncNativePointLayer();
+        syncGhostContextLayer(); // prevent stale ghosts during async X load
         updateStatus('Loading selected Network X neighborhood…');
       }
       preloadNetworkAdjacency(selection.id, epoch).then(complete => {
@@ -2652,6 +2750,20 @@
       const root = location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, '');
       map.addSource('native-points', {type: 'vector',
         tiles: [root + 'data/points-v7/{z}/{x}/{y}.pbf'], minzoom: 8, maxzoom: 13});
+      // V12: a ghost context layer SHARING the native MVT source, beneath
+      // scored and opt-in hollow points. Only actual scored places can appear.
+      // The within/LOD/other-X filters are installed upon network selection.
+      map.addLayer({id: 'native-ghost-establishments', type: 'circle',
+        source: 'native-points', 'source-layer': 'places',
+        filter: ['==', ['get', 'id'], '__no_ghost_context__'],
+        layout: {visibility: 'none'},
+        paint: {'circle-color': sigmaPointColorExpr,
+          'circle-radius': ['interpolate', ['linear'], ['zoom'],
+            8, 0.65, 9, 0.9, 10, 1.1, 11, 1.5, 12, 1.9,
+            13, scoreRadius(1.8, 6.3), 15, scoreRadius(2.3, 8.0),
+            17, scoreRadius(3.2, 11.0)],
+          'circle-opacity': 0.30, 'circle-stroke-width': 0}},
+        'unclustered-establishments');
       map.addLayer({id: 'native-establishments', type: 'circle',
         source: 'native-points', 'source-layer': 'places',
         filter: ['all', ['!=', ['get', 'unclustered'], true], notHidden(), sigmaOriginalFilter()],

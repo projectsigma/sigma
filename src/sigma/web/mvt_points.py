@@ -61,12 +61,15 @@ def _mercator(lon: float, lat: float, zoom: int) -> tuple[float, float]:
             (1 - math.asinh(math.tan(math.radians(lat))) / math.pi) * 0.5 * n)
 
 
-def _keep(identifier: str, rate: float) -> bool:
-    if rate >= 1:
-        return True
-    # Stable across refreshes and levels: z10's points are a subset of z11's.
+def _lod_rank(identifier: str) -> float:
+    """Stable 0..1 preview rank shared by published tiles and browser ghost LOD."""
     digest = hashlib.blake2b(identifier.encode("utf-8"), digest_size=8, person=b"sigmaLOD").digest()
-    return int.from_bytes(digest, "big") / (2 ** 64) < rate
+    return int.from_bytes(digest, "big") / (2 ** 64)
+
+
+def _keep(identifier: str, rate: float) -> bool:
+    # Identical inclusion threshold to v7, now also exported for ghost context.
+    return rate >= 1 or _lod_rank(identifier) < rate
 
 
 def _feature_properties(raw: dict[str, Any]) -> dict[str, Any]:
@@ -137,7 +140,11 @@ def write_point_tiles(root: Path, source_tiles: dict[tuple[int, int], list[dict[
                 xx, yy = _mercator(lon, lat, z)
                 tx, ty = math.floor(xx), math.floor(yy)
                 fx, fy = round((xx - tx) * EXTENT), round((yy - ty) * EXTENT)
-                groups[(tx, ty)].append((fx, fy, _feature_properties(props)))
+                native_props = _feature_properties(props)
+                # Display-only: permits one-zoom-behind filtering in the SAME
+                # MVT source. It never changes score, cluster or X membership.
+                native_props["lod_rank"] = _lod_rank(identifier)
+                groups[(tx, ty)].append((fx, fy, native_props))
         for (x, y), entries in groups.items():
             target = root / f"data/points-v7/{z}/{x}/{y}.pbf"
             target.parent.mkdir(parents=True, exist_ok=True)

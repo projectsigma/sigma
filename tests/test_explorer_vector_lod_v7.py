@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import json
+import struct
 from pathlib import Path
-from sigma.web.mvt_points import _keep, _mercator, write_point_tiles, ZOOM_RATES
+from sigma.web.mvt_points import _keep, _lod_rank, _mercator, write_point_tiles, ZOOM_RATES
 
 
 def _read_uvarint(data: bytes, pos: int) -> tuple[int, int]:
@@ -56,6 +57,12 @@ def _tile_ids(path: Path) -> set[str]:
             pairs.append((keys[key], values[val]))
         identity = next(v for k, v in pairs if k == 'id')
         ident = next(v.decode() for f, v in _fields(identity) if f == 1)
+        # Every scored MVT feature carries the SAME deterministic hash rank
+        # used by z8–11 previews. Ghost context never adds artificial points.
+        lod_bytes = next(v for key, v in pairs if key == 'lod_rank')
+        rank = struct.unpack('<d', next(v for f, v in _fields(lod_bytes) if f == 3))[0]
+        assert rank == _lod_rank(ident)
+        assert 0 <= rank < 1
         assert len([1 for f, v in _fields(feature) if f == 4]) == 1
         ids.add(ident)
     return ids
