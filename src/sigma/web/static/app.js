@@ -70,6 +70,12 @@
   let finderEpoch = 0, finderTimer = null;
   let tileEpoch = 0, routeEpoch = 0, hoverEpoch = 0;
   let lastRenderedTileSignature = null; // browser-only display cache, not data cache
+  let aggregateIndex = null; // lazy grid index; no synthetic network membership
+  const aggregateLevelsFallback = [11, 13, 15, 17];
+  // Current-view data only. Hidden/unlinked establishments are dropped before
+  // submitting a MapLibre source, rather than painted at near-zero opacity.
+  let visiblePointGroups = null;
+  let visibleAggregateFeatures = [];
   let unscoredCandidates = []; // classified but NO SIGMA score, never in scored map source
   let unscoredRenderedKey = null; // only populated upon explicit user opt-in
   let ready = false;             // map layers exist
@@ -146,13 +152,16 @@
       }
       // Against a dark map, muted/dark strokes avoid bright halos around
       // thousands of colored establishments. Preserve the focus outline.
+      paint('native-establishments', 'circle-stroke-color', dark ? '#252323' : '#ffffff');
       paint('establishments', 'circle-stroke-color', network ?
         ['case', ['==', ['get', 'node_id'], network.focus], dark ? '#e7a0a8' : COLOR.focus,
           dark ? '#252323' : '#ffffff'] : (dark ? '#252323' : '#ffffff'));
       paint('partition-linked-fill', 'fill-opacity', network ?
-        networkDepthOpacity('node_id', 0, step => fadeByStep(dark ? 0.17 : 0.105, step), 0) :
-        (dark ? 0.17 : 0.105));
-      paint('partition-focus-fill', 'fill-opacity', dark ? 0.19 : 0.25);
+        networkDepthOpacity('node_id', 0, step => voronoiOpacity(dark ? 0.16 : 0.18, step), 0) :
+        (dark ? 0.16 : 0.18));
+      paint('partition-focus-fill', 'fill-opacity', dark ? 0.24 : 0.30);
+      if (state.partitions === 'network' && network)
+        paint('partition-fill', 'fill-color', ['match', ['get', 'type'], ...sectorMatchPairs(), '#657f78']);
       paint('partition-linked-line', 'line-opacity', network ?
         networkDepthOpacity('node_id', 0, step => fadeByStep(dark ? 0.70 : 0.78, step), 0) :
         (dark ? 0.70 : 0.78));
@@ -216,14 +225,25 @@
   }
 
   // ------------------------------------------------------------------ helpers
+  // LRU bounds fetched JSON. Otherwise browsing across a large region retains
+  // every parsed point, summary, and adjacency shard indefinitely in JS memory.
+  const volatileJSON = path => /^(data\/(tiles|aggregate|adjacency|partitions)\/)/.test(path) &&
+    path !== 'data/aggregate/index.json';
+  const JSON_CACHE_LIMIT = 96;
   const getJSON = path => {
-    if (!jsonCache.has(path)) {
-      jsonCache.set(path, fetch(path).then(r => {
-        if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
-        return r.json();
-      }).catch(err => { jsonCache.delete(path); throw err; }));
+    if (jsonCache.has(path)) {
+      const hit = jsonCache.get(path);
+      jsonCache.delete(path); jsonCache.set(path, hit);
+      return hit;
     }
-    return jsonCache.get(path);
+    const promise = fetch(path).then(r => {
+      if (!r.ok) throw new Error(`${path}: HTTP ${r.status}`);
+      return r.json();
+    }).catch(err => { if (jsonCache.get(path) === promise) jsonCache.delete(path); throw err; });
+    jsonCache.set(path, promise);
+    const disposable = [...jsonCache.keys()].filter(volatileJSON);
+    for (let i = 0; i < disposable.length - JSON_CACHE_LIMIT; i++) jsonCache.delete(disposable[i]);
+    return promise;
   };
   const routeCache = new Map();
   const ROUTE_CACHE_LIMIT = 96; // bounded *expanded* route collections, not establishment tiles
@@ -478,6 +498,53 @@
     return SigmaGraph.buildNetwork(focus, linksOf, state.depth, LIMIT);
   }
 
+  function registerEdge(e) {
+    for (const id of [e.from, e.to]) {
+      if (!pairIndex.has(id)) pairIndex.set(id, new Map());
+    }
+    const a = pairIndex.get(e.from), b = pairIndex.get(e.to);
+    if (!a.has(e.to)) a.set(e.to, {other: e.to, out: null, in: null});
+    if (!b.has(e.from)) b.set(e.from, {other: e.from, out: null, in: null});
+    a.get(e.to).out = e;
+    b.get(e.from).in = e;
+  }
+
+  // Preload exactly the adjacency needed by the existing, unchanged synchronous
+  // SigmaGraph.buildNetwork BFS, including outer-ring cross-links and reciprocals.
+  async function preloadNetworkAdjacency(focus, epoch) {
+    pairIndex.clear();
+    const fetched = new Set();
+    const fetchFor = async ids => {
+      const shards = [...new Set(ids.map(id => nodeIndex.get(id)?.shard)
+        .filter(n => Number.isInteger(n)))].filter(s => !fetched.has(s));
+      for (let offset = 0; offset < shards.length; offset += 8) {
+        const batch = shards.slice(offset, offset + 8);
+        const files = await Promise.all(batch.map(shard => getJSON(`data/adjacency/${String(shard).padStart(4, '0')}.json`)));
+        if (epoch !== refreshEpoch) return false;
+        for (let i = 0; i < files.length; i++) {
+          for (const edge of files[i].edges || []) registerEdge(edge);
+          fetched.add(batch[i]);
+        }
+      }
+      return true;
+    };
+    const discovered = new Set([focus]);
+    let frontier = [focus];
+    const depth = state.depth === 'all' ? Infinity : Number(state.depth);
+    for (let step = 0; step < depth && frontier.length; step++) {
+      if (!await fetchFor(frontier)) return false;
+      if (epoch !== refreshEpoch) return false;
+      const next = [];
+      for (const id of frontier) for (const relation of linksOf(id)) {
+        if (discovered.has(relation.other) || discovered.size >= LIMIT.graphNodes) continue;
+        discovered.add(relation.other);
+        next.push(relation.other);
+      }
+      frontier = next;
+    }
+    return await fetchFor([...discovered]);
+  }
+
   const kindOf = (fwd, back) => (fwd && back) ? 'both' : fwd ? 'outgoing' : 'incoming';
 
   // ------------------------------------------------------------------ establishments (tiled)
@@ -488,6 +555,131 @@
     const y = Math.floor((1 - Math.asinh(Math.tan(phi)) / Math.PI) / 2 * n);
     return [Math.max(0, Math.min(n - 1, x)), Math.max(0, Math.min(n - 1, y))];
   };
+
+  // Dropping filtered records here avoids MapLibre tile-worker, geometry,
+  // placement, and GPU work. Setting near-zero opacity alone does not.
+  function inVisibleNetwork(properties) {
+    if (!properties || hidden.has(String(properties.type)) || !sigmaOriginalAllowed(properties)) return false;
+    // Until a new network has loaded, avoid briefly restoring all points.
+    if (selection && nodeIndex.has(selection.id) && !network) return false;
+    return !network || network.ring.has(String(properties.node_id || ''));
+  }
+
+  // If many X clusters occupy the same screen space, summarize again in
+  // screen-pixel cells without dropping any establishment counts. First
+  // filter by actual X membership; then aggregate by original/effective
+  // sector (NOT node), so dense selections still stay within the glyph cap.
+  // A summary must never pretend to have a synthetic X node identity.
+  function boundSummaryGlyphs(features) {
+    const cap = Math.max(100, Math.min(4000, Number(meta.aggregate_budget) || 4000));
+    if (features.length <= cap) return features;
+    const collapse = pixels => {
+      const bins = new Map();
+      for (const feature of features) {
+        const p = feature.properties || {};
+        const xy = map.project(feature.geometry.coordinates);
+        const key = [String(p.type), String(p.original_type || p.type),
+          Math.floor(xy.x / pixels), Math.floor(xy.y / pixels)].join('|');
+        const count = Math.max(1, Number(p.count) || 1);
+        if (!bins.has(key)) bins.set(key, {count: 0, lon: 0, lat: 0,
+          type: p.type, original: p.original_type || p.type,
+          representative: '', representativeCount: -1});
+        const b = bins.get(key);
+        b.count += count;
+        b.lon += feature.geometry.coordinates[0] * count;
+        b.lat += feature.geometry.coordinates[1] * count;
+        const candidate = String(p.node_id || p.representative_node_id || '');
+        if (candidate && (count > b.representativeCount ||
+            (count === b.representativeCount && candidate < b.representative))) {
+          b.representative = candidate;
+          b.representativeCount = count;
+        }
+      }
+      return [...bins.values()].map(b => ({type: 'Feature', properties: {
+        count: b.count, type: b.type, original_type: b.original,
+        // This node is only a REAL example cluster; the bin can contain more.
+        representative_node_id: b.representative, aggregate: true},
+        geometry: {type: 'Point', coordinates: [b.lon / b.count, b.lat / b.count]}}));
+    };
+    let result = features;
+    for (let pixels = 24; result.length > cap && pixels <= 131072; pixels *= 2)
+      result = collapse(pixels);
+    return result;
+  }
+
+  function screenBoundExactPoints(features) {
+    const cap = Math.max(1000, Math.min(8000, Number(meta.point_budget) || 8000));
+    if (features.length <= cap) return features;
+    const bins = new Map();
+    for (const feature of features) {
+      const p = feature.properties || {};
+      const pixel = map.project(feature.geometry.coordinates);
+      const key = [String(p.original_type || p.type),
+        Math.floor(pixel.x / 10), Math.floor(pixel.y / 10)].join('|');
+      const previous = bins.get(key);
+      // Stable choice: choose one TRUE establishment per sector and screen
+      // cell; never invent a coordinate, cluster, name, or SIGMA score.
+      if (!previous || String(p.id) < String(previous.properties.id))
+        bins.set(key, feature);
+    }
+    const result = [...bins.values()];
+    if (result.length <= cap) return result;
+    const sampled = [];
+    for (let i = 0; i < cap; i++)
+      sampled.push(result[Math.floor(i * result.length / cap)]);
+    return sampled;
+  }
+
+  function syncRenderedEstablishments() {
+    if (!map || !map.getSource || !map.getSource('points')) return;
+    const scored = [], unscored = [];
+    const viewport = map.getBounds();
+    for (const collection of visiblePointGroups || []) for (const feature of collection.features || []) {
+      if (!feature.geometry || !viewport.contains(feature.geometry.coordinates)) continue;
+      const p = feature.properties;
+      if (!p) continue;
+      p.original_type = sigmaOriginalType(p);
+      if (hidden.has(String(p.type)) || !sigmaOriginalAllowed(p)) continue;
+      if (p.unclustered === true) {
+        // Classified, unscored context retains its existing explicit opt-in.
+        const sector = sectors.get(String(p.type));
+        p.visual_min_score = isNum(sector?.min_score)
+          ? sector.min_score : (meta.score_range?.[0] ?? 0);
+        unscored.push(feature);
+      } else if (inVisibleNetwork(p)) scored.push(feature);
+    }
+    unscoredCandidates = unscored;
+    unscoredRenderedKey = null;
+    setData('points', {type: 'FeatureCollection', features: screenBoundExactPoints(scored)});
+    syncUnscoredOverlay();
+    // Aggregates retain their actual source X node ID, so network selections
+    // also exclude unrelated places instead of simply fading their symbols.
+    const aggregateCandidates = visibleAggregateFeatures.filter(f => inVisibleNetwork(f.properties));
+    const aggregates = boundSummaryGlyphs(aggregateCandidates);
+    setData('aggregates', {type: 'FeatureCollection', features: aggregates});
+  }
+
+  // Published vector tiles are used instead of reconstructing one enormous
+  // GeoJSON source on every pan. This preserves the ORIGINAL color and score
+  // styling; a selected ring is filtered in the vector tile worker, never
+  // merely dimmed. Only actual establishment coordinates can be clicked.
+  function syncNativePointLayer() {
+    if (!meta?.native_points_v7 || !map?.getLayer?.('native-establishments')) return;
+    const filter = ['all', ['!=', ['get', 'unclustered'], true],
+      notHidden(), sigmaOriginalFilter()];
+    if (selection && nodeIndex.has(selection.id) &&
+        (!network || network.focus !== selection.id)) {
+      filter.push(['==', ['get', 'node_id'], '__loading__']);
+    } else if (network) {
+      filter.push(['in', ['get', 'node_id'], ['literal', [...network.ring.keys()]]]);
+    }
+    map.setFilter('native-establishments', filter);
+    map.setPaintProperty('native-establishments', 'circle-opacity', network ?
+      networkDepthOpacity('node_id', 0.96, step => fadeByStep(0.90, step), 0) : 0.80);
+    visibility('native-establishments', true);
+    visibility('establishments', false);
+    visibility('aggregate-establishments', false);
+  }
 
   async function loadVisiblePoints() {
     const epoch = ++tileEpoch;
@@ -509,33 +701,134 @@
     } else {
       for (let x = xa; x <= xb; x++) for (let y = ya; y <= yb; y++) take(`${x}/${y}`);
     }
+    // V7: native PBF tiles are parsed and painted by MapLibre. We do NOT
+    // fetch any scored GeoJSON tiles, or sample coordinates at screen level.
+    // The exact original tiles remain for finder and opt-in hollow context.
+    if (meta.native_points_v7) {
+      visiblePointGroups = null;
+      visibleAggregateFeatures = [];
+      lastRenderedTileSignature = null;
+      setData('points', EMPTY());
+      setData('aggregates', EMPTY());
+      syncNativePointLayer();
+      const general = $('show-unscored');
+      const linked = $('sigma-show-linked-unscored');
+      const wantUnscored = (general && general.checked && !general.disabled) ||
+        (linked && linked.checked && !linked.disabled);
+      if (!wantUnscored) {
+        unscoredCandidates = [];
+        unscoredRenderedKey = null;
+        syncUnscoredOverlay();
+        updateStatus(map.getZoom() >= 12 ?
+          'Exact scored establishment locations (all visible points; native vector tiles). Select a place or cluster.' :
+          'Sector-colored preview of REAL establishment locations (sampled at distant zoom). Zoom in for all establishments.');
+        return;
+      }
+      // Hollow classified-but-unscored points are strictly opt-in. Their
+      // original GeoJSON is only loaded when that independent checkbox is on.
+      try {
+        const rows = [];
+        let cursor = 0;
+        await Promise.all(Array.from({length: Math.min(5, keys.length)}, async () => {
+          while (cursor < keys.length) {
+            const key = keys[cursor++];
+            const tile = await getJSON(`data/tiles/${z}/${key}.geojson`);
+            if (epoch !== tileEpoch) return;
+            for (const feature of tile.features || []) {
+              if (feature.properties?.unclustered !== true || !feature.geometry ||
+                  !b.contains(feature.geometry.coordinates)) continue;
+              feature.properties.original_type = sigmaOriginalType(feature.properties);
+              const sector = sectors.get(String(feature.properties.type));
+              feature.properties.visual_min_score = isNum(sector?.min_score) ?
+                sector.min_score : (meta.score_range?.[0] ?? 0);
+              rows.push(feature);
+            }
+          }
+        }));
+        if (epoch !== tileEpoch) return;
+        unscoredCandidates = rows;
+        unscoredRenderedKey = null;
+        syncUnscoredOverlay();
+        updateStatus();
+      } catch (err) { if (epoch === tileEpoch) showError(err); }
+      return;
+    }
     if (!meta.has_points) {
       lastRenderedTileSignature = null;
       unscoredCandidates = [];
       unscoredRenderedKey = null;
       setData('unscored-points', EMPTY());
       visibility('unclustered-establishments', false);
+      visiblePointGroups = null;
+      visibleAggregateFeatures = [];
       setData('points', EMPTY());
-      visibility('overview-counts', false);
+      setData('aggregates', EMPTY());
+      visibility('aggregate-establishments', false);
       updateStatus(meta.profile === 'public' ? 'Public profile: establishment-level locations are not included. Select a cluster center.' : null);
       return;
     }
-    if (total > meta.point_budget) {
+    // Distant overview stays tiled-summary based. At neighborhood zoom,
+    // zoom-13 source tiles can contain many OFFSCREEN establishments; a fixed
+    // 8k tile-count cutoff incorrectly hides all actual points until very late.
+    // A larger *input* bound is safe because syncRenderedEstablishments()
+    // clips to the viewport and caps MapLibre's actual drawn point source.
+    const sourceBudget = Math.max(1, Number(meta.point_budget) || 8000);
+    const neighborhoodExact = !!meta.adaptive_aggregates &&
+      map.getZoom() >= 12.75 && keys.length <= (map.getZoom() >= 15 ? 4 : 8) &&
+      total <= (map.getZoom() >= 15 ? 65000 : 38000);
+    if (total > sourceBudget && !neighborhoodExact) {
+      visiblePointGroups = null;
+      visibleAggregateFeatures = [];
       lastRenderedTileSignature = null;
       unscoredCandidates = [];
       unscoredRenderedKey = null;
       setData('unscored-points', EMPTY());
       visibility('unclustered-establishments', false);
       setData('points', EMPTY());
-      visibility('overview-counts', true);
-      updateStatus(`${total.toLocaleString()} establishments in view (more than ${meta.point_budget.toLocaleString()}). The green shading shows where they are; zoom in to see individual establishments.`);
+      if (!meta.adaptive_aggregates) {
+        visibility('aggregate-establishments', false);
+        updateStatus(`${total.toLocaleString()} establishments in view. Rebuild with sigma view --refresh for adaptive detail; zoom in meanwhile.`);
+        return;
+      }
+      try {
+        if (!aggregateIndex) aggregateIndex = await getJSON('data/aggregate/index.json');
+        if (epoch !== tileEpoch) return;
+        const levels = (meta.aggregate_levels || aggregateLevelsFallback).slice().sort((a, b) => b - a);
+        const perLevel = aggregateIndex.levels || {};
+        const limit = meta.aggregate_budget || 4000;
+        const level = levels.find(z => keys.reduce((n, key) => n + (perLevel[String(z)]?.tiles?.[key] || 0), 0) <= limit)
+          ?? levels[levels.length - 1];
+        const available = perLevel[String(level)]?.tiles || {};
+        const jobs = keys.filter(key => available[key]);
+        const features = [];
+        // Bound request concurrency; cancel obsolete pans/zooms by epoch.
+        let cursor = 0;
+        await Promise.all(Array.from({length: Math.min(6, jobs.length)}, async () => {
+          while (cursor < jobs.length) {
+            const key = jobs[cursor++];
+            const tile = await getJSON(`data/aggregate/${level}/${key}.geojson`);
+            if (epoch !== tileEpoch) return;
+            features.push(...(tile.features || []));
+          }
+        }));
+        if (epoch !== tileEpoch) return;
+        visibleAggregateFeatures = features;
+        syncRenderedEstablishments();
+        visibility('aggregate-establishments', true);
+        updateStatus(`${total.toLocaleString()} establishments in view. ${features.length.toLocaleString()} geographic summaries available; only enabled sectors and linked X clusters reach the renderer. Zoom in for individual establishments.`);
+      } catch (err) { if (epoch === tileEpoch) showError(err); }
       return;
     }
-    visibility('overview-counts', false);
+    visibility('aggregate-establishments', false);
+    visibleAggregateFeatures = [];
+    setData('aggregates', EMPTY());
     // A pan within the same tile set cannot change the source features.
     // Reusing that GeoJSON avoids a costly MapLibre source reparse/repaint.
     const signature = `${z}:${keys.join('|')}`;
-    if (signature === lastRenderedTileSignature) { updateStatus(); return; }
+    if (signature === lastRenderedTileSignature) {
+      syncRenderedEstablishments(); // Reclip points after panning within z13 tiles.
+      updateStatus(); return;
+    }
     // As soon as the visible tile set changes, remove stale points while the
     // new tile data load. A superseded response cannot reinstate them (tileEpoch).
     // Invalidate the old signature too, so a rapid pan-back cannot reuse an emptied source.
@@ -547,24 +840,12 @@
     try {
       const groups = await Promise.all(keys.map(key => getJSON(`data/tiles/${z}/${key}.geojson`)));
       if (epoch !== tileEpoch) return;
-      const scoredFeatures = [];
-      const classifiedOnly = [];
-      for (const group of groups) for (const feature of (group.features || [])) {
-        if (feature.properties) feature.properties.original_type = sigmaOriginalType(feature.properties);
-        if (feature.properties && feature.properties.unclustered === true) {
-          // Only classified-but-unscored point rows may enter the optional source.
-          // This is display sizing only: no artificial SIGMA score is assigned.
-          const sector = sectors.get(String(feature.properties.type));
-          feature.properties.visual_min_score = isNum(sector?.min_score) ?
-            sector.min_score : (meta.score_range?.[0] ?? 0);
-          classifiedOnly.push(feature);
-        } else scoredFeatures.push(feature);
-      }
-      unscoredCandidates = classifiedOnly;
-      // Expensive source parse is reduced: the scored source never receives unscored POIs.
-      setData('points', {type: 'FeatureCollection', features: scoredFeatures});
+      // Current-view point tiles are retained for redraw; scored point symbols
+      // are reassembled only from selected network + enabled-sector members.
+      // This prevents out-of-network establishments from entering MapLibre.
+      visiblePointGroups = groups;
       lastRenderedTileSignature = signature;
-      syncUnscoredOverlay();
+      syncRenderedEstablishments();
       updateStatus();
     } catch (err) { if (epoch === tileEpoch) showError(err); }
   }
@@ -609,7 +890,9 @@
     if (feature.layer.id === 'unclustered-establishments')
       return network.ring.has(String(p.voronoi_node_id || ''));
     const id = feature.layer.id === 'centers' ? p.id :
-      feature.layer.id === 'establishments' ? p.node_id : null;
+      (feature.layer.id === 'establishments' || feature.layer.id === 'native-establishments') ? p.node_id :
+      feature.layer.id === 'aggregate-establishments' ?
+        (p.node_id || p.representative_node_id) : null;
     return id != null && network.ring.has(String(id));
   }
 
@@ -771,9 +1054,13 @@
   // The graph's BFS rings are the only source of truth for map depth.
   // The selected cluster is handled separately so it stays prominent.
   function fadeByStep(base, step) {
-    // Attenuate by the inverse square root of the BFS distance from focus.
-    // The first linked ring retains base opacity; deeper rings remain legible.
+    // Existing point, route and triangle behavior is intentionally unchanged.
     return Number((base / Math.sqrt(Math.max(1, step))).toFixed(6));
+  }
+  // A separate, much steeper falloff for overlapping Voronoi fills only.
+  // BFS depth is preserved; polygons and intersections are never modified.
+  function voronoiOpacity(base, step) {
+    return Number((base * Math.pow(0.25, Math.max(0, step - 1))).toFixed(6));
   }
 
   function networkDepthOpacity(property, focusOpacity, linkedOpacity, outsideOpacity) {
@@ -934,9 +1221,9 @@
     const inNet = ['in', ['get', 'node_id'], ['literal', ids || []]];
     const isFocus = ['==', ['get', 'node_id'], focus];
     map.setPaintProperty('establishments', 'circle-opacity', ids ?
-      networkDepthOpacity('node_id', 0.96, step => fadeByStep(0.90, step), 0.025) : 0.78);
+      networkDepthOpacity('node_id', 0.96, step => fadeByStep(0.90, step), 0) : 0.78);
     map.setPaintProperty('establishments', 'circle-stroke-opacity', ids ?
-      networkDepthOpacity('node_id', 1, step => fadeByStep(1, step), 0.025) : 1);
+      networkDepthOpacity('node_id', 1, step => fadeByStep(1, step), 0) : 1);
     map.setPaintProperty('establishments', 'circle-stroke-width', ids ? ['case', isFocus, 0.9, 0.35] : 0.35);
     map.setPaintProperty('establishments', 'circle-stroke-color', ids ? ['case', isFocus, COLOR.focus, '#ffffff'] : '#ffffff');
     const centerIn = ['in', ['get', 'id'], ['literal', ids || []]];
@@ -953,9 +1240,10 @@
       networkDepthOpacity('id', 0, step => fadeByStep(1, step), 0.16) : 1);
     map.setFilter('establishments', ['all', ['!=', ['get', 'unclustered'], true],
       notHidden(), sigmaOriginalFilter()]);
-    // Unscored visibility is opt-in: zero-cluster sectors when unselected,
-    // scored-sector unclustered points only inside the selected partition.
-    syncUnscoredOverlay();
+    map.setFilter('aggregate-establishments', ['all', notHidden(), sigmaOriginalFilter()]);
+    // Native vector tiles eliminate per-pan scored GeoJSON rebuilds.
+    if (meta.native_points_v7) syncNativePointLayer();
+    else syncRenderedEstablishments();
     updateCenterVisibility();
     if (map.getLayer('roads-line')) map.setPaintProperty('roads-line', 'line-opacity', ids ? 0.18 : 0.38);
     if (map.getLayer('roads-line') && themeMode === 'dark')
@@ -968,14 +1256,17 @@
     const mode = state.partitions;
     const show = mode === 'all' || (mode === 'network' && !!network);
     visibility('partition-fill', show);
-    visibility('partition-line', show);
+    // ORIGINAL sector-colored boundaries belong to the unselected overview.
+    // Only a selected X-network uses the borderless depth-faded treatment.
+    visibility('partition-line', show && mode === 'all' && !network);
     // Foreground geometry is split into separate layers: a selected polygon
     // always draws ABOVE linked polygons, which draw above nearly-white context.
     const foreground = mode === 'network' && !!network;
-    for (const layer of ['partition-linked-fill', 'partition-linked-line',
-                         'partition-focus-fill', 'partition-focus-line']) {
+    for (const layer of ['partition-linked-fill', 'partition-focus-fill']) {
       visibility(layer, foreground);
     }
+    visibility('partition-linked-line', false);
+    visibility('partition-focus-line', false);
     if (!show) return;
     const color = ['match', ['get', 'type'], ...sectorMatchPairs(), '#657f78'];
     if (mode === 'network') {
@@ -983,13 +1274,13 @@
       const inside = ['in', ['get', 'node_id'], ['literal', [...network.ring.keys()]]];
       const outside = ['all', notHidden(), ['!', inside]];
       const linked = ['all', notHidden(), inside, ['!', focus]];
-      // Context: paper-white fill, extremely faint neutral boundaries.
+      // Faint SECTOR-COLORED context, never a solid white mask. In the
+      // on-demand network view, unrelated polygons are not loaded at all.
+      // Preserve genuine overlaps and original geometries without outlines.
       map.setFilter('partition-fill', outside);
       map.setFilter('partition-line', outside);
-      map.setPaintProperty('partition-fill', 'fill-opacity', 0);
-      map.setPaintProperty('partition-line', 'line-color', '#cad6cf');
-      map.setPaintProperty('partition-line', 'line-width', 0.32);
-      map.setPaintProperty('partition-line', 'line-opacity', 0.22);
+      map.setPaintProperty('partition-fill', 'fill-color', color);
+      map.setPaintProperty('partition-fill', 'fill-opacity', 0.07);
       // Linked clusters stay legible in their sector colors.
       map.setFilter('partition-linked-fill', linked);
       map.setFilter('partition-linked-line', linked);
@@ -999,6 +1290,9 @@
     } else {
       map.setFilter('partition-fill', notHidden());
       map.setFilter('partition-line', notHidden());
+      // Restore the original All-shown-sector look, independently of the
+      // selected-point opacity rules. These are unchanged source polygons.
+      map.setPaintProperty('partition-fill', 'fill-color', color);
       map.setPaintProperty('partition-fill', 'fill-opacity', 0.022);
       map.setPaintProperty('partition-line', 'line-color', color);
       map.setPaintProperty('partition-line', 'line-width', 0.45);
@@ -1508,6 +1802,34 @@
     }
   }
 
+  // Load exact published Voronoi geometry only for currently linked clusters.
+  // No polygon is simplified or dissolved; original spatial overlaps remain.
+  async function loadPartitionNeighborhood(epoch) {
+    if (!meta?.partition_on_demand || !ready) return true;
+    let features = [];
+    if (state.partitions === 'all') {
+      const all = await getJSON('data/clusters.geojson');
+      if (epoch !== refreshEpoch) return false;
+      features = all.features || [];
+    } else if (state.partitions === 'network' && network) {
+      const ids = new Set(network.ring.keys());
+      const shards = [...new Set([...ids].map(id => nodeIndex.get(id)?.shard)
+        .filter(s => Number.isInteger(s)))];
+      for (let offset = 0; offset < shards.length; offset += 8) {
+        const batch = await Promise.all(shards.slice(offset, offset + 8).map(
+          s => getJSON(`data/partitions/${String(s).padStart(4, '0')}.geojson`)));
+        if (epoch !== refreshEpoch) return false;
+        for (const file of batch) for (const feature of file.features || []) {
+          if (ids.has(String(feature.properties?.node_id))) features.push(feature);
+        }
+      }
+    }
+    if (epoch !== refreshEpoch) return false;
+    sigmaVoronoiFeatures = features;
+    setData('clusters', {type: 'FeatureCollection', features});
+    return true;
+  }
+
   // ------------------------------------------------------------------ selection
   // sigma-explorer-cluster-network-auto-collapse-v1
   // Auto-close only for a missing X-network; preserve manual collapse while selected.
@@ -1535,9 +1857,13 @@
       setData('routes', EMPTY());
       setData('route-hover', EMPTY());
     }
-    network = selection && nodeIndex.has(selection.id) ?
-      sigmaPerf('buildNetwork', () => buildNetwork(selection.id)) : null;
-    syncGraphDisclosure();
+    const resume = async () => {
+      if (epoch !== refreshEpoch) return;
+      network = selection && nodeIndex.has(selection.id) ?
+        sigmaPerf('buildNetwork', () => buildNetwork(selection.id)) : null;
+      if (!await loadPartitionNeighborhood(epoch)) return;
+      if (epoch !== refreshEpoch) return;
+      syncGraphDisclosure();
     sigmaTriangleStyleByNode = sigmaPerf('triangleStyles', computeNetworkTriangleStyles);
     renderSelection();
     if (ready) {
@@ -1553,6 +1879,9 @@
       sigmaPerf('cytoscapeGraph', drawGraph);
       sigmaPerf('connectionsTable', renderConnections);
       if (ready) showRoutes();
+      if (ready && meta.native_points_v7 &&
+          ($('show-unscored')?.checked || $('sigma-show-linked-unscored')?.checked))
+        loadVisiblePoints();
       // Prune only after the newly selected source/style references are installed.
       if (ready && sigmaTriangleImageCache.size > SIGMA_TRIANGLE_IMAGE_LIMIT)
         requestAnimationFrame(pruneSigmaTriangleImages);
@@ -1561,9 +1890,35 @@
     // Let MapLibre paint the new focus before reconstructing the diagram and
     // fetching exact route geometries. A newer click cancels this work.
     requestAnimationFrame(() => setTimeout(finish, 0));
+    };
+    if (meta?.graph_on_demand && selection && nodeIndex.has(selection.id)) {
+      network = null;
+      if (ready) {
+        // Drop old establishment symbols during async adjacency load. Merely
+        // lowering opacity still forces MapLibre to parse/style those points.
+        setData('points', EMPTY());
+        setData('aggregates', EMPTY());
+        updatePartitions();
+        syncNativePointLayer();
+        updateStatus('Loading selected Network X neighborhood…');
+      }
+      preloadNetworkAdjacency(selection.id, epoch).then(complete => {
+        if (complete && epoch === refreshEpoch) resume().catch(showError);
+      }).catch(error => { if (epoch === refreshEpoch) showError(error); });
+    } else resume().catch(showError);
+  }
+
+  // The scored-sector hollow-point context follows a scored X selection by
+  // default. This only sets the checkbox; the existing refresh/opt-in handler
+  // owns the actual overlay update. Never dispatch a synthetic change event.
+  function sigmaSetLinkedUnscoredDefault(enabled) {
+    const control = $('sigma-show-linked-unscored');
+    if (control) control.checked = Boolean(enabled && !control.disabled);
   }
 
   function selectUnclustered(point) {
+    // A classified-only point has no scored X network to contextualize.
+    sigmaSetLinkedUnscoredDefault(false);
     selection = {id: null, point};
     refresh();
     setData('selected-center', EMPTY());
@@ -1583,6 +1938,9 @@
     // Clicking another establishment in the same cluster changes its detail,
     // not the network topology: do not rebuild the map or Cytoscape graph.
     const sameFocus = Boolean(network && network.focus === id && selection && selection.id === id);
+    // Enable once for a NEW X focus. A manual opt-out remains respected when
+    // another establishment in the SAME cluster is clicked or redrawn.
+    if (!selection || selection.id !== id) sigmaSetLinkedUnscoredDefault(true);
     selection = {id, point};
     if (sameFocus) {
       renderSelection();
@@ -1599,7 +1957,11 @@
   }
 
   function clearSelection() {
+    const hadLinkedContext = Boolean($('sigma-show-linked-unscored')?.checked);
+    sigmaSetLinkedUnscoredDefault(false);
     if (!selection && !network) {
+      // Repeated Clear selection also hides an overlay enabled manually at rest.
+      if (hadLinkedContext && ready) syncUnscoredOverlay();
       // Keep the historical URL-clearing behavior even for a repeat click.
       try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
       return;
@@ -1885,8 +2247,18 @@
       return [p.name, `${sectorLabel(p.type)} · ${sectorCode(p.type)}`,
         'Classified establishment · No qualifying cluster · SIGMA score N/A'];
     }
-    if (id === 'establishments') {
+    if (id === 'establishments' || id === 'native-establishments') {
       return [p.name, `${sectorLabel(p.type)} · ${sectorCode(p.type)}`, `Cluster ${p.cluster} · SIGMA score ${fmtNum(p.score)}`];
+    }
+    if (id === 'aggregate-establishments') {
+      const representative = String(p.node_id || p.representative_node_id || '');
+      const node = nodeIndex.get(representative);
+      return [`${Number(p.count || 1).toLocaleString()} establishments summarized`,
+        `${sectorLabel(p.type)} · ${sectorCode(p.type)}`,
+        node ? (p.representative_node_id ?
+          `Click to explore representative cluster ${node.cluster}; this bin also contains other clusters.` :
+          `Click to explore cluster ${node.cluster}; zoom in to see exact locations.`) :
+          'Click to zoom in for individual establishments.'];
     }
     if (id === 'centers') {
       const n = nodeIndex.get(p.id);
@@ -1959,7 +2331,8 @@
   const POPUP_BLOCKS = 3;
   function onHover(event) {
     // Cheap feature query first. Routes are only queried if no point is selectable.
-    const placeLayers = ['selected-center', 'centers', 'establishments', 'unclustered-establishments'].filter(l =>
+    const placeLayers = ['selected-center', 'centers', 'establishments',
+      'native-establishments', 'unclustered-establishments', 'aggregate-establishments'].filter(l =>
       map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
     const places = map.queryRenderedFeatures(event.point, {layers: placeLayers});
     // Only triangles activate a boundary. The enlarged selected triangle has
@@ -2023,12 +2396,19 @@
 
   function onClick(event) {
     popup.remove();
-    const layers = ['centers', 'establishments', 'unclustered-establishments'].filter(l => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
+    const layers = ['centers', 'establishments', 'native-establishments', 'unclustered-establishments',
+      'aggregate-establishments'].filter(l => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
     const hits = map.queryRenderedFeatures(event.point, {layers});
 
     const f = hits.find(selectableMapFeature);
     if (!f) return;
     if (f.layer.id === 'centers') selectNode(f.properties.id);
+    else if (f.layer.id === 'aggregate-establishments') {
+      const id = String(f.properties.node_id || f.properties.representative_node_id || '');
+      if (id && nodeIndex.has(id)) selectNode(id); // A genuine existing X node.
+      else map.easeTo({center: f.geometry.coordinates,
+        zoom: Math.min(18, Math.max(map.getZoom() + 2, 13)), duration: 350});
+    }
     else if (f.layer.id === 'unclustered-establishments')
       selectUnclustered({...f.properties, coordinates: f.geometry.coordinates});
     else selectNode(f.properties.node_id, {...f.properties, coordinates: f.geometry.coordinates});
@@ -2226,16 +2606,24 @@
       layout: {visibility: 'none', 'line-join': 'round', 'line-cap': 'round'},
       paint: {'line-color': sectorColorExpr, 'line-opacity': 0.96,
         'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.4, 14, 2.2, 18, 3.0]}});
-    const overview = data.overview || EMPTY();
-    const busiest = overview.features.reduce((m, f) => Math.max(m, f.properties.count || 0), 1);
-    map.addSource('overview', {type: 'geojson', data: overview});
-    map.addLayer({id: 'overview-counts', type: 'heatmap', source: 'overview', layout: {visibility: 'none'}, paint: {
-      'heatmap-weight': ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 0, 0, Math.sqrt(busiest), 1],
-      'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 8, 1.5, 15, 4],
-      'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 8, 10, 12, 28, 16, 70],
-      'heatmap-opacity': 0.85,
-      'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(45,102,74,0)', 0.15, '#d7e8dc',
-        0.4, '#9cc9ad', 0.7, '#4f9a72', 1, '#16382a']}});
+    // Summaries reflect ACTUAL establishment centroids grouped by geographic
+    // cell and original sector. They are never selectable as X nodes or POIs.
+    map.addSource('aggregates', {type: 'geojson', data: EMPTY()});
+    map.addLayer({id: 'aggregate-establishments', type: 'circle', source: 'aggregates',
+      layout: {visibility: 'none'},
+      filter: ['all', notHidden(), sigmaOriginalFilter()],
+      paint: {
+        'circle-color': sigmaPointColorExpr,
+        'circle-radius': ['interpolate', ['linear'], ['zoom'],
+          8, ['*', 1.5, ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 1, 1, 4, 1.08, 12, 1.22, 100, 1.4]],
+          10, ['*', 1.9, ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 1, 1, 4, 1.08, 12, 1.22, 100, 1.4]],
+          12, ['*', 2.6, ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 1, 1, 4, 1.08, 12, 1.22, 100, 1.4]],
+          14, ['*', 3.5, ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 1, 1, 4, 1.08, 12, 1.22, 100, 1.4]],
+          16, ['*', 4.4, ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 1, 1, 4, 1.08, 12, 1.22, 100, 1.4]],
+          18, ['*', 5.6, ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 1, 1, 4, 1.08, 12, 1.22, 100, 1.4]]],
+        'circle-opacity': 0.8, 'circle-stroke-color': '#ffffff',
+        'circle-stroke-opacity': 0.75, 'circle-stroke-width': 0.35,
+      }});
     map.addSource('points', {type: 'geojson', data: EMPTY()});
     // A thin, open circle denotes a classified establishment absent from
     // network clustering; no score or X node is implied. Draw beneath scores.
@@ -2255,6 +2643,26 @@
       'circle-color': sigmaPointColorExpr,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, scoreRadius(1.4, 5.7), 14, scoreRadius(2.0, 10.5), 17, scoreRadius(3.2, 16.5)],
       'circle-opacity': 0.82, 'circle-stroke-width': 0.35, 'circle-stroke-color': '#ffffff'}});
+    // Native vector-point LOD: real positions, never centroid markers.
+    // Web-Mercator zooms 8–11 contain deterministic real-point subsets;
+    // zooms 12–13 contain every scored point. Above 13, tiles overscale.
+    if (meta.native_points_v7 && meta.has_points) {
+      const root = location.href.split('#')[0].split('?')[0].replace(/[^/]*$/, '');
+      map.addSource('native-points', {type: 'vector',
+        tiles: [root + 'data/points-v7/{z}/{x}/{y}.pbf'], minzoom: 8, maxzoom: 13});
+      map.addLayer({id: 'native-establishments', type: 'circle',
+        source: 'native-points', 'source-layer': 'places',
+        filter: ['all', ['!=', ['get', 'unclustered'], true], notHidden(), sigmaOriginalFilter()],
+        paint: {'circle-color': sigmaPointColorExpr,
+          // Camera/zoom must be the OUTERMOST MapLibre expression.
+          'circle-radius': ['interpolate', ['linear'], ['zoom'],
+            8, 0.7, 9, 0.9, 10, 1.15, 11, 1.45,
+            12, scoreRadius(1.4, 5.7), 13, scoreRadius(1.7, 7.8),
+            15, scoreRadius(2.0, 10.5), 17, scoreRadius(3.2, 16.5)],
+          'circle-opacity': 0.80,
+          'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0, 11, 0.12, 13, 0.35],
+          'circle-stroke-color': '#ffffff'}});
+    }
     // Assign browser-only icon identifiers by normalized sector code. This
     // avoids a numeric/string `match` mismatch and preserves palette fidelity.
     // Register sector icons BEFORE assigning their names to center features.
@@ -2294,7 +2702,7 @@
   }
 
   function bindControls() {
-    $('partitions').addEventListener('change', e => { state.partitions = e.target.value; updatePartitions(); });
+    $('partitions').addEventListener('change', e => { state.partitions = e.target.value; refresh(); });
     $('show-centers').addEventListener('change', updateCenterVisibility);
     $('show-roads').addEventListener('change', e => visibility('roads-line', e.target.checked));
     $('direction').addEventListener('change', e => { state.direction = e.target.value; refresh(); });
@@ -2356,9 +2764,9 @@
     $('sectors-all').addEventListener('click', () => { hidden.clear(); sectorsChanged(); });
     $('sectors-none').addEventListener('click', () => { for (const code of sectors.keys()) hidden.add(code); sectorsChanged(); });
     $('show-unscored').addEventListener('change', () => {
-      // If a selected unscored point has just been hidden, remove its highlight.
       if (!$('show-unscored').checked && selection && !nodeIndex.has(selection.id)) clearSelection();
       else refresh();
+      if (meta.native_points_v7) loadVisiblePoints();
     });
     $('sector-search').addEventListener('input', renderSectors);
     document.querySelectorAll('[data-sector-order]').forEach(button => {
@@ -2403,7 +2811,10 @@
     applyTheme('light');
     if (initialTheme !== 'light') applyTheme(initialTheme);
     initializeHelp();
-    const [metadata, graph, tiles] = await Promise.all([getJSON('data/metadata.json'), getJSON('data/graph.json'), getJSON('data/tiles.json')]);
+    const metadata = await getJSON('data/metadata.json');
+    const [graph, tiles] = await Promise.all([
+      getJSON(metadata.graph_on_demand ? 'data/graph-nodes.json' : 'data/graph.json'),
+      getJSON('data/tiles.json')]);
     meta = metadata; tileIndex = tiles; tileKeys = Object.keys(tiles.tiles || {});
     const key = $('unclustered-key');
     if (key) key.hidden = true;  // shown only by opt-in, without a selected X node
@@ -2424,19 +2835,21 @@
         linkedBox, el('span', {textContent: 'Show unclustered for scored sectors'}));
       holder.title = 'Show unclustered places of scored sectors at rest. With a selection, show only those in the highlighted focus and linked Voronoi partitions; no network membership or score is assigned.';
       control.closest('.sector-overlay-control')?.after(holder);
-      linkedBox.addEventListener('change', syncUnscoredOverlay);
+      linkedBox.addEventListener('change', () => {
+        if (meta.native_points_v7) loadVisiblePoints();
+        else syncUnscoredOverlay();
+      });
     }
     if (meta.schema_version !== 3) throw new Error('This Explorer bundle was built by another version. Run "sigma view <area> --refresh".');
     for (const s of meta.sectors) sectors.set(s.code, s);
     for (const n of graph.nodes) { nodeIndex.set(n.id, n); pairIndex.set(n.id, new Map()); }
     initializeKatzCenterLimits();
-    for (const e of graph.edges) {
-      const a = pairIndex.get(e.from), b = pairIndex.get(e.to);
-      if (!a || !b) continue;
-      if (!a.has(e.to)) a.set(e.to, {other: e.to, out: null, in: null});
-      if (!b.has(e.from)) b.set(e.from, {other: e.from, out: null, in: null});
-      a.get(e.to).out = e;
-      b.get(e.from).in = e;
+    if (metadata.graph_on_demand) {
+      for (const [type, value] of Object.entries(metadata.sector_max_strength || {}))
+        globalSectorStrength.set(type, value);
+    } else for (const e of graph.edges) {
+      if (!nodeIndex.has(e.from) || !nodeIndex.has(e.to)) continue;
+      registerEdge(e);
       recordSectorStrength(nodeIndex.get(e.from), e.coefficient);
       recordSectorStrength(nodeIndex.get(e.to), e.coefficient);
     }
@@ -2496,8 +2909,9 @@
     map.addControl(new maplibregl.ScaleControl({unit: 'metric'}), 'bottom-right');
     map.on('load', async () => {
       try {
-        const wanted = {clusters: getJSON('data/clusters.geojson'), centers: getJSON('data/nodes.geojson'),
-          overview: getJSON('data/overview.geojson'),
+        const wanted = {clusters: metadata.partition_on_demand ? Promise.resolve(EMPTY()) : getJSON('data/clusters.geojson'),
+          centers: getJSON('data/nodes.geojson'),
+          // Summaries are fetched by visible geographic tile, never all at once.
           boundary: meta.has_boundary ? getJSON('data/boundary.geojson') : null, roads: meta.has_roads ? getJSON('data/roads.geojson') : null};
         const data = {};
         for (const [k, v] of Object.entries(wanted)) data[k] = v ? await v : null;
@@ -2544,3 +2958,11 @@
 // SIGMA_BROWSER_ROUTING_V4_1_20261105
 // SIGMA_UNCLUSTERED_CIRCLES_PSIC_LABELS_20261105
 // SIGMA_UNCLUSTERED_SELECTED_PARTITIONS_VISIBILITY_20261106_V2
+
+// SIGMA_ADAPTIVE_LOD_AND_QUIET_VORONOI_20261107_V4
+
+// SIGMA_ADAPTIVE_INTERACTION_V5_20261107
+// SIGMA_ADAPTIVE_PAINT_ZOOM_ROOT_FIX_V6_20261107
+// SIGMA_NATIVE_POINTS_LOD_20261107_V7
+// SIGMA_VORONOI_SELECTION_ONLY_STYLING_20261107_V9
+// SIGMA_SCORED_UNCLUSTERED_SELECTION_TOGGLE_20261107_V10

@@ -50,7 +50,12 @@ MARKER = ".sigma-explorer"
 TILE_ZOOM = 13
 COORDINATE_DIGITS = 6  # about 0.1 m; published SIGMA geometry is unchanged
 ROAD_VERTEX_BUDGET = 1_500_000  # automatic road inclusion limit (about 35 MB of GeoJSON)
-POINT_BUDGET = 150_000  # the browser loads establishments only when the view holds fewer
+# Only exact point symbols count against this browser-side rendering ceiling.
+# Adaptive summary tiles are separate and never become synthetic SIGMA nodes.
+POINT_BUDGET = 8_000
+AGGREGATE_LEVELS = (11, 13, 15, 17)  # Web-Mercator geographic cells, coarse to fine
+AGGREGATE_BUDGET = 4_000  # summary glyphs per view, independent of establishments
+GRAPH_SHARD_SIZE = 16  # X nodes per adjacency shard for lazy browser exploration
 STATIC_FILES = (
     "index.html",
     "tutorial.html",
@@ -559,6 +564,32 @@ def _build_unstaged_bundle(
         edges.append(edge)
         edge_by_pair[(u, v)] = edge
 
+    # Retain the original full graph.json for compatibility and analysis audit,
+    # but the browser reads nodes and adjacency shards instead of all X edges.
+    # Each edge is included in the source and target shards, only once when
+    # both endpoints occupy the same shard. Direction and values are unchanged.
+    node_shards = {node["id"]: i // GRAPH_SHARD_SIZE for i, node in enumerate(nodes)}
+    edge_shards: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    sector_max_strength: dict[str, float] = {}
+    for edge in edges:
+        a = node_shards[edge["from"]]
+        b = node_shards[edge["to"]]
+        edge_shards[a].append(edge)
+        if a != b:
+            edge_shards[b].append(edge)
+        coefficient = edge["coefficient"]
+        if coefficient is not None and math.isfinite(coefficient):
+            for node_id in (edge["from"], edge["to"]):
+                code = node_by_id[node_id]["type"]
+                sector_max_strength[code] = max(sector_max_strength.get(code, 0.0), coefficient)
+    _json_dump(dest / "data/graph-nodes.json", {"nodes": [
+        {**node, "shard": node_shards[node["id"]]} for node in nodes
+    ]})
+    for shard in range((len(nodes) + GRAPH_SHARD_SIZE - 1) // GRAPH_SHARD_SIZE):
+        _json_dump(dest / f"data/adjacency/{shard:04d}.json", {
+            "edges": edge_shards.get(shard, []),
+        })
+
     # In browser mode there are no per-X-edge route files or cached geometries.
     # The worker consumes data/routing-graph.bin only when a route is selected.
     route_bytes = 0
@@ -650,6 +681,16 @@ def _build_unstaged_bundle(
             "geometry": mapping(geom),
         })
     _json_dump(dest / "data/clusters.geojson", {"type": "FeatureCollection", "features": partition_features})
+    # Exact source geometry and overlap are preserved; the default Network
+    # view only needs polygons for currently selected X neighborhoods.
+    partition_shards: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for feature in partition_features:
+        shard = node_shards[feature["properties"]["node_id"]]
+        partition_shards[shard].append(feature)
+    for shard in range((len(nodes) + GRAPH_SHARD_SIZE - 1) // GRAPH_SHARD_SIZE):
+        _json_dump(dest / f"data/partitions/{shard:04d}.geojson", {
+            "type": "FeatureCollection", "features": partition_shards.get(shard, []),
+        })
 
     # ---- establishments: retain scored points, add classified-only local points.
     # An unclustered establishment must never acquire a fabricated X identity.
@@ -739,8 +780,15 @@ def _build_unstaged_bundle(
     # Local-only name index: sector -> [name, tile key, position in tile, cluster].
     finder_rows: dict[str, list[list[Any]]] = defaultdict(list)
     overview: dict[tuple[int, int], int] = defaultdict(int)
+    # Each aggregate is an ACTUAL per-sector coordinate centroid within a
+    # geographic grid cell, not a fake establishment, cluster or network node.
+    # Separate original/effective sector keys preserve roll-up palette and filters.
+    aggregate_counts: dict[int, dict[tuple[Any, ...], list[float]]] = {
+        z: defaultdict(lambda: [0.0, 0.0, 0.0]) for z in AGGREGATE_LEVELS
+    }
     tx, ty = _tile_indices(lon, lat)
     ox, oy = _tile_indices(lon, lat, zoom=OVERVIEW_ZOOM)
+    aggregate_xy = {z: _tile_indices(lon, lat, zoom=z) for z in AGGREGATE_LEVELS}
     for i in range(len(points)):
         if node_ids[i]:
             node_by_id[node_ids[i]]["members"] += 1
@@ -767,6 +815,18 @@ def _build_unstaged_bundle(
             ]},
         })
         overview[(int(ox[i]), int(oy[i]))] += 1
+        # Classified-but-unclustered places MUST NOT appear by default, even
+        # inside summaries. Their separate opt-in overlay is unchanged.
+        if node_ids[i] and not unclustered_flags[i]:
+            current_type = str(types.iat[i])
+            original_type = str(original_types.iat[i] or current_type)
+            for level, (gx, gy) in aggregate_xy.items():
+                key = (int(tx[i]), int(ty[i]), int(gx[i]), int(gy[i]),
+                       current_type, original_type, str(node_ids[i]))
+                totals = aggregate_counts[level][key]
+                totals[0] += 1
+                totals[1] += float(lon[i])
+                totals[2] += float(lat[i])
     for (x, y), features in tiles.items():
         _json_dump(dest / f"data/tiles/{TILE_ZOOM}/{x}/{y}.geojson", {
             "type": "FeatureCollection", "features": features,
@@ -774,6 +834,42 @@ def _build_unstaged_bundle(
     _json_dump(dest / "data/tiles.json", {
         "zoom": TILE_ZOOM, "tiles": {f"{x}/{y}": len(tiles[(x, y)]) for x, y in sorted(tiles)},
     })
+    # Native MVT v7: actual published location geometries at every scale,
+    # deterministic real-location previews far out; no synthetic centroids.
+    # Privacy: this is never generated for a public Explorer profile.
+    if profile == 'local' and tiles:
+        from .mvt_points import write_point_tiles
+        native_tile_info = write_point_tiles(dest, tiles)
+    else:
+        native_tile_info = None
+
+    # Zoom-adaptive summary GeoJSON is tiled by the existing zoom-13 source
+    # tiles. The browser fetches only visible tiles at the chosen resolution.
+    # Exact per-establishment tiles and scores above remain untouched.
+    aggregate_index: dict[str, Any] = {"levels": {}}
+    for level, buckets in aggregate_counts.items():
+        by_tile: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
+        for (tile_x, tile_y, gx, gy, effective, original, node_id), (count, sx, sy) in sorted(buckets.items()):
+            if not count:
+                continue
+            by_tile[(tile_x, tile_y)].append({
+                "type": "Feature", "properties": {
+                    "count": int(count), "type": effective, "original_type": original,
+                    "node_id": node_id, "aggregate": True,
+                }, "geometry": {"type": "Point", "coordinates": [
+                    round(sx / count, COORDINATE_DIGITS),
+                    round(sy / count, COORDINATE_DIGITS),
+                ]},
+            })
+        manifest: dict[str, int] = {}
+        for (tile_x, tile_y), features in sorted(by_tile.items()):
+            _json_dump(dest / f"data/aggregate/{level}/{tile_x}/{tile_y}.geojson", {
+                "type": "FeatureCollection", "features": features,
+            })
+            manifest[f"{tile_x}/{tile_y}"] = len(features)
+        aggregate_index["levels"][str(level)] = {"tiles": manifest}
+    _json_dump(dest / "data/aggregate/index.json", aggregate_index)
+
     # The index contains names and tile-feature locators, so NEVER generate it
     # in public-profile bundles. Shard by sector and count to bound file size.
     if profile == "local":
@@ -931,6 +1027,14 @@ def _build_unstaged_bundle(
         "original_type_overrides": _original_overrides,  # SIGMA_FIXED_PALETTE_ORIGIN_VORONOI_V1
         "tile_zoom": TILE_ZOOM,
         "point_budget": POINT_BUDGET,
+        "adaptive_aggregates": profile == "local",
+        "native_points_v7": native_tile_info is not None,
+        "native_point_tiles": native_tile_info,
+        "aggregate_levels": list(AGGREGATE_LEVELS),
+        "aggregate_budget": AGGREGATE_BUDGET,
+        "graph_on_demand": True,
+        "partition_on_demand": True,
+        "sector_max_strength": sector_max_strength,
         "has_roads": bool(road_count),
         "has_boundary": bool(len(boundary)),
         "score_range": [float(finite.min()), float(finite.max())] if len(finite) else [None, None],
@@ -1085,3 +1189,5 @@ def build_web_bundle(
 # sigma-unscored-hidden-by-default-and-rowwise-names-20261029-v1
 
 # SIGMA_BROWSER_ROUTING_V4_1_20261105
+
+# SIGMA_ADAPTIVE_LOD_AND_QUIET_VORONOI_20261107_V4

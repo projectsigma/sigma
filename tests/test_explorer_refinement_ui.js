@@ -27,7 +27,8 @@ assert.match(js, /const finish = \(\) => \{\s*if \(epoch !== refreshEpoch\) retu
 // Expensive reranking and graph work are deferred until after the next paint.
 assert.match(js, /requestAnimationFrame\(\(\) => setTimeout\(finish, 0\)\);/);
 assert.match(js, /recordSectorStrength\(nodeIndex\.get\(e\.from\), e\.coefficient\)/);
-assert.match(js, /'circle-opacity', ids \?\s*networkDepthOpacity\('node_id', 0\.96, step => fadeByStep\(0\.90, step\), 0\.025\)/);
+assert.match(js, /map\.setFilter\('native-establishments', filter\)/);
+assert.match(js, /if \(meta\.native_points_v7\) syncNativePointLayer\(\)/);
 assert.match(js, /'line-opacity', ids \? 0\.18 : 0\.38/);
 assert.match(js, /function initializeHelp\(\)/);
 assert.match(js, /statHelp\[label\]/);

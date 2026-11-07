@@ -656,3 +656,37 @@ def test_about_sigmapage_is_shared_and_not_copied_into_area_bundle(published: Pa
         server.server_close()
 
 # SIGMA_BROWSER_ROUTING_V4_1_20261105
+
+
+
+def test_adaptive_summary_and_exact_network_partitions(published: Path, tmp_path: Path):
+    # Summary glyphs are not X entities; exact data survives every transformation.
+    dest = tmp_path / "adaptive-web"
+    build_web_bundle(published, dest)
+    meta = _json(dest / "data/metadata.json")
+    assert meta["point_budget"] == 8000
+    assert meta["graph_on_demand"] and meta["partition_on_demand"]
+    assert meta["adaptive_aggregates"]
+    complete = _json(dest / "data/graph.json")
+    lean = _json(dest / "data/graph-nodes.json")
+    assert {n["id"] for n in lean["nodes"]} == {n["id"] for n in complete["nodes"]}
+    recovered_edges = {}
+    for path in (dest / "data/adjacency").glob("*.json"):
+        for edge in _json(path)["edges"]:
+            key = (edge["from"], edge["to"])
+            assert key not in recovered_edges or recovered_edges[key] == edge
+            recovered_edges[key] = edge
+    assert recovered_edges == {(e["from"], e["to"]): e for e in complete["edges"]}
+    original = _json(dest / "data/clusters.geojson")["features"]
+    sharded = [feature for path in (dest / "data/partitions").glob("*.geojson")
+               for feature in _json(path)["features"]]
+    assert sorted(map(str, original)) == sorted(map(str, sharded))
+    for level in (11, 13, 15, 17):
+        shards = (dest / "data/aggregate" / str(level)).rglob("*.geojson")
+        features = [f for path in shards for f in _json(path)["features"]]
+        assert sum(f["properties"]["count"] for f in features) == 3
+        for feature in features:
+            assert feature["properties"]["aggregate"] is True
+            assert "score" not in feature["properties"]
+            assert feature["properties"]["node_id"] in {A, B, C}
+            assert "cluster" not in feature["properties"]
