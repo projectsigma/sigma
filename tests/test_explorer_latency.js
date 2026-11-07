@@ -11,8 +11,9 @@ function section(start, end) {
   return source.slice(a, b);
 }
 
-// A new selection must synchronously clear old routes and cancel stale deferred render jobs.
-{
+// A new selection must immediately clear stale routes, and defer graph work until its
+// asynchronous published-partition load resolves. Superseded work must not run.
+async function testSelectionRefresh() {
   const script = section('  let graphAutoClosed = true;', '  function selectUnclustered(');
   const work = [], frames = [], timers = [];
   let lastSelectionId = 'first';
@@ -27,7 +28,7 @@ function section(start, end) {
     'renderSectors', 'drawGraph', 'renderConnections', 'showRoutes', 'setData', 'EMPTY',
     'requestAnimationFrame', 'setTimeout', 'document', 'sigmaSetHoveredPartition',
     'meta', 'cancelBrowserPending',
-    `let refreshEpoch=0, routeEpoch=0, hoverEpoch=0, pendingHoverEvent=null, sigmaTriangleStyleByNode=null, network=null;\n${script}\nreturn {refresh};`);
+    `async function loadPartitionNeighborhood() { return true; }\nfunction showError(error) { throw error; }\nlet refreshEpoch=0, routeEpoch=0, hoverEpoch=0, pendingHoverEvent=null, sigmaTriangleStyleByNode=null, network=null;\n${script}\nreturn {refresh};`);
   const callbacks = ['renderSelection', 'applyEmphasis', 'updateStatus', 'renderSectors', 'drawGraph', 'renderConnections', 'showRoutes'];
   const cb = Object.fromEntries(callbacks.map(key => [key, () => work.push(`${key}:${lastSelectionId}`)]));
   const graphDetails = {open: false};
@@ -48,6 +49,7 @@ function section(start, end) {
       work.push('hover:clear');
     }, mode, () => work.push('browser:cancel'));
   handler.refresh();
+  await Promise.resolve();
   assert.equal(graphDetails.open, true, 'selected network should expand graph');
   assert.deepEqual(work.slice(0,3), ['hover:clear','routes:clear','route-hover:clear'],
     'Selection refresh must clear the hovered polygon before old routes');
@@ -55,6 +57,7 @@ function section(start, end) {
   assert(!work.some(x=>x.startsWith('drawGraph:')),'expensive work must be deferred');
   lastSelectionId='second';
   handler.refresh();
+  await Promise.resolve();
   for(const f of frames.splice(0)) f();
   for(const t of timers.splice(0)) t();
   assert.equal(work.filter(x=>x==='drawGraph:second').length,1);
@@ -64,18 +67,22 @@ function section(start, end) {
   // Preserve manual collapse while a network remains selected.
   graphDetails.open = false;
   handler.refresh();
+  await Promise.resolve();
   assert.equal(graphDetails.open, false, 'manual collapse should persist');
   // No selected X-network closes the disclosure; a new one reopens it.
   lastSelectionId = 'missing';
   handler.refresh();
+  await Promise.resolve();
   assert.equal(graphDetails.open, false, 'missing network should collapse graph');
   lastSelectionId = 'first';
   handler.refresh();
+  await Promise.resolve();
   assert.equal(graphDetails.open, true, 'new network should reopen graph');
   // Switching to browser mode must synchronously cancel obsolete worker jobs.
   const prior = work.length;
   mode.route_mode = 'browser';
   handler.refresh();
+  await Promise.resolve();
   assert.deepEqual(work.slice(prior, prior + 4),
     ['hover:clear', 'browser:cancel', 'routes:clear', 'route-hover:clear'],
     'browser routing must cancel pending worker jobs before clearing old paths');
@@ -108,8 +115,13 @@ function section(start, end) {
 }
 
 // A pending tile transition must invalidate stale signature and remove old points.
-assert.match(source,/if \(signature === lastRenderedTileSignature\) \{ updateStatus\(\); return; \}[\s\S]*?lastRenderedTileSignature = '';[\s\S]*?setData\('points', EMPTY\(\)\);/);
+// Native scored tiles do not rebuild huge GeoJSON sources per pan; the legacy
+// fallback still retains a signature cache and reclips on an unchanged tile set.
+assert.match(source, /if \(meta\.native_points_v7\) \{/);
+assert.match(source, /syncNativePointLayer\(\)/);
+assert.match(source, /if \(signature === lastRenderedTileSignature\) \{\s*syncRenderedEstablishments\(\)/);
+assert.match(source, /lastRenderedTileSignature = '';/);
 assert.match(source,/const routePaletteChanged = lastRoutePaletteTheme !== themeMode/);
 assert.match(source,/const ROUTE_CACHE_LIMIT = 96;/);
 assert.match(source,/map\.on\('mousemove', scheduleHover\)/);
-console.log('PASS: immediate route removal, superseded render cancellation, bounded hover, exact route identities, tile transition.');
+testSelectionRefresh().then(() => console.log('PASS: immediate route removal, superseded async render cancellation, bounded hover, exact routes, native tile transition.')).catch(error => { console.error(error); process.exitCode = 1; });

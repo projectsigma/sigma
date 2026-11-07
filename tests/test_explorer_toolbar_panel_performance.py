@@ -42,7 +42,14 @@ def test_existing_right_panel_controller_still_works():
 def test_pan_cache_skips_only_identical_rendered_tile_set():
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     assert 'let lastRenderedTileSignature = null;' in js
-    assert 'if (signature === lastRenderedTileSignature) { updateStatus(); return; }' in js
-    assert js.count('lastRenderedTileSignature = null;') == 3  # declaration and two invalidations
+    # In the legacy GeoJSON fallback, an unchanged z13 tile set still reclips
+    # points on a pan (different visible coordinates can share the same tile keys).
+    assert 'if (signature === lastRenderedTileSignature) {' in js
+    assert 'syncRenderedEstablishments(); // Reclip points after panning within z13 tiles.' in js
     assert 'lastRenderedTileSignature = signature;' in js
-    assert js.index("setData('points', {type: 'FeatureCollection'") < js.index("lastRenderedTileSignature = signature;")
+    assert "lastRenderedTileSignature = '';" in js
+    # Native scored PBF tiles are managed by MapLibre, not the GeoJSON pan cache.
+    native = js.split('if (meta.native_points_v7) {', 1)[1].split('if (!meta.has_points)', 1)[0]
+    assert 'syncNativePointLayer();' in native
+    assert "setData('points', EMPTY());" in native
+    assert 'visiblePointGroups = null;' in native

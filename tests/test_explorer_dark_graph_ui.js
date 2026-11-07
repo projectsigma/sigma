@@ -12,7 +12,8 @@ assert.match(js,/selector: 'node.labelled', style: [^\n]*'text-background-opacit
 assert.match(js,/'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 7/);
 assert(!js.includes("'text-background-opacity': 0.93"), 'No opaque label backgrounds');
 assert.match(js,/paint\('partition-linked-fill', 'fill-opacity', network \?/);
-assert.match(js,/step => fadeByStep\(dark \? 0\.17 : 0\.105, step\)/);
+assert.match(js,/step => voronoiOpacity\(dark \? 0\.16 : 0\.18, step\)/);
+assert.match(js,/paint\('partition-focus-fill', 'fill-opacity', dark \? 0\.24 : 0\.30\)/);
 assert.match(js,/const base = themeMode === 'dark' \? 'dark_center_icon'/);
 assert.match(js,/darkLinkedIconByType\.set\(key, darkLinkedName\)/);
 assert.match(js,/applyTheme\(themeMode\); \/\/ Restore theme-aware paints/);

@@ -17,7 +17,13 @@ def test_strictly_independent_sources_and_fail_closed_startup():
     assert "const context = Boolean(network && scored);" in s
     assert "const enabled = general || scored;" in s
     assert "setData('unscored-points', {type: 'FeatureCollection', features: locations})" in s
-    assert "setData('points', {type: 'FeatureCollection', features: scoredFeatures})" in s
+    # Scored establishments now use native PBF tiles. GeoJSON stays empty at
+    # full-resolution mode, while hollow unscored context is independently opt-in.
+    assert "map.addSource('native-points', {type: 'vector'" in s
+    assert "source: 'native-points', 'source-layer': 'places'" in s
+    assert "map.setFilter('native-establishments', filter)" in s
+    assert "if (meta.native_points_v7) syncNativePointLayer();" in s
+    assert "setData('points', EMPTY());" in s
     assert "filter: ['!=', ['get', 'unclustered'], true]" in scored
 
 

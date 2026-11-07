@@ -42,8 +42,16 @@ def test_unscored_map_layer_never_starts_visible():
 def test_map_tile_loading_requires_explicit_opt_in():
     js = (STATIC / "app.js").read_text(encoding="utf-8")
     loader = js.split('  async function loadVisiblePoints() {', 1)[1].split('  function updateStatus(', 1)[0]
-    assert 'unscoredCandidates = classifiedOnly;' in loader
-    assert "setData('points', {type: 'FeatureCollection', features: scoredFeatures})" in loader
+    # Native scored points never require an eager GeoJSON download. Hollow
+    # unscored points are fetched from original tiles only after a user opt-in.
+    assert 'if (meta.native_points_v7) {' in loader
+    native = loader.split('if (meta.native_points_v7) {', 1)[1].split('if (!meta.has_points)', 1)[0]
+    assert "setData('points', EMPTY());" in native
+    assert 'if (!wantUnscored) {' in native
+    assert 'unscoredCandidates = [];' in native
+    assert 'feature.properties?.unclustered !== true' in native
+    assert 'unscoredCandidates = rows;' in native
+    assert 'getJSON(`data/tiles/${z}/${key}.geojson`)' in native
     sync = js.split('  function syncUnscoredOverlay() {', 1)[1].split('  function applyEmphasis()', 1)[0]
     assert "const general = Boolean(!network && control && control.checked && !control.disabled);" in sync
     assert "const scored = Boolean(linked && linked.checked && !linked.disabled);" in sync

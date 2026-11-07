@@ -80,7 +80,7 @@ const katzNodes = new Map([...sectors.keys()].map((code, i) =>
 const funcs = new Function('document', 'sectors', 'map', 'COLOR', 'centerIconByType',
   'linkedCenterIconByType', 'darkCenterIconByType', 'darkLinkedIconByType',
   'selectedIconByType', 'meta', 'isNum', 'sectorMatchPairs', 'EMPTY', 'nodeIndex',
-  `${paletteSource}\n${katzSource}\n${helperSource}\n${selectedSource}\n${layerSource}\ninitializeKatzCenterLimits();\nreturn {addLayers};`)(
+  `const sigmaHiddenOriginals = new Set();\nconst notHidden = () => ['literal', true];\n${originalFilterSource}\n${paletteSource}\n${katzSource}\n${helperSource}\n${selectedSource}\n${layerSource}\ninitializeKatzCenterLimits();\nreturn {addLayers};`)(
   document, sectors, map, colors, centerIconByType, linkedCenterIconByType,
   darkCenterIconByType, darkLinkedIconByType, selectedIconByType,
   meta, isNum, sectorMatchPairs, EMPTY, katzNodes);
@@ -158,10 +158,10 @@ const nodeIndex = new Map(centers.map(f => [f.properties.id,
 const sectorColor = code => sectors.get(String(code)).color;
 const getEmphasis = new Function('map','network','COLOR','notHidden','updatePartitions',
   'themeMode','updateCenterVisibility','applyTheme', 'document','nodeIndex',
-  'sectorColor','isNum',
-  `const sigmaHiddenOriginals = new Set();\n${originalFilterSource}\nfunction syncUnscoredOverlay() {}\n${routeAnchorSource}\n${triangleSource}\nsigmaTriangleStyleByNode = computeNetworkTriangleStyles();\n${emphasisSource}\nreturn applyEmphasis;`)(
+  'sectorColor','isNum','meta',
+  `const sigmaHiddenOriginals = new Set();\n${originalFilterSource}\nfunction syncUnscoredOverlay() {}\nfunction syncRenderedEstablishments() {}\nfunction syncNativePointLayer() {}\n${routeAnchorSource}\n${triangleSource}\nsigmaTriangleStyleByNode = computeNetworkTriangleStyles();\n${emphasisSource}\nreturn applyEmphasis;`)(
     map, network, colors, () => true, () => {}, 'light', () => {}, () => {},
-    document, nodeIndex, sectorColor, isNum);
+    document, nodeIndex, sectorColor, isNum, meta);
 getEmphasis();
 const iconExpr = layoutUpdates.get('centers.icon-image');
 const opacityExpr = paintUpdates.get('centers.icon-opacity');
