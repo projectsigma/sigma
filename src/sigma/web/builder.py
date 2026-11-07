@@ -582,9 +582,6 @@ def _build_unstaged_bundle(
             for node_id in (edge["from"], edge["to"]):
                 code = node_by_id[node_id]["type"]
                 sector_max_strength[code] = max(sector_max_strength.get(code, 0.0), coefficient)
-    _json_dump(dest / "data/graph-nodes.json", {"nodes": [
-        {**node, "shard": node_shards[node["id"]]} for node in nodes
-    ]})
     for shard in range((len(nodes) + GRAPH_SHARD_SIZE - 1) // GRAPH_SHARD_SIZE):
         _json_dump(dest / f"data/adjacency/{shard:04d}.json", {
             "edges": edge_shards.get(shard, []),
@@ -1049,6 +1046,11 @@ def _build_unstaged_bundle(
     }
     _json_dump(dest / "data/metadata.json", metadata)
     _json_dump(dest / "data/graph.json", {"nodes": nodes, "edges": edges})
+    # Export lazy X metadata only AFTER scoring all establishment memberships.
+    # This is the same finalized node set published in graph.json.
+    _json_dump(dest / "data/graph-nodes.json", {"nodes": [
+        {**node, "shard": node_shards[node["id"]]} for node in nodes
+    ]})
 
     for name in ("ATTRIBUTION.txt", "DATABASE_LICENSE.txt"):
         licence_file = _input_path(source, name, expected)

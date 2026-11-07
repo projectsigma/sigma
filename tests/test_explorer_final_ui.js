@@ -25,7 +25,10 @@ assert.match(js, /const score = network && linked\.has\(s\.code\)/);
 assert.match(js, /\$\{description\}: \$\{isNum\(score\) \? fmtCoef\(score\) : 'not available'\}/);
 assert(!js.includes('`a ${fmtCoef(score)}`'), 'Sector rows must not display unexplained "a"');
 assert.match(js, /Circle AREA, not radius, is proportional to normalized SIGMA score/);
-assert.match(js, /scoreRadius\(2\.0, 10\.5\)/);
+// V11 enlarges native scored markers without changing score-based area scaling.
+assert.match(js, /8, 1\.1, 9, 1\.5, 10, 1\.9, 11, 2\.4/);
+assert.match(js, /12, scoreRadius\(2\.6, 7\.4\), 13, scoreRadius\(3\.1, 9\.2\)/);
+assert.match(js, /15, scoreRadius\(3\.9, 12\.5\), 17, scoreRadius\(5\.0, 18\.5\)/);
 assert.match(css, /sigma-explorer-final-20261019-v3/);
 assert.match(js, /function updateCenterVisibility\(\)/);
 console.log('PASS: custom depth, explicit hierarchical sorting, coefficient help, area-scaled SIGMA points.');

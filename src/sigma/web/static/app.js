@@ -1265,8 +1265,9 @@
     for (const layer of ['partition-linked-fill', 'partition-focus-fill']) {
       visibility(layer, foreground);
     }
+    // Linked partitions stay borderless; the selected focus regains its outline.
     visibility('partition-linked-line', false);
-    visibility('partition-focus-line', false);
+    visibility('partition-focus-line', foreground);
     if (!show) return;
     const color = ['match', ['get', 'type'], ...sectorMatchPairs(), '#657f78'];
     if (mode === 'network') {
@@ -2553,7 +2554,8 @@
       layout: {visibility: 'none'}, paint: {'fill-color': sectorColorExpr, 'fill-opacity': 0.25}});
     map.addLayer({id: 'partition-focus-line', type: 'line', source: 'clusters',
       layout: {visibility: 'none'}, paint: {'line-color': COLOR.focus,
-        'line-width': 1.25, 'line-opacity': 0.97}});
+        'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.6, 14, 2.2, 18, 3.0],
+        'line-opacity': 0.97}});
     map.addSource('routes', {type: 'geojson', data: EMPTY()});
     // Each feature retains its exact published geometry. Layers are registered
     // deepest-first so earlier road links stay in front of later steps.
@@ -2633,15 +2635,15 @@
       filter: ['==', ['get', 'unclustered'], true], layout: {visibility: 'none'},
       paint: {'circle-color': 'rgba(0,0,0,0)',
         'circle-radius': ['interpolate', ['linear'], ['zoom'],
-          11, scoreRadius(1.4, 5.7, 'visual_min_score'),
-          14, scoreRadius(2.0, 10.5, 'visual_min_score'),
-          17, scoreRadius(3.2, 16.5, 'visual_min_score')],
+          11, scoreRadius(2.0, 7.3, 'visual_min_score'),
+          14, scoreRadius(3.0, 12.5, 'visual_min_score'),
+          17, scoreRadius(4.3, 19.0, 'visual_min_score')],
         'circle-opacity': 0.82, 'circle-stroke-color': sigmaPointColorExpr,
         'circle-stroke-width': 1.2, 'circle-stroke-opacity': 0.95}});
     map.addLayer({id: 'establishments', type: 'circle', source: 'points',
       filter: ['!=', ['get', 'unclustered'], true], paint: {
       'circle-color': sigmaPointColorExpr,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, scoreRadius(1.4, 5.7), 14, scoreRadius(2.0, 10.5), 17, scoreRadius(3.2, 16.5)],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, scoreRadius(2.0, 7.3), 14, scoreRadius(3.0, 12.5), 17, scoreRadius(4.3, 19.0)],
       'circle-opacity': 0.82, 'circle-stroke-width': 0.35, 'circle-stroke-color': '#ffffff'}});
     // Native vector-point LOD: real positions, never centroid markers.
     // Web-Mercator zooms 8–11 contain deterministic real-point subsets;
@@ -2656,9 +2658,9 @@
         paint: {'circle-color': sigmaPointColorExpr,
           // Camera/zoom must be the OUTERMOST MapLibre expression.
           'circle-radius': ['interpolate', ['linear'], ['zoom'],
-            8, 0.7, 9, 0.9, 10, 1.15, 11, 1.45,
-            12, scoreRadius(1.4, 5.7), 13, scoreRadius(1.7, 7.8),
-            15, scoreRadius(2.0, 10.5), 17, scoreRadius(3.2, 16.5)],
+            8, 1.1, 9, 1.5, 10, 1.9, 11, 2.4,
+            12, scoreRadius(2.6, 7.4), 13, scoreRadius(3.1, 9.2),
+            15, scoreRadius(3.9, 12.5), 17, scoreRadius(5.0, 18.5)],
           'circle-opacity': 0.80,
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0, 11, 0.12, 13, 0.35],
           'circle-stroke-color': '#ffffff'}});

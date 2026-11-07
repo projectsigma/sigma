@@ -60,7 +60,10 @@ for (const [theme, base] of [['light', 0.18], ['dark', 0.16]]) {
   }
 }
 assert.match(src, /visibility\('partition-linked-line', false\)/);
-assert.match(src, /visibility\('partition-focus-line', false\)/);
+// Linked partition boundaries remain hidden; only the selected focus gets an outline.
+assert.match(src, /const foreground = mode === 'network' && !!network/);
+assert.match(src, /visibility\('partition-focus-line', foreground\)/);
+assert.match(src, /map\.setFilter\('partition-focus-line', focus\)/);
 approx(valueFor(pointExpr, 'two'), Number((0.90 / Math.sqrt(2)).toFixed(6)), 'ring 2 establishment opacity');
 approx(valueFor(pointExpr, 'three'), Number((0.90 / Math.sqrt(3)).toFixed(6)), 'ring 3 establishment opacity');
 approx(valueFor(pointExpr, 'five'), Number((0.90 / Math.sqrt(5)).toFixed(6)), 'ring 5 establishment opacity');

@@ -12,7 +12,8 @@ def test_hollow_circles_match_sector_minimum_without_fake_scores():
         "map.addLayer({id: 'establishments'", 1)[0]
     assert "type: 'circle'" in layer
     assert "'circle-color': 'rgba(0,0,0,0)'" in layer
-    assert "scoreRadius(2.0, 10.5, 'visual_min_score')" in layer
+    assert "scoreRadius(2.0, 7.3, 'visual_min_score')" in layer
+    assert "scoreRadius(3.0, 12.5, 'visual_min_score')" in layer
     assert "'circle-stroke-color': sigmaPointColorExpr" in layer
     assert "sector.min_score : (meta.score_range?.[0] ?? 0)" in app
     assert "sector_min_scores[code] = min(float(score)" in builder

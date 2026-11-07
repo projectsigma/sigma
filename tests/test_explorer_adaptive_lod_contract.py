@@ -37,4 +37,5 @@ def test_explorer_does_not_eager_load_green_heatmap():
     assert "map.setFilter('native-establishments', filter)" in js
     assert "setData('points', EMPTY())" in js
     assert "visibility('partition-linked-line', false)" in js
-    assert "visibility('partition-focus-line', false)" in js
+    assert "visibility('partition-focus-line', foreground)" in js
+    assert "const foreground = mode === 'network' && !!network;" in js
