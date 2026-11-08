@@ -485,3 +485,12 @@ html[data-theme="dark"] header.top > #sigma-about-link.sigma-about-left:hover {
     margin-right:0;
   }
 }
+
+/* SIGMA_EXPLORER_HOVER_POPUP_TRANSLUCENCY_20261108 */
+/* Change only the map-hover description box background, not its text opacity. */
+html[data-theme="light"] .maplibregl-popup-content {
+  background: rgba(255, 255, 255, 0.88);
+}
+html[data-theme="dark"] .maplibregl-popup-content {
+  background: rgba(38, 36, 37, 0.88);
+}
