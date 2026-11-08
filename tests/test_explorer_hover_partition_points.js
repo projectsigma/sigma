@@ -95,3 +95,105 @@ context.network=null; context.selection=null;
 hover([feature('native-establishments',{node_id:'focus'})],null,
   'no active selection retains original hover guard');
 console.log('PASS: actual scored, linked, selected-center and opt-in unclustered hover; no aggregate/ghost inference');
+
+
+// SIGMA_HOVER_PARTITIONS_OFF_SOURCE_V1: real on-demand source, not mocked loader logic.
+// Off must suppress persistent partition fill/line while the hover-only outline
+// still has the exact published geometry of the selected X network.
+async function checkPartitionsOffHoverSource() {
+  const getFunction = (start, end) => between(start, end);
+  const source = [
+    getFunction('  async function loadPartitionNeighborhood(epoch) {',
+      '  // ------------------------------------------------------------------ selection'),
+    getFunction('  function updatePartitions() {',
+      '  // Render the directed X edges'),
+    getFunction('  function sigmaSetHoveredPartition(id) {',
+      '  const POPUP_BLOCKS = 3;'),
+  ].join('\n');
+  const polygon = (node_id, type) => ({type:'Feature',
+    properties:{node_id,type},
+    geometry:{type:'Polygon',coordinates:[[[120,14],[121,14],[121,15],[120,14]]]}});
+  const focus = polygon('focus','A'), linked = polygon('linked','B');
+  const requests = [], sources = [], ordinaryVisibility = [], hoverFilters = [], hoverLayout = [];
+  const selectedNetwork = {focus:'focus', ring:new Map([['focus',0],['linked',1]])};
+  const mapStub = {
+    getLayer:()=>({}),
+    setFilter:(layer,filter)=>hoverFilters.push({layer,filter}),
+    setLayoutProperty:(layer,prop,value)=>hoverLayout.push({layer,prop,value}),
+  };
+  const sandbox = {
+    meta: {partition_on_demand:true}, ready:true, refreshEpoch:8,
+    state:{partitions:'off'},
+    network:selectedNetwork, selection:{id:'focus'},
+    nodeIndex:new Map([['focus',{type:'A',shard:1}],['linked',{type:'B',shard:2}]]),
+    hidden:new Set(), map:mapStub,
+    sigmaVoronoiFeatures:[], sigmaHoveredPartitionId:null,
+    setData:(name,data)=>sources.push({name,data}),
+    visibility:(name,enabled)=>ordinaryVisibility.push({name,enabled}),
+    getJSON:async name=>{
+      requests.push(name);
+      if (name==='data/partitions/0001.geojson') return {features:[focus]};
+      if (name==='data/partitions/0002.geojson') return {features:[linked]};
+      if (name==='data/clusters.geojson') return {features:[focus,linked]};
+      throw Error(`Unexpected partition request: ${name}`);
+    },
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(source,sandbox);
+
+  assert.equal(await sandbox.loadPartitionNeighborhood(8),true,'OFF fetch succeeds');
+  assert.deepEqual(requests, ['data/partitions/0001.geojson','data/partitions/0002.geojson'],
+    'OFF fetches only selected-network shards, not all clusters');
+  assert.equal(JSON.stringify(sources.at(-1).data.features.map(f=>f.properties.node_id)),
+    JSON.stringify(['focus','linked']),
+    'OFF retains exact selected-network polygons in hidden map source');
+  assert.equal(sandbox.sigmaVoronoiFeatures.length,0,
+    'OFF does not activate ghost or unclustered partition-context state');
+  sandbox.updatePartitions();
+  for (const name of ['partition-fill','partition-line','partition-linked-fill',
+    'partition-linked-line','partition-focus-fill','partition-focus-line']) {
+    assert.equal(ordinaryVisibility.find(v=>v.name===name)?.enabled,false,
+      `OFF leaves persistent layer ${name} hidden`);
+  }
+  sandbox.sigmaSetHoveredPartition('linked');
+  assert.equal(sandbox.sigmaHoveredPartitionId,'linked','hover points to loaded linked polygon');
+  assert.equal(hoverLayout.at(-1).value,'visible','hover-only outline becomes visible');
+  assert.equal(JSON.stringify(hoverFilters.at(-1).filter),
+    JSON.stringify(['==',['get','node_id'],'linked']),
+    'hover-only outline filters on the actual X node ID');
+  assert.equal(requests.length,2,'mousemove causes no extra polygon requests');
+  sandbox.sigmaSetHoveredPartition(null);
+  assert.equal(hoverLayout.at(-1).value,'none','hover exit clears outline');
+
+  sandbox.state.partitions='network';
+  assert.equal(await sandbox.loadPartitionNeighborhood(8),true);
+  assert.equal(sandbox.sigmaVoronoiFeatures.length,2,
+    'Network mode preserves its original partition-context behavior');
+
+  sandbox.state.partitions='all';
+  assert.equal(await sandbox.loadPartitionNeighborhood(8),true);
+  assert.equal(sandbox.sigmaVoronoiFeatures.length,2,
+    'All mode retains its original full polygon behavior');
+  assert.equal(requests.at(-1),'data/clusters.geojson');
+
+  sandbox.state.partitions='off'; sandbox.network=null; sandbox.selection=null;
+  const before = requests.length;
+  assert.equal(await sandbox.loadPartitionNeighborhood(8),true);
+  assert.equal(requests.length,before,'OFF without an X selection never fetches polygons');
+  assert.equal(sources.at(-1).data.features.length,0,
+    'OFF without selection empties the geometry source');
+  sandbox.sigmaSetHoveredPartition('focus');
+  assert.equal(sandbox.sigmaHoveredPartitionId,null,
+    'OFF without selection does not reveal an unrelated Voronoi polygon');
+
+  // Stale asynchronous results must not overwrite newer focus/visibility state.
+  sandbox.network=selectedNetwork; sandbox.selection={id:'focus'};
+  const snapshots = sources.length;
+  assert.equal(await sandbox.loadPartitionNeighborhood(7),false,
+    'stale refresh epoch is rejected');
+  assert.equal(sources.length,snapshots,
+    'stale load never replaces the active map source');
+}
+checkPartitionsOffHoverSource().then(() => {
+  console.log('PASS: OFF still supplies existing selected Voronoi hover outlines; no persistent partitions or ghost context');
+}).catch(error => { console.error(error); process.exitCode = 1; });
