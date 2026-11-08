@@ -23,8 +23,8 @@ const originalFilterSource = section('  function sigmaOriginalFilter() {',
   '  function sigmaEstablishmentColors() {');
 const paletteSource = section('  function sigmaEstablishmentColors() {',
   '  const selectedIconByType = new Map();');
-const selectedSource = section('  function selectedCenterIconExpression() {', '  function addLayers(data) {');
-const layerSource = section('  function addLayers(data) {', '  function bindControls() {');
+const selectedSource = section('  function selectedCenterIconExpression() {', '  function addLayers(data, fittedZoom = 11) {');
+const layerSource = section('  function addLayers(data, fittedZoom = 11) {', '  function bindControls() {');
 // Keep the actual Katz helpers in the extracted layer-building code.
 const katzSource = section('  let katzCenterLimits = null;',
   '  // Only image variants not used by the current network are eligible for eviction.');
