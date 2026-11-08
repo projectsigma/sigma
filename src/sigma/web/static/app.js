@@ -1909,7 +1909,9 @@
       const all = await getJSON('data/clusters.geojson');
       if (epoch !== refreshEpoch) return false;
       features = all.features || [];
-    } else if (state.partitions === 'network' && network) {
+    } else if ((state.partitions === 'network' || state.partitions === 'off') && network) {
+      // OFF still needs the selected X polygons for the hover-only outline.
+      // No additional partition fill or border is enabled.
       const ids = new Set(network.ring.keys());
       const shards = [...new Set([...ids].map(id => nodeIndex.get(id)?.shard)
         .filter(s => Number.isInteger(s)))];
@@ -1923,7 +1925,9 @@
       }
     }
     if (epoch !== refreshEpoch) return false;
-    sigmaVoronoiFeatures = features;
+    // OFF keeps polygons only in the map source for hover, not in the
+    // partition-context/ghost/unclustered membership display state.
+    sigmaVoronoiFeatures = state.partitions === 'off' ? [] : features;
     setData('clusters', {type: 'FeatureCollection', features});
     return true;
   }
