@@ -10,7 +10,9 @@ def test_unscored_layer_has_unambiguous_hollow_paint_and_initially_empty_filter(
     layer = js.split("map.addLayer({id: 'unclustered-establishments'", 1)[1].split("map.addLayer({id: 'establishments'", 1)[0]
     assert "type: 'circle', source: 'unscored-points'" in layer
     assert "visibility: 'none'" in layer
-    assert "'circle-radius': ['interpolate'" in layer
+    assert "'circle-radius': unclusteredPointRadius" in layer
+    assert "const unclusteredPointRadius = radiusAtFit([" in js
+    assert "const radiusAtFit = stops => ['interpolate', ['linear'], ['zoom']" in js
     assert "map.addSource('unscored-points', {type: 'geojson', data: EMPTY()})" in js
     assert "'circle-color': 'rgba(0,0,0,0)'" in layer
 

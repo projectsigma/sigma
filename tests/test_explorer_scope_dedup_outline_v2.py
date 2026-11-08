@@ -29,7 +29,9 @@ def test_unscored_layer_is_only_unscored_and_opt_in():
     assert "type: 'circle', source: 'unscored-points'" in layer
     assert "visibility: 'none'" in layer
     assert "filter: ['==', ['get', 'unclustered'], true]" in layer
-    assert "'circle-radius': ['interpolate'" in layer
+    assert "'circle-radius': unclusteredPointRadius" in layer
+    assert "const unclusteredPointRadius = radiusAtFit([" in s
+    assert "const radiusAtFit = stops => ['interpolate', ['linear'], ['zoom']" in s
     assert "Boolean(!network && control && control.checked && !control.disabled)" in s
     assert "const scored = Boolean(linked && linked.checked && !linked.disabled);" in s
     assert "const context = Boolean(network && scored);" in s
