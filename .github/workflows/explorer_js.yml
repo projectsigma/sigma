@@ -92,6 +92,9 @@ jobs:
           echo "::group::Unclustered sector and partition visibility"
           node tests/test_explorer_unclustered_partition_visibility.js || { echo "::error file=tests/test_explorer_unclustered_partition_visibility.js::Explorer regression failed"; failures=$((failures + 1)); }
           echo "::endgroup::"
+          echo "::group::Hovered scored and unclustered Voronoi outlines"
+          node tests/test_explorer_hover_partition_points.js || { echo "::error file=tests/test_explorer_hover_partition_points.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
           echo "::group::Adaptive Explorer rendering"
           node tests/test_explorer_adaptive_rendering.js || { echo "::error file=tests/test_explorer_adaptive_rendering.js::Explorer regression failed"; failures=$((failures + 1)); }
           echo "::endgroup::"
@@ -101,5 +104,5 @@ jobs:
           echo "::group::Native point vector LOD"
           node tests/test_explorer_vector_lod_v7.js || { echo "::error file=tests/test_explorer_vector_lod_v7.js::Explorer regression failed"; failures=$((failures + 1)); }
           echo "::endgroup::"
-          echo "Explorer JavaScript failures: $failures / 21"
+          echo "Explorer JavaScript failures: $failures / 22"
           if [ "$failures" -ne 0 ]; then exit 1; fi

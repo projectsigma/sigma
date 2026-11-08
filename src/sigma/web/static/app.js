@@ -2434,8 +2434,9 @@
       'native-establishments', 'unclustered-establishments', 'aggregate-establishments'].filter(l =>
       map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
     const places = map.queryRenderedFeatures(event.point, {layers: placeLayers});
-    // Only triangles activate a boundary. The enlarged selected triangle has
-    // no `id` property, so use the already-selected X node for that symbol.
+    // SIGMA_HOVER_POINT_PARTITION_OUTLINE_V15: only the hover target changes.
+    // Reuse the published polygon outline; never compute new memberships or
+    // point-in-polygon tests during mousemove. Center icons retain priority.
     const center = selection ? places.find(feature => {
       const layer = feature.layer?.id;
       const id = layer === 'selected-center' ? selection.id :
@@ -2443,12 +2444,22 @@
       const node = id == null ? null : nodeIndex.get(String(id));
       return node && !hidden.has(String(node.type));
     }) : null;
-    sigmaSetHoveredPartition(center ? (center.layer.id === 'selected-center' ?
-      selection.id : center.properties.id) : null);
     // Keep the previous popup interaction: the selected-center overlay is a
     // display symbol, not an extra selectable or hover-popup feature.
     const scopedPlaces = places.filter(feature =>
       feature.layer.id !== 'selected-center' && selectableMapFeature(feature));
+    // A scored point carries its ACTUAL X cluster node_id. An opt-in hollow
+    // unclustered point carries voronoi_node_id, assigned solely for display
+    // from the already loaded same-sector partition. Neither ghost points nor
+    // mixed-cluster summary glyphs should ever imply a cluster membership.
+    const hoveredPoint = !center && network ? scopedPlaces.find(feature =>
+      ['native-establishments', 'establishments', 'unclustered-establishments']
+        .includes(feature.layer.id)) : null;
+    const hoveredId = center ? (center.layer.id === 'selected-center' ?
+      selection.id : center.properties.id) : hoveredPoint ?
+      (hoveredPoint.layer.id === 'unclustered-establishments' ?
+        hoveredPoint.properties.voronoi_node_id : hoveredPoint.properties.node_id) : null;
+    sigmaSetHoveredPartition(hoveredId);
     map.getCanvas().style.cursor = scopedPlaces.length ? 'pointer' : '';
     let content = null;
     if (scopedPlaces.length) {
