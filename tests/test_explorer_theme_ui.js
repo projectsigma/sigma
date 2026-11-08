@@ -26,7 +26,8 @@ assert(!js.includes("className: 'control-help', title: description"), 'Dynamic h
 assert.match(js, /function applyTheme\(choice\)/);
 assert.match(js, /document\.documentElement\.dataset\.theme = themeMode/);
 assert.match(js, /applyTheme\('light'\)/);
-assert.match(js, /addLayers\(data\);\s*applyTheme\(themeMode\)/);
+assert.match(js, /const initialPointFitZoom = map\.getZoom\(\)/);
+assert.match(js, /addLayers\(data, initialPointFitZoom\);\s*applyTheme\(themeMode\)/);
 assert.match(js, /roads-line', 'line-opacity',[\s\S]*?themeMode === 'dark'/);
 assert.match(css, /sigma-explorer-theme-20261019-v4/);
 assert.match(css, /html\[data-theme="dark"\] #network/);

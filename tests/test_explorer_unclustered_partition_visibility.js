@@ -120,9 +120,10 @@ check([]); assert.equal(visible, false);
   assert.equal(visibilityState.get('partition-focus-line'), false,
     'Do not show an empty selected outline with no focus');
 }
-// The actual native-vector source retains the score-dependent, zoom-outermost
-// MapLibre radius expression; only its presentation sizes have changed.
-assert.match(js, /8, 1\.1, 9, 1\.5, 10, 1\.9, 11, 2\.4,/);
-assert.match(js, /12, scoreRadius\(2\.6, 7\.4\), 13, scoreRadius\(3\.1, 9\.2\),/);
-assert.match(js, /'circle-radius': \['interpolate', \['linear'\], \['zoom'\]/);
+// Keep the same hollow-marker controls; only the radius presentation changes.
+assert.match(js, /const scoredPointRadius = radiusAtFit\(/);
+assert.match(js, /const unclusteredPointRadius = radiusAtFit\(/);
+assert.match(js, /'circle-radius': scoredPointRadius/);
+assert.match(js, /'circle-radius': unclusteredPointRadius/);
+assert.match(js, /'circle-radius': ghostPointRadius/);
 console.log('PASS: 10 visibility states; selected focus+linked partitions, independent toggles, ring cache invalidation');

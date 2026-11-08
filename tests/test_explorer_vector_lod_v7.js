@@ -10,13 +10,15 @@ const nativeEnd = src.indexOf('    // Assign browser-only icon identifiers', nat
 assert(nativeStart >= 0 && nativeEnd > nativeStart, 'Native source/layer section absent');
 const added = {source: null, layer: null, layers: []};
 const addNative = new Function('meta','map','location','notHidden','sigmaOriginalFilter',
-    'sigmaPointColorExpr','scoreRadius',src.slice(nativeStart,nativeEnd));
+    'sigmaPointColorExpr','scoreRadius','scoredPointRadius','ghostPointRadius',src.slice(nativeStart,nativeEnd));
 addNative({native_points_v7:true,has_points:true}, {
   addSource: (name, spec)=>added.source={name,spec},
   addLayer: spec=>{added.layer=spec;added.layers.push(spec);},
 }, {href:'http://127.0.0.1:8765/index.html'},
 ()=>['==',['get','type'],'06'], ()=>['==',['get','original_type'],'06'],
-['get','type'],(small,large)=>['+',small,large]);
+['get','type'],(small,large)=>['+',small,large],
+  ['interpolate',['linear'],['zoom'],10,2,12,5],
+  ['interpolate',['linear'],['zoom'],10,1,12,3]);
 assert.equal(added.source.name,'native-points');
 assert.equal(added.source.spec.type,'vector');
 assert.equal(added.source.spec.minzoom,8);
@@ -147,4 +149,68 @@ assert.deepEqual(limited[0].geometry.coordinates[0][0],[0,0],
   'Selected focus polygon has first priority');
 assert(!ghostSrc.includes('map.getBounds()'), 'Ghost polygon footprint must not change on pan');
 console.log('PASS: v13 ghost layer: 10% cap, stable pan, bounded exact polygons, click isolation');
+// Fit-relative point sizing: execute the actual sizing expressions at two
+// different workspace fit zooms. At the same relative zoom, all four layer
+// types must produce the same radii; score ordering and the 7.8px cap remain.
+const sizesStart = src.indexOf('    const [minimum, maximum] = meta.score_range || [null, null];');
+const sizesEnd = src.indexOf('    const sectorColorExpr', sizesStart);
+assert(sizesStart >= 0 && sizesEnd > sizesStart, 'adaptive radius definitions missing');
+const makeSizes = new Function('meta', 'isNum', 'fittedZoom',
+  src.slice(sizesStart, sizesEnd) +
+  '\nreturn {scoredPointRadius, unclusteredPointRadius, ghostPointRadius, summaryPointRadius};');
+const aSizes = makeSizes({score_range:[0,1]}, Number.isFinite, 10.5);
+const bSizes = makeSizes({score_range:[0,1]}, Number.isFinite, 13.4);
+for (const name of ['scoredPointRadius', 'unclusteredPointRadius',
+                    'ghostPointRadius', 'summaryPointRadius']) {
+  const a = aSizes[name], b = bSizes[name];
+  assert.equal(a[0], 'interpolate', `${name} must be zoom interpolation`);
+  assert.deepEqual(a[2], ['zoom'], `${name} must put zoom at expression root`);
+  assert.equal(a.length, b.length);
+  for (let i = 3; i < a.length; i += 2) {
+    assert(Math.abs((b[i]-a[i])-2.9)<1e-8, `${name} must shift every stop by fit zoom`);
+    assert.deepEqual(a[i+1], b[i+1], `${name} must preserve the same marker sizing`);
+  }
+}
+// Small subset of MapLibre's numeric expressions, enough to test the actual
+// emitted score-circle expression (without mocking SIGMA's formula).
+function numberExpr(e, props) {
+  if (typeof e === 'number') return e;
+  if (!Array.isArray(e)) throw Error(`Unexpected expression ${e}`);
+  const [op, ...a] = e;
+  const f = x => numberExpr(x, props);
+  if (op === 'get') return props[a[0]];
+  if (op === 'coalesce') return a.map(f).find(v => v != null);
+  if (op === 'sqrt') return Math.sqrt(f(a[0]));
+  if (op === '+') return a.reduce((s,x) => s + f(x), 0);
+  if (op === '-') return f(a[0]) - f(a[1]);
+  if (op === '*') return a.reduce((p,x) => p * f(x), 1);
+  if (op === '/') return f(a[0]) / f(a[1]);
+  if (op === 'min') return Math.min(...a.map(f));
+  if (op === 'max') return Math.max(...a.map(f));
+  throw Error(`Unexpected numeric operation ${op}`);
+}
+function radiusAt(expr, zoom, props) {
+  let leftZoom = expr[3], left = expr[4];
+  if (zoom <= leftZoom) return numberExpr(left, props);
+  for (let i = 5; i < expr.length; i += 2) {
+    const rightZoom = expr[i], right = expr[i+1];
+    if (zoom <= rightZoom) {
+      const t = (zoom - leftZoom) / (rightZoom - leftZoom);
+      return numberExpr(left, props) * (1-t) + numberExpr(right, props)*t;
+    }
+    leftZoom = rightZoom; left = right;
+  }
+  return numberExpr(left, props);
+}
+for (const [sizes,z] of [[aSizes,10.5],[bSizes,13.4]]) {
+  const scored = sizes.scoredPointRadius;
+  assert(Math.abs(radiusAt(scored,z,{score:0})-2.1)<1e-8);
+  assert(Math.abs(radiusAt(scored,z,{score:1})-4.6)<1e-8);
+  assert(radiusAt(scored,z,{score:0.6}) > radiusAt(scored,z,{score:0.3}));
+  assert(Math.abs(radiusAt(scored,z+8,{score:1})-7.8)<1e-8);
+  assert(Math.abs(radiusAt(scored,z+8,{score:0})-3.3)<1e-8);
+  assert(Math.abs(radiusAt(sizes.unclusteredPointRadius,z,
+    {visual_min_score:0.5})-radiusAt(scored,z,{score:0.5}))<1e-8);
+}
+console.log('PASS: fit-relative scored/hollow/ghost/summary sizes, score ordering and detail cap');
 console.log('PASS: v7 MapLibre native layer, valid zoom root, X filtering, and clicking true locations');

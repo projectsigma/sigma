@@ -2625,7 +2625,7 @@
     return ['get', 'icon'];
   }
 
-  function addLayers(data) {
+  function addLayers(data, fittedZoom = 11) {
     const [minimum, maximum] = meta.score_range || [null, null];
     // Circle AREA, not radius, is proportional to normalized SIGMA score.
     // Each zoom uses restrained min/max sizes so dense groups remain legible.
@@ -2637,6 +2637,35 @@
       return ['sqrt', ['+', small * small,
         ['*', large * large - small * small, normalized]]];
     };
+    // A municipality and the metropolitan area should show similar dot sizes
+    // at their respective initial, boundary-fitted map views. Capture the fit
+    // once; moving/zooming afterwards must not change the reference.
+    const fitZoom = Number.isFinite(fittedZoom) ? fittedZoom : 11;
+    const radiusAtFit = stops => ['interpolate', ['linear'], ['zoom'],
+      ...stops.flatMap(([delta, radius]) => [fitZoom + delta, radius])];
+    // The scoreRadius function above keeps circle AREA proportional to score.
+    // Maximum detail radius is 7.8 px; do not weaken score ordering.
+    const scoredPointRadius = radiusAtFit([
+      [-3, 1.2], [-1, 1.6], [0, scoreRadius(2.1, 4.6)],
+      [2, scoreRadius(2.8, 6.6)], [4, scoreRadius(3.3, 7.8)]]);
+    // Hollow unclustered markers have no SIGMA score; retain the original
+    // per-sector visual minimum and distinguish them by outline, not fill.
+    const unclusteredPointRadius = radiusAtFit([
+      [-3, 1.2], [-1, 1.6], [0, scoreRadius(2.1, 4.6, 'visual_min_score')],
+      [2, scoreRadius(2.8, 6.6, 'visual_min_score')],
+      [4, scoreRadius(3.3, 7.8, 'visual_min_score')]]);
+    const ghostPointRadius = radiusAtFit([
+      [-3, 0.5], [-1, 0.9], [0, scoreRadius(1.2, 2.8)],
+      [2, scoreRadius(1.9, 4.0)], [4, scoreRadius(2.4, 5.0)]]);
+    // Aggregates encode published count, never the score or X membership.
+    const summaryCountScale = ['interpolate', ['linear'], ['sqrt', ['get', 'count']],
+      1, 1, 4, 1.08, 12, 1.22, 100, 1.4];
+    const summaryPointRadius = radiusAtFit([
+      [-3, ['*', 1.1, summaryCountScale]],
+      [-1, ['*', 1.5, summaryCountScale]],
+      [0, ['*', 2.0, summaryCountScale]],
+      [2, ['*', 2.6, summaryCountScale]],
+      [4, ['*', 3.4, summaryCountScale]]]);
     const sectorColorExpr = ['match', ['get', 'type'], ...sectorMatchPairs(), '#657f78'];
     const sigmaPointColorExpr = sigmaEstablishmentColors();
     if (data.boundary) {
@@ -2729,13 +2758,7 @@
       filter: ['all', notHidden(), sigmaOriginalFilter()],
       paint: {
         'circle-color': sigmaPointColorExpr,
-        'circle-radius': ['interpolate', ['linear'], ['zoom'],
-          8, ['*', 1.5, ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 1, 1, 4, 1.08, 12, 1.22, 100, 1.4]],
-          10, ['*', 1.9, ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 1, 1, 4, 1.08, 12, 1.22, 100, 1.4]],
-          12, ['*', 2.6, ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 1, 1, 4, 1.08, 12, 1.22, 100, 1.4]],
-          14, ['*', 3.5, ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 1, 1, 4, 1.08, 12, 1.22, 100, 1.4]],
-          16, ['*', 4.4, ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 1, 1, 4, 1.08, 12, 1.22, 100, 1.4]],
-          18, ['*', 5.6, ['interpolate', ['linear'], ['sqrt', ['get', 'count']], 1, 1, 4, 1.08, 12, 1.22, 100, 1.4]]],
+        'circle-radius': summaryPointRadius,
         'circle-opacity': 0.8, 'circle-stroke-color': '#ffffff',
         'circle-stroke-opacity': 0.75, 'circle-stroke-width': 0.35,
       }});
@@ -2747,16 +2770,13 @@
     map.addLayer({id: 'unclustered-establishments', type: 'circle', source: 'unscored-points',
       filter: ['==', ['get', 'unclustered'], true], layout: {visibility: 'none'},
       paint: {'circle-color': 'rgba(0,0,0,0)',
-        'circle-radius': ['interpolate', ['linear'], ['zoom'],
-          11, scoreRadius(2.0, 7.3, 'visual_min_score'),
-          14, scoreRadius(3.0, 12.5, 'visual_min_score'),
-          17, scoreRadius(4.3, 19.0, 'visual_min_score')],
+        'circle-radius': unclusteredPointRadius,
         'circle-opacity': 0.82, 'circle-stroke-color': sigmaPointColorExpr,
         'circle-stroke-width': 1.2, 'circle-stroke-opacity': 0.95}});
     map.addLayer({id: 'establishments', type: 'circle', source: 'points',
       filter: ['!=', ['get', 'unclustered'], true], paint: {
       'circle-color': sigmaPointColorExpr,
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, scoreRadius(2.0, 7.3), 14, scoreRadius(3.0, 12.5), 17, scoreRadius(4.3, 19.0)],
+      'circle-radius': scoredPointRadius,
       'circle-opacity': 0.82, 'circle-stroke-width': 0.35, 'circle-stroke-color': '#ffffff'}});
     // Native vector-point LOD: real positions, never centroid markers.
     // Web-Mercator zooms 8–11 contain deterministic real-point subsets;
@@ -2773,10 +2793,7 @@
         filter: ['==', ['get', 'id'], '__no_ghost_context__'],
         layout: {visibility: 'none'},
         paint: {'circle-color': sigmaPointColorExpr,
-          'circle-radius': ['interpolate', ['linear'], ['zoom'],
-            8, 0.65, 9, 0.9, 10, 1.1, 11, 1.5, 12, 1.9,
-            13, scoreRadius(1.8, 6.3), 15, scoreRadius(2.3, 8.0),
-            17, scoreRadius(3.2, 11.0)],
+          'circle-radius': ghostPointRadius,
           'circle-opacity': 0.30, 'circle-stroke-width': 0}},
         'unclustered-establishments');
       map.addLayer({id: 'native-establishments', type: 'circle',
@@ -2784,10 +2801,7 @@
         filter: ['all', ['!=', ['get', 'unclustered'], true], notHidden(), sigmaOriginalFilter()],
         paint: {'circle-color': sigmaPointColorExpr,
           // Camera/zoom must be the OUTERMOST MapLibre expression.
-          'circle-radius': ['interpolate', ['linear'], ['zoom'],
-            8, 1.1, 9, 1.5, 10, 1.9, 11, 2.4,
-            12, scoreRadius(2.6, 7.4), 13, scoreRadius(3.1, 9.2),
-            15, scoreRadius(3.9, 12.5), 17, scoreRadius(5.0, 18.5)],
+          'circle-radius': scoredPointRadius,
           'circle-opacity': 0.80,
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0, 11, 0.12, 13, 0.35],
           'circle-stroke-color': '#ffffff'}});
@@ -3034,6 +3048,8 @@
     map = new maplibregl.Map({container: 'map', attributionControl: {compact: true},
       style: {version: 8, sources: {}, layers: [{id: 'background', type: 'background', paint: {'background-color': '#f8f7f3'}}]},
       bounds: [[meta.bounds[0], meta.bounds[1]], [meta.bounds[2], meta.bounds[3]]], fitBoundsOptions: {padding: 40}});
+    // Freeze the initial view BEFORE asynchronous data loads or user zooms.
+    const initialPointFitZoom = map.getZoom();
     map.addControl(new maplibregl.NavigationControl({showCompass: false}), 'top-right');
     map.addControl(new maplibregl.ScaleControl({unit: 'metric'}), 'bottom-right');
     map.on('load', async () => {
@@ -3044,7 +3060,7 @@
           boundary: meta.has_boundary ? getJSON('data/boundary.geojson') : null, roads: meta.has_roads ? getJSON('data/roads.geojson') : null};
         const data = {};
         for (const [k, v] of Object.entries(wanted)) data[k] = v ? await v : null;
-        addLayers(data);
+        addLayers(data, initialPointFitZoom);
         applyTheme(themeMode);
         ready = true;
         map.on('mousemove', scheduleHover);
