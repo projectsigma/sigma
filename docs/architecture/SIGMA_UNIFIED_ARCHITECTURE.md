@@ -1,6 +1,6 @@
 # SIGMA Unified Architecture
 
-**Status:** implemented architecture for `sigma` 0.1.0.dev0.
+**Status:** implemented architecture for `sigma` (version defined in `src/sigma/_version.py`).
 
 SIGMA is one Python package for place acquisition and classification, road-network spatial analysis,
 economic input-output modeling, and combined spatial-economic graph analysis. The public `Sigma`
