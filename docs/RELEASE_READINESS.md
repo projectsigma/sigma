@@ -1,6 +1,6 @@
 # Release readiness
 
-SIGMA is currently `0.1.0.dev0`.
+The current SIGMA version is defined in `src/sigma/_version.py` and reported by `sigma --version`.
 
 The codebase is suitable for private development use. Stable `0.1.0` promotion should wait until a
 representative real-area run is completed in an environment with all declared runtime dependencies,

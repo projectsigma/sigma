@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 from typer.testing import CliRunner
 
-from sigma import Economy, GeofabrikRoadSource, Sigma, SigmaConfig
+from sigma import Economy, GeofabrikRoadSource, Sigma, SigmaConfig, __version__
 from sigma.cli import app, _config
 from sigma.errors import ConfigurationError
 
@@ -33,7 +33,7 @@ def _initialized_cli(monkeypatch, tmp_path: Path):
 def test_cli_version_and_area_catalog_surface():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "0.1.0.dev0" in result.stdout
+    assert result.stdout.strip() == __version__
 
     result = runner.invoke(app, ["areas", "list", "--search", "Quezon City", "--json"])
     assert result.exit_code == 0

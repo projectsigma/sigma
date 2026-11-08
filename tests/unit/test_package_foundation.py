@@ -3,6 +3,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 import sigma
+from sigma._version import __version__
 from sigma.config import SigmaConfig
 from sigma.errors import (
     AreaValidationError,
@@ -20,7 +21,7 @@ from sigma.resources import resource_root
 
 
 def test_package_import_and_version() -> None:
-    assert sigma.__version__ == "0.1.0.dev0"
+    assert sigma.__version__ == __version__
 
 
 def test_root_config_is_immutable() -> None:
