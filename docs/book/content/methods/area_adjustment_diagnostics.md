@@ -31,6 +31,8 @@ The canonical normalized cluster centrality is $C_i=\sqrt{K_i^{in}K_i^{out}}/\sq
 
 The preproduction *read-only diagnostic* used 14,631 clusters and 2,031,788 directed X edges from cached Metro Manila artifacts. It did **not** constitute a production deployment or an external economic benchmark. Pooled total-directed-degree PPML estimated $\hat\gamma=0.44457936$. A doubling of tile area was associated with $2^{0.44457936}-1\approx36.1\%$ more expected directed connections.
 
+Two properties of that X graph matter for reading the estimate. First, **19 X nodes had zero degree**; they stayed in the PPML fit, which needs no logarithm of the outcome. Second, **every one of the 14,631 nodes had equal incoming and outgoing degree** (maximum $\lvert k_i^{in}-k_i^{out}\rvert=0$), so in-degree, out-degree and total-degree regressions gave the same exponent. This was an observed property of that graph, not a requirement: in another geography the three fits may differ, and the defined estimator remains **total** directed degree. SIGMA now records `degree_balance` and `degree_orientation_regressions` with every run so this can be checked.
+
 | Diagnostic | Original X / balanced Katz | Tile-perspective adjustment |
 |---|---:|---:|
 | Spearman correlation of tile area with balanced Katz | +0.4220 | −0.0266 |
@@ -79,6 +81,18 @@ $$
 This is distinct from the area correction and from Newtonian gravity's inverse-square kernel. The notional masses in the motivating analogy are normalized to one; $q_iq_j$ in the original X weight represents sector-relative establishment participation, **not physical masses or polygon density**. With $C_c=0.40$, an establishment at 200 m receives $0.002$; at 500 m, $0.0008$; at or below 1 m, $0.40$. The former bounded 15% p90 rule remains only for explicit legacy eigenvector scoring.
 
 The Metro Manila **cluster-level** comparison did **not** validate the new establishment-level score or show that more distant businesses are necessarily less economically influential. Such economic validation requires independent outcomes or benchmarks. Because $\hat\gamma$ and graph-wide Katz L2 normalization are area/run-specific, compare normalized scores primarily **within** one geography.
+
+## Diagnostics recorded with every run
+
+The table above came from a separate read-only review. Production runs now record the same kinds of evidence with `analysis.centrality` and in `sigma_run_metadata.json` → `tile_area_adjustment` (see *Diagnostics recorded with every run* in [Centrality](centrality.md)): the unadjusted balanced-Katz comparison (area correlation, rank correlation, retained top 100, area-decile counts, concentration), adjusted concentration, the area-decile table of $k_i$ and $f_ik_i$, the in/out degree balance, orientation-specific degree fits and the extreme factor ratio. The comparison never changes a score; if it fails, the failure is recorded. Under the Hood can display the current run's decile table and comparison beside the Metro Manila figures.
+
+## Implementation notes relative to the reviewed specification
+
+The implementation follows the reviewed specification of 9 November 2026, with three documented differences in scope:
+
+- **Isolated X centers without a final tile.** The specification's computation step says to reject missing areas. The implementation stops for any X center that has an edge but no tile; an X center with **zero** degree and no tile is excluded from the PPML fit, given $f_i=1$, and counted in `excluded_isolated_without_tile`. Such a node has $K^{in}=K^{out}=\beta$ for every factor, so no score can change; the regression sample does lose that zero-degree observation.
+- **X distance exponent.** The specification fixes the X kernel exponent at 1. The implementation keeps the existing `--x-distance-decay-lambda` option (default 1.0) and records the value used with the centrality diagnostics.
+- **Opt-out.** `--no-area-adjustment` (or `area_adjustment=False`) gives ordinary balanced Katz for deliberate comparisons; the correction is on by default.
 
 ## Reproducibility and decisions
 

@@ -96,6 +96,12 @@ Sharkey, K. J. (2017). **A control analysis perspective on Katz centrality.** *S
 
 Everett, M., & Schoch, D. (2022). **An extended family of measures for directed networks.** *Social Networks*, 70, 334–340. [doi:10.1016/j.socnet.2022.03.005](https://doi.org/10.1016/j.socnet.2022.03.005)
 
+## Gravity interaction structure and PPML
+
+Tinbergen, J. (1962). ***Shaping the World Economy: Suggestions for an International Economic Policy.*** New York: The Twentieth Century Fund. (Early gravity equation for trade; SIGMA borrows only the multiplicative interaction structure.)
+
+Santos Silva, J. M. C., & Tenreyro, S. (2006). **The log of gravity.** *The Review of Economics and Statistics*, 88(4), 641–658. [doi:10.1162/rest.88.4.641](https://doi.org/10.1162/rest.88.4.641) (Poisson pseudo-maximum likelihood; SIGMA uses PPML to estimate the per-geography degree–area exponent, not a trade gravity equation.)
+
 ## Input-output and matrix balancing
 
 Leontief, W. (1986). **Input-Output Economics** (2nd ed.). Oxford University Press.

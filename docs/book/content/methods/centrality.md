@@ -72,9 +72,30 @@ $$
 
 The Katz equations have no other area term. SIGMA writes the regression, the per-node area factors and strengths, and the remaining area diagnostics with the centrality artifact.
 
+### Units, factors above 1 and indirect effects
+
+$A_i$ is the numerical area in km², so formally $f_i=(A_i/1\,\mathrm{km}^2)^{-\hat\gamma}$; no separately estimated reference area is needed. A tile smaller than 1 km² has $f_i>1$. This is not an implementation error: the word *discount* is relative to other tiles. Measuring area in another consistent unit (hectares, m²) multiplies every factor by the same positive constant $c$; then $\rho(cFW)=c\,\rho(FW)$, the spectrally normalized $\alpha$ divides by the same $c$, and $\alpha FW$, $K^{in}$, $K^{out}$ and $C$ are unchanged. Small tiles can still receive large **relative** boosts, which is why the extreme-factor ratio and the area-decile table are reported.
+
+The direct discount of tile $i$ uses only $A_i$. Katz, however, sums walks of every length: in a walk $i\to j\to k$ the factor $f_j$ of the intermediate tile enters $K^{out}_i$ (and, for the reversed walk, $K^{in}_k$). A neighbour's area therefore affects $i$'s **recursive** score through indirect walks, never through $i$'s own row of $FW$ or $FW^{\mathsf T}$.
+
+### Diagnostics recorded with every run
+
+`analysis.centrality/centrality.json` → `tile_area_adjustment` (and, after export, `sigma_run_metadata.json` → `tile_area_adjustment`) records, besides the regression, factor extremes and adjusted area correlations:
+
+| Key | Content (specification §9.7) |
+|---|---|
+| `unadjusted_comparison` | ordinary balanced Katz on the same X: its area–Katz Spearman correlation (combined, incoming, outgoing), rank correlation with the adjusted scores, how many of the unadjusted top 100 remain in the adjusted top 100, top-100 counts from the smallest and largest area deciles, and score concentration. Diagnostic only; a failure is recorded, never raised, and scores are unchanged. |
+| `concentration` | shares of the summed adjusted scores held by the top 10 and top 100 nodes |
+| `area_deciles` | ten equal-count tile-area groups (smallest first): area range, mean degree $k_i$, mean $f_ik_i$, and both divided by the mean over all tiled nodes |
+| `degree_balance` | maximum $\lvert k_i^{in}-k_i^{out}\rvert$, number of nodes with unequal in- and out-degree, zero-degree nodes (all, and in the regression) |
+| `degree_orientation_regressions` | separate PPML fits of in-degree and out-degree on area, for comparison with the total-degree estimator; they are not used for scoring |
+| `factor_max_min_ratio` | largest factor divided by smallest |
+
+`sigma_X_nodes.csv` publishes each node's `voronoi_area_km2`, `area_factor`, `katz_in_raw` and `katz_out_raw`, and the Explorer bundle carries the same values to Under the Hood.
+
 The PPML tile-area correction is a SIGMA modeling choice. It is not a theorem that the adjusted rankings measure true economic influence. **Measured behavior matters:** Metro Manila's read-only comparison reduced the Spearman area–balanced-Katz correlation from +0.4220 to −0.0266, but increased top-score concentration and yielded a 2.30× smallest-area-decile adjusted-degree diagnostic. See [Empirical diagnostics and limitations](area_adjustment_diagnostics.md); these are not external economic validation.
 
-**The Under the Hood four-node Katz slider is an equal-area illustration**, not the pooled PPML regression fitted to an actual published area. With $F$ proportional to the identity, the correction cancels under the shared spectral normalization; the slider still demonstrates the sender/receiver resolvent and geometric mean.
+**Under the Hood** shows the correction step by step: why a larger tile overlaps more tiles, a PPML fit on invented tiles, the factor curve and its unit invariance, the two operators as matrices (with $FW^{\mathsf T}$ compared cell by cell to $(FW)^{\mathsf T}$), and the four-node Katz example with unequal tile areas and a switch for the correction. Four tiles are too few for SIGMA's estimator (it needs at least five), so that example uses $\gamma$ as an example value, 0.44 by default; it is not a fitted regression.
 
 ## Choosing alpha safely
 
