@@ -377,8 +377,8 @@
   };
   // Refinement overlay: all help icons use one viewport-positioned tooltip.
   // Unlike a CSS-only tooltip, this is not clipped by the scrolling side panel.
-  const statHelp = {'SIGMA score': 'Published SIGMA score for the selected establishment, when present; point size in the map reflects this score. Not a technical coefficient.', 'Cluster centrality': 'Published centrality of the selected sector-cluster node, distinct from individual input-output link strengths.', 'Establishments in cluster': 'Number of establishments assigned to this sector-cluster in the published result.', 'Linked clusters': 'Distinct adjacent cluster nodes in the full X graph, before the current sector, direction and strongest-link filters.', 'X edges in / out': 'Published number of directed edges entering / leaving this X node, before the current screen filters.', 'PSIC': 'Philippine Standard Industrial Classification code of the selected establishment when available. A dash means unavailable.', 'PSIC label': 'Published PSIC classification title for this code when available, using the bundled taxonomy; a dash means no matching label was supplied.', 'Sector basis': 'How the establishment\'s sector was assigned. An exact tag is not independent verification of actual activity. Draft concordances and inferred ownership are provisional; flagged assignments need review.'};
-  const columnHelp = {'direct-cluster': 'Click a linked cluster to select it. The arrows indicate whether inputs flow from or toward the selected cluster.', 'out-a': "Outgoing technical coefficient a: the selected cluster supplies an input to this cluster, per unit of the receiving cluster's output.", 'in-a': "Incoming technical coefficient a: this cluster supplies an input to the selected cluster, per unit of the selected cluster's output.", 'road-distance': 'Published shortest-path road distance between cluster centers. Distance does not determine Strongest rankings.', 'central-cluster': 'Sector-cluster identifier; click to inspect its connected network.', 'centrality': 'Published centrality value. The list is ranked by this value, not by technical coefficient.', 'establishments': 'Count of establishments represented by the cluster in the published result.'};
+  const statHelp = {'SIGMA score': 'Published SIGMA score for the selected establishment, when present; point size in the map reflects this score. Not a technical coefficient.', 'Cluster centrality': 'Published centrality of the selected sector-cluster node, distinct from individual input-output link strengths.', 'Places in cluster': 'Number of scored places assigned to this sector-cluster in the published result.', 'Linked clusters': 'Distinct adjacent cluster nodes in the full X graph, before the current sector, direction and strongest-link filters.', 'X edges in / out': 'Published number of directed edges entering / leaving this X node, before the current screen filters.', 'PSIC': 'Philippine Standard Industrial Classification code of the selected establishment when available. A dash means unavailable.', 'PSIC label': 'Published PSIC classification title for this code when available, using the bundled taxonomy; a dash means no matching label was supplied.', 'Sector basis': 'How the establishment\'s sector was assigned. An exact tag is not independent verification of actual activity. Draft concordances and inferred ownership are provisional; flagged assignments need review.'};
+  const columnHelp = {'direct-cluster': 'Click a linked cluster to select it. The arrows indicate whether inputs flow from or toward the selected cluster.', 'out-a': "Outgoing technical coefficient a: the selected cluster supplies an input to this cluster, per unit of the receiving cluster's output.", 'in-a': "Incoming technical coefficient a: this cluster supplies an input to the selected cluster, per unit of the selected cluster's output.", 'road-distance': 'Published shortest-path road distance between cluster centers. Distance does not determine Strongest rankings.', 'central-cluster': 'Sector-cluster identifier; click to inspect its connected network.', 'centrality': 'Published centrality value. The list is ranked by this value, not by technical coefficient.', 'establishments': 'Count of scored places represented by the cluster in the published result.'};
   function helpIcon(label, description) {
     const tip = el('span', {className: 'control-help',
       tabIndex: 0, textContent: '?'});
@@ -473,8 +473,18 @@
     return (x.cluster ?? 0) - (y.cluster ?? 0);
   };
   const setData = (name, fc) => { const s = map.getSource(name); if (s) s.setData(fc); };
+  // Remember each layer's intended visibility while clusters-only masks all
+  // establishment representations. Async native/unscored updates cannot unmask.
+  const pointLayers = new Set(['establishments', 'native-establishments',
+    'native-ghost-establishments', 'aggregate-establishments',
+    'unclustered-establishments', 'selected-point']);
+  const pointLayerDesired = new Map();
   const visibility = (layer, shown) => {
-    if (map.getLayer(layer)) map.setLayoutProperty(layer, 'visibility', shown ? 'visible' : 'none');
+    if (pointLayers.has(layer)) pointLayerDesired.set(layer, !!shown);
+    if (map.getLayer(layer)) {
+      const masked = pointLayers.has(layer) && !$('show-places')?.checked;
+      map.setLayoutProperty(layer, 'visibility', masked ? 'none' : shown ? 'visible' : 'none');
+    }
   };
   const notHidden = () => ['!', ['in', ['get', 'type'], ['literal', [...hidden]]]];
 
@@ -976,6 +986,46 @@
     if (map.getLayer('selected-center')) map.setFilter('selected-center', notHidden());
   }
 
+  function syncPlacesVisibility() {
+    if (!ready) return;
+    const showPlaces = $('show-places').checked;
+    if (!showPlaces) {
+      // This is a one-way master-off action. Re-enabling Places later never
+      // silently opts back into either classified-but-unclustered overlay.
+      const unscored = $('show-unscored');
+      const linked = $('sigma-show-linked-unscored');
+      if (unscored) unscored.checked = false;
+      if (linked) linked.checked = false;
+      if (selection && !nodeIndex.has(selection.id)) clearSelection();
+      syncUnscoredOverlay();
+      visibility('unclustered-establishments', false);
+    }
+    for (const layer of pointLayers) {
+      if (!map.getLayer(layer)) continue;
+      if (!pointLayerDesired.has(layer))
+        pointLayerDesired.set(layer, map.getLayoutProperty(layer, 'visibility') !== 'none');
+      map.setLayoutProperty(layer, 'visibility',
+        !showPlaces || !pointLayerDesired.get(layer) ? 'none' : 'visible');
+    }
+    if (!showPlaces && popup) popup.remove();
+  }
+
+  // Choosing a point or X cluster returns to the default focused view:
+  // scored Places on, global Cluster Centers off. Do not opt into unclustered
+  // places here; their independent state and selected-X behavior stay intact.
+  function preferPlacesForSelection() {
+    const places = $('show-places');
+    const centers = $('show-centers');
+    if (places && !places.checked) {
+      places.checked = true;
+      syncPlacesVisibility();
+    }
+    if (centers && centers.checked) {
+      centers.checked = false;
+      updateCenterVisibility();
+    }
+  }
+
   // SIGMA SELECTED-NETWORK SCOPE / DIRECTIONAL CENTER OUTLINES V2.
   // This is a visual/interaction transform of existing Network X edges.
   // No new edges, clusters, scores or paths are constructed.
@@ -1015,8 +1065,8 @@
     const normalized = high > low
       ? Math.max(0, Math.min(1, (centrality - low) / (high - low))) : 0.5;
     // Triangle AREA (not side length) varies linearly with normalized centrality.
-    // The 0.78–1.22 size interval keeps low values clickable and high values tidy.
-    return Math.sqrt(0.78 * 0.78 + (1.22 * 1.22 - 0.78 * 0.78) * normalized);
+    // Modestly wider 0.70–1.30 range; triangle AREA remains proportional.
+    return Math.sqrt(0.70 * 0.70 + (1.30 * 1.30 - 0.70 * 0.70) * normalized);
   }
   function katzCenterIconSize(at11, at15, at18) {
     // Zoom must be the top-level interpolate input for MapLibre expressions.
@@ -1580,7 +1630,7 @@
     $('stats').replaceChildren(
       stat('SIGMA score', p ? fmtNum(p.score) : '—'),
       stat('Cluster centrality', fmtNum(n.centrality)),
-      stat('Establishments in cluster', fmtNum(n.members, 0)),
+      stat('Places in cluster', fmtNum(n.members, 0)),
       stat('Linked clusters', fmtNum(linked, 0)),
       stat('X edges in / out', `${fmtNum(n.in_degree, 0)} / ${fmtNum(n.out_degree, 0)}`),
       stat('PSIC', p && p.psic ? String(p.psic) : '—'),
@@ -1611,8 +1661,8 @@
     }
     const head = el('tr', {},
       thHelp('Cluster', 'direct-cluster'),
-      thHelp('→ a', 'out-a'),
-      thHelp('← a', 'in-a'),
+      thHelp('→ TC', 'out-a'),
+      thHelp('← TC', 'in-a'),
       thHelp('Road', 'road-distance'));
     const body = el('tbody');
     for (const r of rows.slice(0, LIMIT.tableRows)) {
@@ -1637,18 +1687,70 @@
     }
   }
 
+  // Alpha 9 table: rank the published nodes first, then sort the top-N subset.
+  // Search applies before the top-N cutoff; row sorting never recalculates rank.
+  const centralTableState = {limit: 10, key: 'centrality', descending: true};
   function renderCentral() {
-    const top = [...nodeIndex.values()].filter(n => isNum(n.centrality) && !hidden.has(n.type))
-      .sort((a, b) => b.centrality - a.centrality).slice(0, 12);
-    const body = el('tbody');
-    for (const n of top) {
-      const button = el('button', {type: 'button', className: 'link-button'}, swatch(n.type), el('span', {textContent: nodeLabel(n)}));
-      button.addEventListener('click', () => selectNode(n.id, null, {fly: true}));
-      body.append(el('tr', {}, el('td', {}, button), el('td', {textContent: fmtNum(n.centrality)}), el('td', {textContent: fmtNum(n.members, 0)})));
+    const needle = ($('central-sector-search')?.value || '').trim().toLocaleLowerCase();
+    const ranked = [...nodeIndex.values()]
+      .filter(n => isNum(n.centrality) && !hidden.has(n.type) &&
+        (`${sectorLabel(n.type)} ${sectorCode(n.type)}`).toLocaleLowerCase().includes(needle))
+      .sort((a, b) => b.centrality - a.centrality ||
+        String(a.id).localeCompare(String(b.id), undefined, {numeric: true}))
+      .slice(0, centralTableState.limit).map((n, i) => ({n, rank: i + 1}));
+    const clusterName = n => `${sectorLabel(n.type)} · cluster ${n.cluster}`;
+    const value = (row, key) => {
+      if (key === 'rank') return row.rank;
+      if (key === 'cluster') return clusterName(row.n);
+      if (key === 'code') return sectorCode(row.n.type);
+      if (key === 'members') return row.n.members;
+      return row.n.centrality;
+    };
+    ranked.sort((a, b) => {
+      const va = value(a, centralTableState.key), vb = value(b, centralTableState.key);
+      const difference = typeof va === 'number' && typeof vb === 'number' ? va - vb :
+        String(va).localeCompare(String(vb), undefined, {numeric: true, sensitivity: 'base'});
+      return (centralTableState.descending ? -difference : difference) || a.rank - b.rank;
+    });
+    const columns = [['rank', 'Rank'], ['cluster', 'Cluster'], ['code', 'Code'],
+      ['centrality', 'Centrality'], ['members', 'Places']];
+    // Preserve existing published-X column explanations after adding sorting.
+    const centralHelpKeys = {cluster: 'central-cluster', centrality: 'centrality',
+      members: 'establishments'};
+    const headings = el('tr');
+    for (const [key, label] of columns) {
+      const heading = el('th');
+      const current = centralTableState.key === key;
+      heading.setAttribute('aria-sort', current ?
+        (centralTableState.descending ? 'descending' : 'ascending') : 'none');
+      const button = el('button', {type: 'button', className: 'central-sort',
+        textContent: `${label} ${current ? (centralTableState.descending ? '↓' : '↑') : '↕'}`,
+        title: `Sort by ${label.toLowerCase()}`});
+      button.addEventListener('click', () => {
+        if (centralTableState.key === key) centralTableState.descending = !centralTableState.descending;
+        else { centralTableState.key = key; centralTableState.descending = key === 'centrality' || key === 'members'; }
+        renderCentral();
+      });
+      heading.append(button);
+      if (centralHelpKeys[key])
+        heading.append(helpIcon(label, columnHelp[centralHelpKeys[key]]));
+      headings.append(heading);
     }
-    $('central').replaceChildren(el('table', {className: 'links'},
-      el('thead', {}, el('tr', {}, thHelp('Cluster', 'central-cluster'), thHelp('Centrality', 'centrality'), thHelp('Establishments', 'establishments'))),
-      body));
+    const body = el('tbody');
+    for (const {n, rank} of ranked) {
+      const button = el('button', {type: 'button', className: 'link-button central-cluster-link',
+        title: nodeLabel(n)}, swatch(n.type), el('span', {textContent: clusterName(n)}));
+      button.addEventListener('click', () => selectNode(n.id, null, {fly: true}));
+      body.append(el('tr', {},
+        el('td', {textContent: String(rank)}), el('td', {}, button),
+        el('td', {textContent: sectorCode(n.type)}),
+        el('td', {textContent: fmtNum(n.centrality)}),
+        el('td', {textContent: fmtNum(n.members, 0)})));
+    }
+    if (!ranked.length) body.append(el('tr', {},
+      el('td', {colSpan: 5, textContent: 'No matching clusters.'})));
+    $('central').replaceChildren(el('table', {className: 'links central-table'},
+      el('thead', {}, headings), body));
   }
 
   // sigma-explorer-graph-legibility-20261020-v7: legible multi-ring Cytoscape overview and near-focus inspection.
@@ -2020,6 +2122,7 @@
   }
 
   function selectUnclustered(point) {
+    preferPlacesForSelection();
     // A classified-only point has no scored X network to contextualize.
     sigmaSetLinkedUnscoredDefault(false);
     selection = {id: null, point};
@@ -2031,6 +2134,7 @@
   }
 
   function selectNode(id, point = null, options = {}) {
+    preferPlacesForSelection();
     const n = nodeIndex.get(id);
     if (!n) {
       clearSelection();
@@ -2644,16 +2748,18 @@
     const radiusAtFit = stops => ['interpolate', ['linear'], ['zoom'],
       ...stops.flatMap(([delta, radius]) => [fitZoom + delta, radius])];
     // The scoreRadius function above keeps circle AREA proportional to score.
-    // Maximum detail radius is 7.8 px; do not weaken score ordering.
+    // Keep minimum radii unchanged; slightly widen only the high-score end.
+    // Circle area remains linearly proportional to normalized published score.
     const scoredPointRadius = radiusAtFit([
-      [-3, 1.2], [-1, 1.6], [0, scoreRadius(2.1, 4.6)],
-      [2, scoreRadius(2.8, 6.6)], [4, scoreRadius(3.3, 7.8)]]);
-    // Hollow unclustered markers have no SIGMA score; retain the original
-    // per-sector visual minimum and distinguish them by outline, not fill.
+      [-3, 1.2], [-1, 1.6], [0, scoreRadius(1.8, 5.5)],
+      [2, scoreRadius(2.4, 7.7)], [4, scoreRadius(2.8, 9.2)]]);
+    // Unclustered places have NO score, so never scale them by an artificial
+    // visual_min_score. Their hollow stroke (1.2 px) is thicker than scored
+    // dots' 0.35 px: subtract (1.2 - 0.35)/2 = 0.425 px from the base
+    // radius to match the *visible outer diameter* of minimum scored dots.
     const unclusteredPointRadius = radiusAtFit([
-      [-3, 1.2], [-1, 1.6], [0, scoreRadius(2.1, 4.6, 'visual_min_score')],
-      [2, scoreRadius(2.8, 6.6, 'visual_min_score')],
-      [4, scoreRadius(3.3, 7.8, 'visual_min_score')]]);
+      [-3, 0.775], [-1, 1.175], [0, 1.375],
+      [2, 1.975], [4, 2.375]]);
     const ghostPointRadius = radiusAtFit([
       [-3, 0.5], [-1, 0.9], [0, scoreRadius(1.2, 2.8)],
       [2, scoreRadius(1.9, 4.0)], [4, scoreRadius(2.4, 5.0)]]);
@@ -2847,6 +2953,7 @@
   function bindControls() {
     $('partitions').addEventListener('change', e => { state.partitions = e.target.value; refresh(); });
     $('show-centers').addEventListener('change', updateCenterVisibility);
+    $('show-places').addEventListener('change', syncPlacesVisibility);
     $('show-roads').addEventListener('change', e => visibility('roads-line', e.target.checked));
     $('direction').addEventListener('change', e => { state.direction = e.target.value; refresh(); });
     // Depth is the graph hop count (not road distance). The model accepts any
@@ -2907,11 +3014,20 @@
     $('sectors-all').addEventListener('click', () => { hidden.clear(); sectorsChanged(); });
     $('sectors-none').addEventListener('click', () => { for (const code of sectors.keys()) hidden.add(code); sectorsChanged(); });
     $('show-unscored').addEventListener('change', () => {
+      if ($('show-unscored').checked && !$('show-places').checked) {
+        $('show-places').checked = true;
+        syncPlacesVisibility();
+      }
       if (!$('show-unscored').checked && selection && !nodeIndex.has(selection.id)) clearSelection();
       else refresh();
       if (meta.native_points_v7) loadVisiblePoints();
     });
     $('sector-search').addEventListener('input', renderSectors);
+    $('central-sector-search').addEventListener('input', renderCentral);
+    $('central-limit').addEventListener('change', event => {
+      centralTableState.limit = Number(event.target.value);
+      renderCentral();
+    });
     document.querySelectorAll('[data-sector-order]').forEach(button => {
       button.addEventListener('click', () => {
         const key = button.dataset.sectorOrder;
@@ -2930,6 +3046,8 @@
 
   async function initialize() {
     // Never restore opt-in across page reloads, even via browser form state.
+    const placesToggle = $('show-places');
+    if (placesToggle) placesToggle.checked = true;
     const unscoredToggle = $('show-unscored');
     if (unscoredToggle) unscoredToggle.checked = false;
     $('sigma-details-toggle').addEventListener('click', () => {
@@ -2975,10 +3093,14 @@
       linkedBox.checked = false;
       linkedBox.disabled = meta.profile !== 'local' || !meta.counts?.classified_unclustered_points;
       const holder = el('label', {className: 'sigma-linked-unscored-control'},
-        linkedBox, el('span', {textContent: 'Show unclustered for scored sectors'}));
+        linkedBox, el('span', {textContent: 'Show unclustered places in scored sectors'}));
       holder.title = 'Show unclustered places of scored sectors at rest. With a selection, show only those in the highlighted focus and linked Voronoi partitions; no network membership or score is assigned.';
       control.closest('.sector-overlay-control')?.after(holder);
       linkedBox.addEventListener('change', () => {
+        if (linkedBox.checked && !$('show-places').checked) {
+          $('show-places').checked = true;
+          syncPlacesVisibility();
+        }
         if (meta.native_points_v7) loadVisiblePoints();
         else syncUnscoredOverlay();
       });
