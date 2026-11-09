@@ -457,6 +457,153 @@ def _distance_unit(run: dict[str, Any]) -> str:
     return _text(run.get("road_distance_unit"), "CRS units")
 
 
+
+# SIGMA_EXPLORER_LOCATION_LABELS_ONLY_20261109
+# Map-only geographic context: these names never enter SIGMA analytics.
+def _context_label_features(bounds, road_frame):
+    from shapely.geometry import box
+
+    west, south, east, north = (float(value) for value in bounds)
+    if not all(math.isfinite(x) for x in (west, south, east, north)) or not (west < east and south < north):
+        return []
+    view = box(west, south, east, north)
+    features = []
+    seen = set()
+
+    def add(name, kind, lon, lat, road_class=""):
+        name = str(name or "").strip()
+        if not name or len(name) > 120:
+            return
+        lon, lat = float(lon), float(lat)
+        if not (math.isfinite(lon) and math.isfinite(lat) and west <= lon <= east and south <= lat <= north):
+            return
+        # Only roads are deduplicated on a coarse grid: different municipalities
+        # with the same name still receive distinct location labels.
+        cell = (round(lon / 0.018), round(lat / 0.018)) if kind == "road" else (round(lon, 4), round(lat, 4))
+        key = (kind, name.casefold(), cell)
+        if key in seen:
+            return
+        seen.add(key)
+        features.append({"type": "Feature", "geometry": {"type": "Point", "coordinates": [round(lon, 6), round(lat, 6)]},
+                         "properties": {"name": name, "kind": kind, "class": road_class}})
+
+    # Official locality names come from SIGMA's bundled 1,642-locality PSGC
+    # catalog. Prefer geometry interior points over bounding-box midpoints.
+    try:
+        from sigma.area.catalog import load_areas
+        towns = [area for area in load_areas().values()
+                 if area.kind in {"city", "municipality"} and
+                 area.bbox[0] <= east and area.bbox[2] >= west and
+                 area.bbox[1] <= north and area.bbox[3] >= south]
+        interior = {}
+        groups = defaultdict(list)
+        for area in towns:
+            spec = area.boundary
+            if area.psgc_code and spec is not None and spec.field and spec.gpkg.is_file():
+                groups[(spec.gpkg, spec.layer, spec.field)].append(area)
+        for (gpkg, layer_name, code_field), members in groups.items():
+            try:
+                kwargs = {"bbox": (west, south, east, north)}
+                if layer_name:
+                    kwargs["layer"] = layer_name
+                frame = gpd.read_file(gpkg, **kwargs)
+                if frame.crs is None or code_field not in frame.columns:
+                    continue
+                frame = frame.to_crs("EPSG:4326")
+                wanted = {str(area.psgc_code).lstrip('0') for area in members}
+                for _, record in frame.iterrows():
+                    code = str(record[code_field]).strip().lstrip('0')
+                    geom = record.geometry
+                    if code in wanted and geom is not None and not geom.is_empty:
+                        point = geom.representative_point()
+                        if view.covers(point):
+                            interior[code] = (float(point.x), float(point.y))
+            except (OSError, ValueError, KeyError, RuntimeError):
+                # An unavailable optional GPKG must not break the Explorer.
+                continue
+        for area in towns:
+            position = interior.get(str(area.psgc_code or '').lstrip('0'))
+            if position is None:
+                # Fallback is explicitly an approximate catalog-bbox center.
+                position = ((area.bbox[0] + area.bbox[2]) / 2,
+                            (area.bbox[1] + area.bbox[3]) / 2)
+            add(area.name, 'town', *position)
+    except (ImportError, OSError, ValueError):
+        pass
+
+    # Road labels require genuine name AND highway class attributes in the
+    # already-published road Parquet. Geometry-only exports are not invented.
+    if road_frame is not None and {"name", "highway"} <= set(road_frame.columns):
+        road_classes = {"motorway": 0, "trunk": 1, "primary": 2, "secondary": 3, "tertiary": 4}
+        candidates = []
+        for record in road_frame.itertuples(index=False):
+            name = getattr(record, 'name', None)
+            category = str(getattr(record, 'highway', '')).strip().lower()
+            if category not in road_classes or not isinstance(name, str) or not name.strip():
+                continue
+            geometry = getattr(record, 'geometry', None)
+            if geometry is None or geometry.is_empty:
+                continue
+            segments = geometry.geoms if hasattr(geometry, 'geoms') else (geometry,)
+            for segment in segments:
+                if segment.is_empty or segment.length <= 0 or not segment.intersects(view):
+                    continue
+                clipped = segment.intersection(view)
+                if clipped.is_empty:
+                    continue
+                point = clipped.representative_point()
+                candidates.append((road_classes[category], -segment.length,
+                                   name, category, point.x, point.y))
+        candidates.sort(key=lambda item: (item[0], item[1], item[2].casefold()))
+        road_count = 0
+        for _, _, name, category, lon, lat in candidates[:10000]:
+            old_count = len(features)
+            add(name, 'road', lon, lat, category)
+            road_count += len(features) - old_count
+            if road_count >= 1400:
+                break
+
+    # Optional local OSM place nodes: these are geographic neighborhood names,
+    # not verified official barangay boundaries. No network access/downloads.
+    try:
+        import osmium
+        from sigma.paths import initialization_path
+        initial = initialization_path()
+        if initial.is_file():
+            config = json.loads(initial.read_text(encoding='utf-8'))
+            pbf = Path(str(config.get('geofabrik_path') or ''))
+            if pbf.is_file() and pbf.suffix.lower() == '.pbf':
+                found = []
+                local_seen = set()
+                processor = (osmium.FileProcessor(str(pbf), osmium.osm.NODE)
+                             .with_filter(osmium.filter.KeyFilter('place')))
+                try:
+                    for node in processor:
+                        kind = node.tags.get('place')
+                        if kind not in {'suburb', 'quarter', 'neighbourhood', 'village', 'hamlet'}:
+                            continue
+                        name = node.tags.get('name')
+                        if not name or not node.location.valid():
+                            continue
+                        lon, lat = node.location.lon, node.location.lat
+                        if west <= lon <= east and south <= lat <= north:
+                            key = (name.casefold(), round(lon, 3), round(lat, 3))
+                            if key not in local_seen and len(found) < 3500:
+                                local_seen.add(key)
+                                found.append((name, lon, lat))
+                finally:
+                    del processor
+                for name, lon, lat in found:
+                    add(name, 'locality', lon, lat)
+    except (ImportError, OSError, ValueError, RuntimeError, AttributeError, TypeError, json.JSONDecodeError):
+        pass
+
+    order = {'town': 0, 'locality': 1, 'road': 2}
+    features.sort(key=lambda f: (order[f['properties']['kind']],
+                                 f['properties']['name'].casefold(),
+                                 f['geometry']['coordinates']))
+    return features[:2600]
+
 # --------------------------------------------------------------------------- bundle
 
 
@@ -950,6 +1097,7 @@ def _build_unstaged_bundle(
 
     # ---- roads (context only; routes above already follow SIGMA's own paths)
     road_count = 0
+    roads_for_labels = None
     roads_file = _input_path(source, "sigma_roads.parquet", expected)
     if include_roads is not False and roads_file is not None:
         roads = _to_wgs84(gpd.read_parquet(roads_file), "sigma_roads.parquet")
@@ -967,6 +1115,7 @@ def _build_unstaged_bundle(
                 {"type": "Feature", "properties": {}, "geometry": mapping(g)} for g in road_geoms
             ]})
             road_count = len(roads)
+            roads_for_labels = roads
 
     # Warn about missing optional POIs only AFTER any road-limit warning.
     # The order matters to the existing road-inclusion diagnostics contract.
@@ -1059,6 +1208,12 @@ def _build_unstaged_bundle(
         bounds[0], bounds[2] = bounds[0] - 0.005, bounds[2] + 0.005
     if bounds[1] == bounds[3]:
         bounds[1], bounds[3] = bounds[1] - 0.005, bounds[3] + 0.005
+    # Viewer-only geographic labels. Full bundle refresh creates these;
+    # --ui-only refreshes keep existing metadata and geographic data unchanged.
+    context_labels = _context_label_features(bounds, roads_for_labels)
+    if context_labels:
+        _json_dump(dest / "data/context-labels.geojson", {
+            "type": "FeatureCollection", "features": context_labels})
     linked_pairs = len({tuple(sorted(pair)) for pair in edge_by_pair})
     metadata = {
         "schema_version": BUNDLE_VERSION,
@@ -1089,6 +1244,7 @@ def _build_unstaged_bundle(
         "partition_on_demand": True,
         "sector_max_strength": sector_max_strength,
         "has_roads": bool(road_count),
+        "has_context_labels": bool(context_labels),
         "has_boundary": bool(len(boundary)),
         "score_range": [float(finite.min()), float(finite.max())] if len(finite) else [None, None],
         "distance_unit": _distance_unit(run),
