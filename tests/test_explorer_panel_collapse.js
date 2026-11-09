@@ -9,8 +9,8 @@ const css = fs.readFileSync(path.join(dir, 'style.css'), 'utf8');
 const js = fs.readFileSync(path.join(dir, 'app.js'), 'utf8');
 const ci = fs.readFileSync(path.join(__dirname, '../.github/workflows/explorer_js.yml'), 'utf8');
 const specs = [
-  ['finder-section', false, 'Find an establishment', 'finder-query'],
-  ['selection', true, 'Selected location', 'place-name'],
+  ['finder-section', false, 'Find a Place', 'finder-query'],
+  ['selection', true, 'Selected Place', 'place-name'],
   ['graph-section', false, 'Cluster network', 'network'],
   ['connections-section', true, 'Linked clusters', 'connections'],
   ['central-section', true, 'Most central clusters', 'central'],

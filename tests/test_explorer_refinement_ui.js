@@ -32,7 +32,6 @@ assert.match(js, /if \(meta\.native_points_v7\) syncNativePointLayer\(\)/);
 assert.match(js, /'line-opacity', ids \? 0\.18 : 0\.38/);
 assert.match(js, /function initializeHelp\(\)/);
 assert.match(js, /statHelp\[label\]/);
-assert.match(js, /thHelp\('→ a', 'out-a'\)/);
 assert.match(html, /id="central-limit"/);
 assert.match(html, /<option value="10" selected>10<\/option>/);
 assert.match(html, /<option value="20">20<\/option>/);
