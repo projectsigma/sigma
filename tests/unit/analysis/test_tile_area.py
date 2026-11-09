@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import warnings
 
 import geopandas as gpd
 import networkx as nx
@@ -11,6 +12,7 @@ import pandas as pd
 import pytest
 from scipy.sparse import csr_matrix, diags, identity
 from scipy.sparse.linalg import spsolve
+from scipy.stats import ConstantInputWarning
 from shapely.geometry import box
 
 import sigma.analysis.tile_area as tile_area
@@ -113,11 +115,27 @@ def test_constant_area_is_exact_no_op_and_diagnostics_are_strict_json():
     assert diagnostics["gamma"] is None
     assert diagnostics["regression"]["status"] == "not_identified_constant_area"
     assert (audit["area_factor"] == 1.0).all()
+    assert diagnostics["area_katz_spearman_rho"] is None
+    assert diagnostics["area_katz_in_spearman_rho"] is None
+    assert diagnostics["area_katz_out_spearman_rho"] is None
+    assert diagnostics["unadjusted_comparison"]["area_katz_spearman_rho"] is None
     assert any("exact no-op" in message for message in messages)
     reference = balanced_katz_centrality(graph)
     for node, value in reference.values.items():
         assert math.isclose(result.values[node], value, rel_tol=1e-8)
     json.dumps(diagnostics, allow_nan=False)
+
+
+def test_area_katz_rho_ignores_log_area_roundoff_but_not_real_area_variation():
+    # Simulate geometrically equal tiles with floating-point polygon-area jitter.
+    log_area = np.log(np.array([0.5, 0.5 * (1 + 1e-14), 0.5 * (1 - 1e-14)]))
+    scores = np.array([0.3, 0.1, 0.2])
+    assert np.ptp(log_area) > 0
+    assert np.ptp(log_area) < 1e-12
+    assert tile_area._area_katz_rho(log_area, scores) is None
+    # Material area variation must still generate a correlation.
+    assert tile_area._area_katz_rho(np.log(np.array([1., 2., 4.])),
+                                    np.array([1., 2., 3.])) == pytest.approx(1.0)
 
 
 def test_acyclic_x_uses_row_sum_scale_not_arpack():
@@ -143,7 +161,13 @@ def test_edgeless_x_is_exact_no_op_like_existing_solver():
     nodes, edges, partitions, graph = _case()
     edges = edges.iloc[0:0]
     graph.remove_edges_from(list(graph.edges))
-    result, diagnostics, _ = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always", ConstantInputWarning)
+        result, diagnostics, _ = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    assert not any(isinstance(item.message, ConstantInputWarning) for item in recorded)
+    assert diagnostics["area_katz_spearman_rho"] is None
+    assert diagnostics["area_katz_in_spearman_rho"] is None
+    assert diagnostics["area_katz_out_spearman_rho"] is None
     reference = balanced_katz_centrality(graph)
     assert diagnostics["regression"]["status"] == "not_identified_no_edges"
     assert diagnostics["spectral_scale_method"] == reference.spectral_scale_kind == "unit_no_edges"

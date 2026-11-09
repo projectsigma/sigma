@@ -285,6 +285,18 @@ def _rho(left: np.ndarray, right: np.ndarray) -> float | None:
     return value if math.isfinite(value) else None
 
 
+def _area_katz_rho(log_area: np.ndarray, scores: np.ndarray) -> float | None:
+    """Area–Katz rho is undefined when area is constant at PPML precision.
+
+    Use the same log-area threshold as the not_identified_constant_area
+    scoring branch. Tiny projected-polygon rounding noise has no rank meaning.
+    Ordinary score-vs-score correlations continue to use _rho unchanged.
+    """
+    if len(log_area) < 2 or np.ptp(log_area) < 1e-12:
+        return None
+    return _rho(log_area, scores)
+
+
 def _unadjusted_comparison(
     W: csr_matrix, Wt: csr_matrix, *, acyclic: bool, alpha_factor: float, beta: float,
     adjusted: np.ndarray, has_tile: np.ndarray, area: np.ndarray,
@@ -321,7 +333,7 @@ def _unadjusted_comparison(
     result = {
         **info,
         "top_k": k,
-        "area_katz_spearman_rho": _rho(np.log(tiled_area), unadjusted[has_tile]),
+        "area_katz_spearman_rho": _area_katz_rho(np.log(tiled_area), unadjusted[has_tile]),
         "rank_correlation_with_adjusted": _rho(unadjusted, adjusted),
         "top_k_retained_after_adjustment": int(len(np.intersect1d(top_before, top_after))),
         "top100_smallest_area_decile": small_count,
@@ -329,8 +341,8 @@ def _unadjusted_comparison(
         "concentration": _concentration(unadjusted),
     }
     if kin is not None:
-        result["area_katz_in_spearman_rho"] = _rho(np.log(tiled_area), kin[has_tile])
-        result["area_katz_out_spearman_rho"] = _rho(np.log(tiled_area), kout[has_tile])
+        result["area_katz_in_spearman_rho"] = _area_katz_rho(np.log(tiled_area), kin[has_tile])
+        result["area_katz_out_spearman_rho"] = _area_katz_rho(np.log(tiled_area), kout[has_tile])
     return result
 
 
@@ -532,12 +544,11 @@ def calculate_tile_area_katz(
         "in_after": _ppml(adjusted_in_strength[has_tile], regression_area,
                           "in_strength_adjusted"),
     }
-    area_correlation = (spearmanr(regression_area, centrality[has_tile])
-                        if has_tile.sum() >= 2 else None)
-    incoming_area_correlation = (spearmanr(regression_area, incoming[has_tile])
-                                 if has_tile.sum() >= 2 else None)
-    outgoing_area_correlation = (spearmanr(regression_area, outgoing[has_tile])
-                                 if has_tile.sum() >= 2 else None)
+    # Use the existing constant-safe rank-correlation helper for all three
+    # area/Katz diagnostics. A constant input has no defined Spearman rho.
+    area_correlation = _area_katz_rho(regression_area, centrality[has_tile])
+    incoming_area_correlation = _area_katz_rho(regression_area, incoming[has_tile])
+    outgoing_area_correlation = _area_katz_rho(regression_area, outgoing[has_tile])
     # One partition, shared by the decile table and both top-k comparisons.
     decile_labels = np.full(n, -1, dtype=np.int64)
     decile_labels[has_tile] = _area_decile_labels(area[has_tile])
@@ -588,12 +599,9 @@ def calculate_tile_area_katz(
                               float(area[has_tile].max())] if has_tile.any() else None),
         "factor_min_max": [float(factor.min()), float(factor.max())],
         "factor_quantiles_p01_p50_p99": [float(v) for v in np.quantile(factor, [0.01, 0.5, 0.99])],
-        "area_katz_spearman_rho": (float(area_correlation.statistic)
-                                   if area_correlation is not None else None),
-        "area_katz_in_spearman_rho": (float(incoming_area_correlation.statistic)
-                                      if incoming_area_correlation is not None else None),
-        "area_katz_out_spearman_rho": (float(outgoing_area_correlation.statistic)
-                                       if outgoing_area_correlation is not None else None),
+        "area_katz_spearman_rho": area_correlation,
+        "area_katz_in_spearman_rho": incoming_area_correlation,
+        "area_katz_out_spearman_rho": outgoing_area_correlation,
         "top100_smallest_area_decile": smallest_top100,
         "top100_largest_area_decile": largest_top100,
         "strength_area_regressions": strength_fits,
