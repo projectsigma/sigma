@@ -183,6 +183,7 @@
         paint('partition-line', 'line-opacity', dark ? 0.18 : 0.22);
       }
     }
+    scheduleLocationLabels();
     // Theme Cytoscape's canvas explicitly. No text backgrounds on any node:
     // these used to obscure the focal circle with a bright label rectangle.
     if (cy && cy.style && lastAppliedGraphTheme !== themeMode) {
@@ -970,6 +971,194 @@
     const what = selection.point ? `${selection.point.name} (cluster ${shortLabel(n)})` : nodeLabel(n);
     const count = network ? network.direct.length : 0;
     $('map-status').textContent = `Selected: ${what}. ${count} directly linked cluster${count === 1 ? '' : 's'}; lines follow SIGMA's road paths.`;
+  }
+
+
+  // SIGMA_EXPLORER_LOCATION_LABELS_ONLY_20261109
+  // Administrative-boundary-constrained, panel-safe, user-toggleable labels.
+  // Map-only, with no changes to SIGMA establishments, X or analysis.
+  let locationLabelFeatures = [];
+  let locationLabelBoundary = [];
+  let locationLabelContainer = null;
+  let locationLabelFrame = false;
+
+  function scheduleLocationLabels() {
+    if (locationLabelFrame || !locationLabelContainer) return;
+    locationLabelFrame = true;
+    requestAnimationFrame(() => {
+      locationLabelFrame = false;
+      renderLocationLabels();
+    });
+  }
+
+  // A rectangle is admitted only if it lies *entirely* inside one published
+  // administrative polygon: all corners are interior and no polygon boundary
+  // (including a hole) intersects the rectangle. This also prevents labels
+  // partly protruding over the jurisdiction border.
+  function locationPointInRing(x, y, points) {
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const a = points[i], b = points[j];
+      if (Math.abs((x - a.x) * (b.y - a.y) - (y - a.y) * (b.x - a.x)) < 1e-7 &&
+          x >= Math.min(a.x, b.x) - 1e-7 && x <= Math.max(a.x, b.x) + 1e-7 &&
+          y >= Math.min(a.y, b.y) - 1e-7 && y <= Math.max(a.y, b.y) + 1e-7) return true;
+      if ((a.y > y) !== (b.y > y) &&
+          x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+  }
+
+  function locationSegmentTouchesRect(a, b, rect) {
+    // Liang-Barsky: exactly test line-segment intersection with a screen rect.
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const p = [-dx, dx, -dy, dy];
+    const q = [a.x - rect[0], rect[2] - a.x, a.y - rect[1], rect[3] - a.y];
+    let enter = 0, leave = 1;
+    for (let i = 0; i < 4; i++) {
+      if (p[i] === 0) { if (q[i] < 0) return false; continue; }
+      const t = q[i] / p[i];
+      if (p[i] < 0) enter = Math.max(enter, t);
+      else leave = Math.min(leave, t);
+      if (enter > leave) return false;
+    }
+    return true;
+  }
+
+  function locationProjectedPolygons() {
+    const polygons = [];
+    for (const feature of locationLabelBoundary) {
+      const geom = feature.geometry || {};
+      const parts = geom.type === 'Polygon' ? [geom.coordinates] :
+        geom.type === 'MultiPolygon' ? geom.coordinates : [];
+      for (const poly of parts) {
+        if (!Array.isArray(poly) || !poly.length) continue;
+        const rings = poly.filter(r => Array.isArray(r) && r.length >= 4)
+          .map(ring => ring.map(coord => map.project(coord)));
+        if (rings.length) polygons.push(rings);
+      }
+    }
+    return polygons;
+  }
+
+  function locationRectInsidePolygon(rect, polygons) {
+    const corners = [[rect[0], rect[1]], [rect[2], rect[1]],
+      [rect[2], rect[3]], [rect[0], rect[3]]];
+    for (const rings of polygons) {
+      if (!corners.every(([x,y]) => locationPointInRing(x,y,rings[0]))) continue;
+      if (rings.slice(1).some(r => corners.some(([x,y]) => locationPointInRing(x,y,r)))) continue;
+      // A boundary segment inside, touching, or crossing the label rectangle
+      // disqualifies it, including small holes entirely enclosed by the text.
+      if (rings.some(r => r.some((p,i) =>
+          locationSegmentTouchesRect(p, r[(i+1)%r.length], rect)))) continue;
+      return true;
+    }
+    return false;
+  }
+
+  function locationPanelExclusions() {
+    const mapRect = map.getContainer().getBoundingClientRect();
+    const blockers = document.querySelectorAll(
+      '.map-panel .sector-panel, .map-panel .map-status, .map-panel .map-legend');
+    const blocked = [];
+    for (const element of blockers) {
+      if (!element.getClientRects || !element.getClientRects().length) continue;
+      const rect = element.getBoundingClientRect();
+      blocked.push([rect.left-mapRect.left-5, rect.top-mapRect.top-5,
+                    rect.right-mapRect.left+5, rect.bottom-mapRect.top+5]);
+    }
+    return blocked;
+  }
+
+  function locationOverlaps(a,b) {
+    return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+  }
+
+  function renderLocationLabels() {
+    if (!map || !locationLabelContainer) return;
+    if (!$('show-locations')?.checked || !locationLabelBoundary.length) {
+      locationLabelContainer.replaceChildren();
+      return;
+    }
+    const zoom = map.getZoom();
+    const roadsOn = $('show-roads')?.checked !== false;
+    const roadColor = map.getLayer('roads-line') ? map.getPaintProperty('roads-line', 'line-color') : null;
+    const roadLineOpacity = map.getLayer('roads-line') ? map.getPaintProperty('roads-line', 'line-opacity') : null;
+    const color = typeof roadColor === 'string' ? roadColor : '#949b9b';
+    const roadOpacity = typeof roadLineOpacity === 'number' ? roadLineOpacity : 0.38;
+    const width = locationLabelContainer.clientWidth || map.getContainer().clientWidth;
+    const height = locationLabelContainer.clientHeight || map.getContainer().clientHeight;
+    const boundary = locationProjectedPolygons();
+    if (!boundary.length) { locationLabelContainer.replaceChildren(); return; }
+    const excluded = locationPanelExclusions();
+    const collisions = [];
+    const drawn = [];
+    const budget = zoom < 12.5 ? 38 : zoom < 14.5 ? 75 : 110;
+    const items = [];
+    for (const feature of locationLabelFeatures) {
+      const props = feature.properties || {};
+      const kind = props.kind;
+      const cls = props.class || '';
+      const minimumZoom = kind === 'town' ? 9 : kind === 'locality' ? 12.5 :
+        (cls === 'motorway' || cls === 'trunk' || cls === 'primary') ? 12 :
+        (cls === 'secondary' ? 13.5 : 15);
+      if (!['town', 'locality', 'road'].includes(kind) || zoom < minimumZoom ||
+          (kind === 'road' && !roadsOn)) continue;
+      const coords = feature.geometry?.coordinates;
+      if (!Array.isArray(coords) || coords.length !== 2) continue;
+      const pos = map.project(coords);
+      if (!(pos.x >= 0 && pos.y >= 0 && pos.x < width && pos.y < height)) continue;
+      const name = String(props.name || '').trim();
+      if (!name) continue;
+      items.push({name, kind, pos, priority: kind === 'town' ? 0 : kind === 'locality' ? 1 : 2});
+    }
+    items.sort((a,b) => a.priority - b.priority || a.name.localeCompare(b.name));
+    for (const item of items) {
+      if (drawn.length >= budget) break;
+      const fontSize = item.kind === 'town' ? 12 : item.kind === 'locality' ? 11 : 10;
+      const boxWidth = Math.min(190, item.name.length * fontSize * 0.57 + 8);
+      const x0 = item.pos.x - boxWidth / 2;
+      const y0 = item.pos.y - fontSize / 2;
+      const rect = [x0 - 6, y0 - 5, x0 + boxWidth + 6, y0 + fontSize + 7];
+      if (rect[0] < 5 || rect[1] < 5 || rect[2] > width-5 || rect[3] > height-5) continue;
+      if (excluded.some(block => locationOverlaps(rect,block))) continue;
+      if (!locationRectInsidePolygon(rect,boundary)) continue;
+      if (collisions.some(block => locationOverlaps(rect,block))) continue;
+      collisions.push(rect);
+      const label = document.createElement('span');
+      label.className = `sigma-place-label sigma-place-label-${item.kind}`;
+      label.textContent = item.name;
+      label.style.left = `${item.pos.x}px`;
+      label.style.top = `${item.pos.y}px`;
+      label.style.fontSize = `${fontSize}px`;
+      label.style.color = color;
+      label.style.opacity = String(item.kind === 'town' ? 0.78 : item.kind === 'locality' ? 0.65 : roadOpacity);
+      drawn.push(label);
+    }
+    locationLabelContainer.replaceChildren(...drawn);
+  }
+
+  async function loadLocationLabels() {
+    if (!meta?.has_context_labels || !meta?.has_boundary || !map || locationLabelContainer) return;
+    try {
+      // Both sources are published by the existing Explorer builder. No
+      // network download, geocoding, or analytical recomputation is needed.
+      const [labels, boundary] = await Promise.all([
+        getJSON('data/context-labels.geojson'), getJSON('data/boundary.geojson')]);
+      if (!Array.isArray(labels.features) || !Array.isArray(boundary.features) ||
+          !boundary.features.some(f => ['Polygon','MultiPolygon'].includes(f.geometry?.type))) return;
+      locationLabelFeatures = labels.features;
+      locationLabelBoundary = boundary.features;
+      locationLabelContainer = document.createElement('div');
+      locationLabelContainer.className = 'sigma-location-label-overlay';
+      locationLabelContainer.setAttribute('aria-hidden','true');
+      map.getContainer().append(locationLabelContainer);
+      map.on('move',scheduleLocationLabels);
+      map.on('resize',scheduleLocationLabels);
+      document.querySelector('.sector-panel')?.addEventListener('toggle',scheduleLocationLabels);
+      scheduleLocationLabels();
+    } catch (_) {
+      // Fail closed: do not show labels without the actual area polygon.
+    }
   }
 
   // ------------------------------------------------------------------ map emphasis
@@ -2121,8 +2310,14 @@
     if (control) control.checked = Boolean(enabled && !control.disabled);
   }
 
+  function expandSelectedPlace() {
+    const details = document.querySelector('.selection .sidebar-disclosure');
+    if (details) details.open = true;
+  }
+
   function selectUnclustered(point) {
     preferPlacesForSelection();
+    expandSelectedPlace();
     // A classified-only point has no scored X network to contextualize.
     sigmaSetLinkedUnscoredDefault(false);
     selection = {id: null, point};
@@ -2135,6 +2330,7 @@
 
   function selectNode(id, point = null, options = {}) {
     preferPlacesForSelection();
+    expandSelectedPlace();
     const n = nodeIndex.get(id);
     if (!n) {
       clearSelection();
@@ -2954,7 +3150,8 @@
     $('partitions').addEventListener('change', e => { state.partitions = e.target.value; refresh(); });
     $('show-centers').addEventListener('change', updateCenterVisibility);
     $('show-places').addEventListener('change', syncPlacesVisibility);
-    $('show-roads').addEventListener('change', e => visibility('roads-line', e.target.checked));
+    $('show-roads').addEventListener('change', e => { visibility('roads-line', e.target.checked); scheduleLocationLabels(); });
+    $('show-locations').addEventListener('change', scheduleLocationLabels);
     $('direction').addEventListener('change', e => { state.direction = e.target.value; refresh(); });
     // Depth is the graph hop count (not road distance). The model accepts any
     // positive integer; cap manual input at 20 to avoid surprise long traversals.
@@ -3120,6 +3317,8 @@
     }
     $('area').textContent = meta.area;
     $('counts').textContent = `${meta.counts.points.toLocaleString()} establishments · ${meta.counts.clusters.toLocaleString()} clusters · ${meta.counts.linked_pairs.toLocaleString()} linked pairs`;
+    $('show-locations').disabled = !(meta.has_context_labels && meta.has_boundary);
+    if ($('show-locations').disabled) { $('show-locations').checked = false; $('show-locations').parentElement.title = 'No geographic labels or administrative boundary are published.'; }
     $('show-roads').disabled = !meta.has_roads;
     if (!meta.has_roads) { $('show-roads').checked = false; $('show-roads').parentElement.title = (meta.warnings || []).join(' ') || 'No published roads in this bundle.'; }
     renderSectors();
@@ -3185,6 +3384,7 @@
         addLayers(data, initialPointFitZoom);
         applyTheme(themeMode);
         ready = true;
+        loadLocationLabels();
         map.on('mousemove', scheduleHover);
         map.on('movestart', () => sigmaSetHoveredPartition(null));
         map.on('mouseout', () => {

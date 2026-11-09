@@ -10,7 +10,7 @@ const js = fs.readFileSync(path.join(dir, 'app.js'), 'utf8');
 const ci = fs.readFileSync(path.join(__dirname, '../.github/workflows/explorer_js.yml'), 'utf8');
 const specs = [
   ['finder-section', false, 'Find a Place', 'finder-query'],
-  ['selection', true, 'Selected Place', 'place-name'],
+  ['selection', false, 'Selected Place', 'place-name'],
   ['graph-section', false, 'Cluster network', 'network'],
   ['connections-section', true, 'Linked clusters', 'connections'],
   ['central-section', true, 'Most central clusters', 'central'],
@@ -36,5 +36,10 @@ assert(css.includes('html[data-theme="dark"] .side .sidebar-disclosure'));
 assert.match(js, /querySelector\('\.graph-section \.sidebar-disclosure'\)\.addEventListener\('toggle'/);
 assert.match(js, /cy\.resize\(\);\s*if \(network\) cy\.fit/);
 assert.match(js, /finderPanel\.open = false;/);
+// The Selected Place section starts collapsed but opens for explicit selections.
+assert.match(html, /<section class="selection">\s*<details class="sidebar-disclosure">/);
+assert.match(js, /function expandSelectedPlace\(\)/);
+assert.match(js, /function selectUnclustered\(point\) \{\s*preferPlacesForSelection\(\);\s*expandSelectedPlace\(\);/);
+assert.match(js, /function selectNode\(id, point = null, options = \{\}\) \{\s*preferPlacesForSelection\(\);\s*expandSelectedPlace\(\);/);
 assert.match(ci, /node tests\/test_explorer_panel_collapse\.js/);
-console.log('PASS: finder and graph start collapsed; other sections remain independently collapsible; graph resizes when opened.');
+console.log('PASS: finder, selection and graph start collapsed; selection opens on click; other panels remain independent.');
