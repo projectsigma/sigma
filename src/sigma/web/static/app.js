@@ -2330,7 +2330,7 @@
 
   function selectNode(id, point = null, options = {}) {
     preferPlacesForSelection();
-    expandSelectedPlace();
+    if (options.expandDetails !== false) expandSelectedPlace();
     const n = nodeIndex.get(id);
     if (!n) {
       clearSelection();
@@ -3242,6 +3242,12 @@
   }
 
   async function initialize() {
+    // Establish disclosure defaults explicitly: browsers can restore <details>
+    // state across reloads. User clicks still control both panels thereafter.
+    const finderDisclosure = document.querySelector('.finder-section .sidebar-disclosure');
+    const selectedDisclosure = document.querySelector('.selection .sidebar-disclosure');
+    if (finderDisclosure) finderDisclosure.open = true;
+    if (selectedDisclosure) selectedDisclosure.open = false;
     // Never restore opt-in across page reloads, even via browser form state.
     const placesToggle = $('show-places');
     if (placesToggle) placesToggle.checked = true;
@@ -3399,7 +3405,7 @@
         initializeFinder();
         await loadVisiblePoints();
         const fromHash = decodeURIComponent(location.hash.slice(1));
-        if (fromHash && nodeIndex.has(fromHash)) selectNode(fromHash, null, {fly: true});
+        if (fromHash && nodeIndex.has(fromHash)) selectNode(fromHash, null, {fly: true, expandDetails: false});
         else refresh();
       } catch (err) { showError(err); }
     });
