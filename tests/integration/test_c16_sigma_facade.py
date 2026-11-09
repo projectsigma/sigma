@@ -178,28 +178,14 @@ def test_preprocessing_change_reuses_spatial_and_recomputes_economy_analysis_onl
         assert changed.workspace.artifact(key).artifact_id != old
 
 
-def test_tempering_change_recomputes_scores_only_via_facade(tmp_path):
-    job = _job(tmp_path)
-    job.run_analysis()
-    before = {key: job.workspace.artifact(key).artifact_id for key in (
-        "analysis.x", "analysis.centrality", "analysis.scores", "spatial.point_distances"
-    )}
-    changed = Sigma.from_inputs(
-        workspace=tmp_path / "workspace",
-        points=tmp_path / "points.gpkg",
-        points_layer="points",
-        roads=tmp_path / "roads.gpkg",
-        roads_layer="roads",
-        boundary=tmp_path / "boundary.gpkg",
-        boundary_layer="boundary",
-        economy=_economy(),
-        config=_config(tempering=0.30),
-    )
-    changed.run_analysis()
-    assert changed.workspace.artifact("analysis.x").artifact_id == before["analysis.x"]
-    assert changed.workspace.artifact("analysis.centrality").artifact_id == before["analysis.centrality"]
-    assert changed.workspace.artifact("spatial.point_distances").artifact_id == before["spatial.point_distances"]
-    assert changed.workspace.artifact("analysis.scores").artifact_id != before["analysis.scores"]
+def test_retired_tempering_configuration_is_rejected_by_facade():
+    with pytest.raises(ValueError, match="retired"):
+        _config(tempering=0.30)
+    # Explicit legacy eigenvector retains its p90-tempered setting.
+    legacy = SigmaConfig(analysis=AnalysisConfig(
+        centrality_method="eigenvector", distance_tempering=0.30,
+    ))
+    assert legacy.analysis.distance_tempering == 0.30
 
 
 def test_status_is_inspection_only_and_reports_missing_before_run(tmp_path):

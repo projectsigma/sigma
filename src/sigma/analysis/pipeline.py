@@ -21,7 +21,8 @@ from sigma.workspace import SigmaWorkspace
 
 from .centrality import CentralityResult, compute_centrality
 from .graph import make_node_id
-from .scoring import tempered_point_scores
+from .scoring import inverse_distance_point_scores, tempered_point_scores
+from .tile_area import EDGE_COLUMNS, ORIGINAL_X_EDGE_WEIGHT, calculate_tile_area_katz
 from .x_graph import instantiate_network, mean_hub_effective_distance, inverse_mean_hub_x_weight
 
 
@@ -79,6 +80,7 @@ class AnalysisRunConfig:
     katz_beta: float = 1.0
     x_distance_decay_lambda: float = 1.0
     distance_tempering: float = 0.15
+    area_adjustment: bool = True
 
     def __post_init__(self) -> None:
         method = str(self.centrality_method).strip().casefold()
@@ -99,6 +101,11 @@ class AnalysisRunConfig:
         tempering = float(self.distance_tempering)
         if not math.isfinite(tempering) or not 0.0 <= tempering <= 1.0:
             raise ValueError("distance_tempering must be finite and between 0 and 1")
+        if method == "katz" and tempering != 0.15:
+            raise ValueError(
+                "distance_tempering is retired for canonical Katz inverse-distance scoring; "
+                "use the default 0.15 or select legacy eigenvector scoring"
+            )
         object.__setattr__(self, "centrality_method", method)
         object.__setattr__(self, "centrality_direction", direction)
         object.__setattr__(self, "katz_alpha_factor", alpha_factor)
@@ -148,7 +155,8 @@ class AnalysisPipeline:
         )
         stages["analysis.centrality"] = StageSpec(
             "analysis.centrality",
-            ("analysis.x",),
+            (("analysis.x", "spatial.partitions") if (self.config.centrality_method == "katz" and self.config.area_adjustment)
+             else ("analysis.x",)),
             self._recipe_centrality,
             self._exec_centrality,
         )
@@ -612,30 +620,89 @@ class AnalysisPipeline:
                 "combination": "geometric_mean",
                 "normalization": "l2_after_combination",
             })
+        if self.config.centrality_method == "katz" and self.config.area_adjustment:
+            parameters.update({
+                "area_regression": "PPML_total_directed_degree_HC1",
+                "area_units": "km2_EPSG6933",
+                "tile_weight_operators": "FW_and_F_transpose_W",
+                "shared_alpha": "0.85_over_positive_common_spectral_radius_else_outgoing_row_bound",
+                "acyclic_x_scale": "outgoing_row_bound_without_arpack",
+                "constant_area": "exact_no_op",
+                "edgeless_x": "exact_no_op",
+                "center_without_tile": "exclude_isolated_nodes_from_ppml_neutral_factor",
+            })
         return ArtifactRecipe.build(
             "analysis.centrality",
-            implementation_version="balanced-directed-katz-geomean-v4-scaled-spectrum",
-            dependencies={"analysis.x": deps["analysis.x"]},
+            implementation_version=(
+                "tile-perspective-area-adjusted-balanced-katz-v3"
+                if self.config.centrality_method == "katz" and self.config.area_adjustment
+                else "balanced-directed-katz-geomean-v4-scaled-spectrum"
+            ),
+            dependencies={
+                "analysis.x": deps["analysis.x"],
+                **({"spatial.partitions": deps["spatial.partitions"]}
+                   if self.config.centrality_method == "katz" and self.config.area_adjustment else {}),
+            },
             parameters=parameters,
         )
 
     def _exec_centrality(self, planner, recipe, deps, write: ArtifactWrite):
-        with detail_phase(self.progress, "centrality: reconstructing directed X graph (without route geometry)"):
-            x = self.load_x(deps["analysis.x"], include_paths=False)
-        with detail_phase(
-            self.progress,
-            f"centrality: computing {self.config.centrality_method} for "
-            f"{len(x.nodes):,} nodes and {len(x.edges):,} edges",
-        ):
-            result = compute_centrality(
-                x.graph,
-                method=self.config.centrality_method,
-                direction=self.config.centrality_direction,
-                katz_alpha_factor=self.config.katz_alpha_factor,
-                katz_beta=self.config.katz_beta,
+        area_diagnostics = None
+        area_audit = None
+        if self.config.centrality_method == "katz" and self.config.area_adjustment:
+            # Original numerical X edges already contain W. Do NOT change the X
+            # stage recipe or recalculate topology, overlap, or road distances.
+            x_manifest = self.workspace.artifacts.manifest(deps["analysis.x"])
+            x_parameters = x_manifest.recipe.parameters
+            if x_parameters.get("edge_weight") != ORIGINAL_X_EDGE_WEIGHT:
+                raise RuntimeError(
+                    "Tile-area Katz requires the original establishment-share X weights. "
+                    "An earlier density/area X variant is active; restore/rebuild the "
+                    "original X recipe before switching scoring methods."
+                )
+            with detail_phase(
+                self.progress,
+                "centrality: reading cached original X edges and final Voronoi areas",
+            ):
+                nodes = pd.read_csv(
+                    deps["analysis.x"].path / "x_nodes.csv", dtype=str, keep_default_na=False,
+                )
+                edges = pd.read_csv(
+                    deps["analysis.x"].path / "x_edges.csv", dtype=str,
+                    keep_default_na=False, usecols=list(EDGE_COLUMNS),
+                )
+                partitions = self.spatial.read_partitions(deps["spatial.partitions"])
+            with detail_phase(
+                self.progress,
+                "centrality: per-geography PPML and tile-perspective Katz, "
+                f"{len(nodes):,} nodes / {len(edges):,} edges",
+            ):
+                result, area_diagnostics, area_audit = calculate_tile_area_katz(
+                    nodes, edges, partitions,
+                    alpha_factor=self.config.katz_alpha_factor,
+                    beta=self.config.katz_beta,
+                    progress=self.progress,
+                )
+            area_diagnostics["x_distance_decay_lambda"] = x_parameters.get(
+                "x_distance_decay_lambda"
             )
+        else:
+            # Explicit legacy eigenvector centrality remains unchanged.
+            with detail_phase(
+                self.progress, "centrality: reconstructing X graph for unadjusted Katz or eigenvector mode",
+            ):
+                x = self.load_x(deps["analysis.x"], include_paths=False)
+            nodes = x.nodes
+            with detail_phase(self.progress, "centrality: computing unadjusted balanced Katz or legacy eigenvector"):
+                result = compute_centrality(
+                    x.graph,
+                    method=self.config.centrality_method,
+                    direction=self.config.centrality_direction,
+                    katz_alpha_factor=self.config.katz_alpha_factor,
+                    katz_beta=self.config.katz_beta,
+                )
         rows = []
-        for row in x.nodes.itertuples(index=False):
+        for row in nodes.itertuples(index=False):
             node_id = str(row.node_id)
             if node_id not in result.values:
                 raise RuntimeError(f"centrality is missing X node {node_id!r}")
@@ -664,6 +731,10 @@ class AnalysisPipeline:
                 "katz_in_raw", "katz_out_raw", "centrality",
             ],
         ).sort_values("node_id", kind="stable").reset_index(drop=True)
+        if area_audit is not None:
+            table = table.merge(area_audit, on="node_id", how="left", validate="one_to_one")
+            if table["area_factor"].isna().any():
+                raise RuntimeError("Area audit is missing X nodes")
         table.to_csv(
             write.output("centrality.csv"),
             index=False,
@@ -682,25 +753,38 @@ class AnalysisPipeline:
             "spectral_scale_kind": result.spectral_scale_kind,
             "combination": result.combination,
             "normalization": result.normalization,
+            "tile_area_adjustment": area_diagnostics,
+            "x_artifact_id": deps["analysis.x"].artifact_id,
+            "spatial_partitions_artifact_id": (
+                deps["spatial.partitions"].artifact_id if "spatial.partitions" in deps else None
+            ),
         }
         write.output("centrality.json").write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
         return payload, {
             "centrality_method": result.method,
+            "tile_area_adjustment": area_diagnostics is not None,
             "direction_removed_for_centrality": result.direction == "undirected",
             "directed_x_preserved": True,
         }
 
     def _recipe_scores(self, planner, deps) -> ArtifactRecipe:
+        legacy = self.config.centrality_method == "eigenvector"
         return ArtifactRecipe.build(
             "analysis.scores",
-            implementation_version="distance-tempered-point-score-v1" + MANAGED_TABLES_VERSION,
+            implementation_version=(
+                "distance-tempered-point-score-v1" if legacy
+                else "gravity-inverse-road-distance-point-score-v1"
+            ) + MANAGED_TABLES_VERSION,
             dependencies={
                 "spatial.point_distances": deps["spatial.point_distances"],
                 "analysis.centrality": deps["analysis.centrality"],
             },
-            parameters={"distance_tempering": self.config.distance_tempering},
+            parameters=(
+                {"distance_tempering": self.config.distance_tempering} if legacy
+                else {"distance_floor_metres": 1.0}
+            ),
         )
 
     def _exec_scores(self, planner, recipe, deps, write: ArtifactWrite):
@@ -708,22 +792,33 @@ class AnalysisPipeline:
             points = self.spatial.read_point_distances(deps["spatial.point_distances"])
             centrality = self.load_centrality(deps["analysis.centrality"])
         with detail_phase(self.progress, f"scoring: computing scores for {len(points):,} establishments"):
-            scores = tempered_point_scores(
-                points,
-                centrality.values,
-                distance_tempering=self.config.distance_tempering,
-            )
+            if self.config.centrality_method == "eigenvector":
+                scores = tempered_point_scores(
+                    points, centrality.values,
+                    distance_tempering=self.config.distance_tempering,
+                )
+            else:
+                scores = inverse_distance_point_scores(points, centrality.values)
         with detail_phase(self.progress, f"scoring: serializing {len(scores):,} point scores"):
             write_geoframe(scores, write.output("scores.parquet"))
         return {
             "rows": len(scores),
             "crs": str(scores.crs),
-            "distance_tempering": self.config.distance_tempering,
+            **({"distance_tempering": self.config.distance_tempering}
+               if self.config.centrality_method == "eigenvector"
+               else {"distance_floor_metres": 1.0}),
             "score_min": float(scores["sigma_score"].min()),
             "score_max": float(scores["sigma_score"].max()),
         }, {
-            "score_formula": "cluster_centrality * (1 - distance_tempering * normalized_cluster_distance)",
-            "distance_normalization": "cluster_p90_bounded",
+            "score_formula": (
+                "cluster_centrality * (1 - distance_tempering * normalized_cluster_distance)"
+                if self.config.centrality_method == "eigenvector"
+                else "cluster_centrality / max(road_distance_to_1_median_metres, 1)"
+            ),
+            "distance_normalization": (
+                "cluster_p90_bounded" if self.config.centrality_method == "eigenvector"
+                else "one_metre_floor_only"
+            ),
         }
 
     def x(self, *, force: bool = False) -> ArtifactRef:

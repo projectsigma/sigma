@@ -1,6 +1,17 @@
 from __future__ import annotations
 
-from sigma.analysis import AnalysisPipeline, AnalysisRunConfig, make_node_id
+import json
+import math
+
+import numpy as np
+import pytest
+
+from sigma.analysis import (
+    AnalysisPipeline,
+    AnalysisRunConfig,
+    balanced_katz_centrality,
+    make_node_id,
+)
 
 from tests.integration.test_c14_analysis_x import _pipelines
 
@@ -27,14 +38,28 @@ def test_managed_centrality_defaults_to_balanced_directed_katz_on_cyclic_x(tmp_p
     assert list(table.columns) == [
         "node_id", "type", "cluster", "in_degree", "out_degree",
         "katz_in_raw", "katz_out_raw", "centrality",
+        "voronoi_area_km2", "area_factor",
+        "out_strength_original", "in_strength_original",
+        "out_strength_adjusted", "in_strength_adjusted",
     ]
     assert table["katz_in_raw"].notna().all()
     assert table["katz_out_raw"].notna().all()
     assert set(scores["type"]) == {"A", "B"}
     assert set(scores["cluster"]) == {0}
-    assert set(scores["distance_tempering"]) == {0.15}
-    assert (scores["sigma_score"] <= scores["cluster_centrality"] + 1e-15).all()
-    assert (scores["sigma_score"] >= scores["cluster_centrality"] * 0.85 - 1e-15).all()
+    assert "distance_tempering" not in scores.columns
+    distance = np.maximum(scores["distance_to_cluster_median"].to_numpy(float), 1.0)
+    np.testing.assert_array_equal(
+        scores["sigma_score"].to_numpy(float),
+        scores["cluster_centrality"].to_numpy(float) / distance,
+    )
+    # Both fixture tiles cover the whole area, so the area factor is an exact no-op.
+    metadata_path = ws.artifact("analysis.centrality").path / "centrality.json"
+    adjustment = json.loads(metadata_path.read_text(encoding="utf-8"))["tile_area_adjustment"]
+    assert adjustment["regression"]["status"] == "not_identified_constant_area"
+    assert adjustment["gamma"] is None
+    reference = balanced_katz_centrality(analysis.load_x(include_paths=False).graph)
+    for node, value in reference.values.items():
+        assert math.isclose(centrality.values[node], value, rel_tol=1e-10)
 
 
 def test_x_distance_exponent_recomputes_x_centrality_and_scores_only(tmp_path):
@@ -105,26 +130,10 @@ def test_switching_to_eigenvector_invalidates_centrality_and_scores_only(tmp_pat
     assert changed.load_centrality().direction == "undirected"
 
 
-def test_tempering_change_invalidates_scores_only(tmp_path):
-    ws, spatial, economic, first = _pipelines(tmp_path)
-    first.scores()
-    x_id = ws.artifact("analysis.x").artifact_id
-    c_id = ws.artifact("analysis.centrality").artifact_id
-    d_id = ws.artifact("spatial.point_distances").artifact_id
-    first_score = ws.artifact("analysis.scores").artifact_id
-
-    changed = AnalysisPipeline(
-        ws,
-        spatial_pipeline=spatial,
-        economy_pipeline=economic,
-        config=AnalysisRunConfig(distance_tempering=0.30),
-    )
-    second = changed.scores()
-    assert ws.artifact("analysis.x").artifact_id == x_id
-    assert ws.artifact("analysis.centrality").artifact_id == c_id
-    assert ws.artifact("spatial.point_distances").artifact_id == d_id
-    assert second.artifact_id != first_score
-    assert set(changed.read_scores(second)["distance_tempering"]) == {0.30}
+def test_retired_tempering_is_rejected_by_canonical_analysis_config():
+    with pytest.raises(ValueError, match="retired"):
+        AnalysisRunConfig(distance_tempering=0.30)
+    assert AnalysisRunConfig(centrality_method="eigenvector", distance_tempering=0.30)
 
 
 def test_forced_centrality_and_scores_are_deterministic(tmp_path):

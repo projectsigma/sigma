@@ -11,6 +11,39 @@ import pandas as pd
 from .graph import make_node_id
 
 
+def inverse_distance_point_scores(
+    points: gpd.GeoDataFrame,
+    centrality: Mapping[str, float],
+    *,
+    distance_column: str = "distance_to_cluster_median",
+) -> gpd.GeoDataFrame:
+    """S_p = C_cluster / max(road_distance_metres / 1 metre, 1)."""
+    required = {"type", "cluster", distance_column, "geometry"}
+    if missing := required - set(points.columns):
+        raise ValueError(f"point-score input missing columns: {sorted(missing)}")
+    if points.empty:
+        raise ValueError("point-score input is empty")
+    out = points.copy()
+    distance = pd.to_numeric(out[distance_column], errors="coerce").to_numpy(dtype=float)
+    if not np.isfinite(distance).all() or (distance < 0).any():
+        raise ValueError("point-to-1-median road distance must be finite and nonnegative")
+    node_ids = [make_node_id(str(t), int(c))
+                for t, c in zip(out["type"], out["cluster"], strict=True)]
+    if missing := sorted(set(node_ids) - set(centrality)):
+        raise ValueError(f"missing cluster centrality values: {missing[:10]}")
+    c = np.asarray([float(centrality[node]) for node in node_ids], dtype=float)
+    if not np.isfinite(c).all() or (c < 0).any():
+        raise ValueError("cluster centralities must be nonnegative and finite")
+    out[distance_column] = distance
+    out["cluster_centrality"] = c
+    out["sigma_score"] = c / np.maximum(distance / 1.0, 1.0)
+    if "point_id" not in out:
+        out["point_id"] = out["canonical_id"] if "canonical_id" in out else out.index.astype(str)
+    base = ["point_id", "type", "cluster", "cluster_centrality", distance_column, "sigma_score"]
+    extras = [column for column in ("canonical_id", "canonical_name") if column in out.columns]
+    return out[base + extras + ["geometry"]].copy()
+
+
 def tempered_point_scores(
     points: gpd.GeoDataFrame,
     centrality: Mapping[str, float],

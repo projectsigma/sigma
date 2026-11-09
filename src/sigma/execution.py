@@ -99,8 +99,12 @@ class ExecutionPlanner:
 
         if not force:
             exact = self.workspace.artifacts.lookup(stage, recipe.fingerprint)
+            if exact is None:
+                from .incremental import compatible_ref
+                exact = compatible_ref(self.workspace, recipe)
             if exact is not None:
-                validation = self.workspace.artifacts.validate(exact, expected_recipe=recipe)
+                expected = recipe if exact.recipe_fingerprint == recipe.fingerprint else None
+                validation = self.workspace.artifacts.validate(exact, expected_recipe=expected)
                 if validation.valid:
                     if self._is_reusable(exact):
                         self.workspace.artifacts._mark_active_validated(stage, exact)
@@ -111,6 +115,8 @@ class ExecutionPlanner:
                         return exact
                     self._say(f"refresh {stage} (provisional artifact)")
 
+        from .incremental import guard_execution
+        guard_execution(self, stage)
         write = self.workspace.artifacts.begin_write(recipe)
         started = time.monotonic()
         self._say(f"run {stage}")
@@ -170,8 +176,19 @@ class ExecutionPlanner:
         except KeyError as exc:
             raise KeyError(f"unknown SIGMA stage: {stage}") from exc
 
-    def plan(self, target: str) -> tuple[ExecutionStep, ...]:
-        """Explain reuse/recompute from current active state without source refresh/acquisition."""
+    def plan_with_refs(
+        self, target: str,
+    ) -> tuple[tuple[ExecutionStep, ...], dict[str, ArtifactRef]]:
+        """Dry-run the *same dependency resolution* used by ``ensure``.
+
+        Active pointers are not necessarily from one coherent run: base HDBSCAN
+        and effective rolled-up / Gap-refined variants coexist. A read-only plan
+        must resolve each dependency to its matching immutable artifact before
+        computing downstream recipes, rather than using active references.
+
+        No artifact is activated or written. A missing upstream result leaves
+        descendants pending instead of predicting their future artifact IDs.
+        """
         previous_inspection = self.runtime.get("_inspection")
         self.runtime["_inspection"] = True
         try:
@@ -187,39 +204,52 @@ class ExecutionPlanner:
                 order.append(name)
 
             visit(target)
+            resolved: dict[str, ArtifactRef] = {}
             steps: list[ExecutionStep] = []
             for name in order:
                 spec = self._spec(name)
-                deps = {dep: self.workspace.artifact(dep) for dep in spec.dependencies}
-                if any(ref is None for ref in deps.values()):
-                    steps.append(ExecutionStep(name, "run", "dependency_missing"))
+                if any(dep not in resolved for dep in spec.dependencies):
+                    steps.append(ExecutionStep(name, "run", "upstream_output_pending"))
                     continue
+                deps = {dep: resolved[dep] for dep in spec.dependencies}
                 try:
-                    recipe = spec.recipe(self, {k: v for k, v in deps.items() if v is not None})
+                    recipe = spec.recipe(self, deps)
                 except Exception as exc:
                     steps.append(ExecutionStep(name, "run", f"recipe_unavailable:{type(exc).__name__}"))
                     continue
                 exact = self.workspace.artifacts.lookup(name, recipe.fingerprint)
-                if exact is not None and self.workspace.artifacts.validate(
-                    exact, expected_recipe=recipe
-                ).valid:
-                    if self._is_reusable(exact):
+                if exact is None:
+                    from .incremental import compatible_ref
+                    exact = compatible_ref(self.workspace, recipe)
+                if exact is not None:
+                    expected = recipe if exact.recipe_fingerprint == recipe.fingerprint else None
+                    validation = self.workspace.artifacts.validate(exact, expected_recipe=expected)
+                    if validation.valid and self._is_reusable(exact):
+                        resolved[name] = exact
                         steps.append(ExecutionStep(name, "reuse", "valid"))
-                    else:
+                        continue
+                    if validation.valid:
                         steps.append(ExecutionStep(name, "run", "provisional"))
-                    continue
-                active = self.workspace.artifact(name)
-                if active is None:
-                    steps.append(ExecutionStep(name, "run", "missing"))
+                        continue
+                    reason = validation.reason
                 else:
-                    validation = self.workspace.artifacts.validate(active, expected_recipe=recipe)
-                    steps.append(ExecutionStep(name, "run", validation.reason))
-            return tuple(steps)
+                    active = self.workspace.artifact(name)
+                    reason = (
+                        self.workspace.artifacts.validate(active, expected_recipe=recipe).reason
+                        if active is not None else "missing"
+                    )
+                steps.append(ExecutionStep(name, "run", reason))
+            return tuple(steps), resolved
         finally:
             if previous_inspection is None:
                 self.runtime.pop("_inspection", None)
             else:
                 self.runtime["_inspection"] = previous_inspection
+
+    def plan(self, target: str) -> tuple[ExecutionStep, ...]:
+        """Read-only, dependency-resolved forecast for a stage target."""
+        steps, _ = self.plan_with_refs(target)
+        return steps
 
     def status(self, stages: Iterable[str] | None = None) -> dict[str, ArtifactValidation]:
         previous_inspection = self.runtime.get("_inspection")
@@ -239,6 +269,8 @@ class ExecutionPlanner:
                 except Exception:
                     continue
             raw = self.workspace.artifacts.status(expected)
+            from .incremental import mark_semantic_status
+            mark_semantic_status(self.workspace, expected, raw)
             for name in names:
                 raw.setdefault(name, ArtifactValidation(False, "missing", "no_active_artifact"))
             return raw

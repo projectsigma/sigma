@@ -459,11 +459,16 @@ def _single_symbol_renderer(symbol: ET.Element) -> ET.Element:
     return renderer
 
 
-def _add_simple_labeling(maplayer: ET.Element, *, score_min: float, score_max: float) -> None:
+def _add_simple_labeling(maplayer: ET.Element, *, score_min: float, score_max: float,
+                         inverse_distance: bool = False) -> None:
     labeling = ET.SubElement(maplayer, "labeling", {"type": "simple"})
     settings = ET.SubElement(labeling, "settings")
     ET.SubElement(settings, "text-style", {
-        "fieldName": "concat(\"canonical_name\", '-', round(100 * \"sigma_score\", 2))",
+        "fieldName": (
+            'concat("canonical_name", \' - \', format_number("sigma_score", 10))'
+            if inverse_distance else
+            'concat("canonical_name", \'-\', round(100 * "sigma_score", 2))'
+        ),
         "fontSize": "9",
         "fontSizeUnit": "Point",
         "isExpression": "1",
@@ -536,8 +541,14 @@ def write_qgis_project(
     finite_scores = score_series[score_series.notna()]
     score_min = float(finite_scores.min()) if len(finite_scores) else 0.0
     score_max = float(finite_scores.max()) if len(finite_scores) else 1.0
+    inverse_distance = "distance_tempering" not in points.columns
+    if inverse_distance and len(finite_scores) > 1:
+        # Visual stretch only: p05-p95 limits make small 1/d scores distinguishable.
+        # The data/score values are unchanged; extremes saturate at the marker limits.
+        score_min = float(finite_scores.quantile(0.05))
+        score_max = float(finite_scores.quantile(0.95))
     if score_max <= score_min:
-        score_max = score_min + 1.0
+        score_max = score_min + (abs(score_min) * 0.01 if score_min else 1.0)
 
     def add_tree_entry(parent: ET.Element, maplayer: ET.Element, *, checked: str = "Qt::Checked") -> None:
         layer_id = maplayer.findtext("id") or ""
@@ -617,7 +628,8 @@ def write_qgis_project(
     points_layer.append(
         _categorized_point_renderer(point_type_order, styles, score_min=score_min, score_max=score_max)
     )
-    _add_simple_labeling(points_layer, score_min=score_min, score_max=score_max)
+    _add_simple_labeling(points_layer, score_min=score_min, score_max=score_max,
+                         inverse_distance=inverse_distance)
 
     # One canonical establishment layer; sector categories are mutually exclusive.
     add_tree_entry(layer_tree, points_layer, checked="Qt::Checked")

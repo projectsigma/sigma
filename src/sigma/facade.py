@@ -524,6 +524,7 @@ class Sigma:
             katz_beta=a.katz_beta,
             x_distance_decay_lambda=a.x_distance_decay_lambda,
             distance_tempering=a.distance_tempering,
+            area_adjustment=a.area_adjustment,
         )
 
     def _place_pipeline(self) -> PlacePipeline | None:
@@ -713,7 +714,13 @@ class Sigma:
         """
         outermost = self._runtime_depth == 0
         if outermost:
+            # Execution preflight occurs before run() enters this scope.
+            # Keep only its safety policy, never stale source/provisional state.
+            policy = {k: self._runtime_cache[k] for k in
+                      ("_protect_existing_run", "_allow_expensive")
+                      if k in self._runtime_cache}
             self._runtime_cache.clear()
+            self._runtime_cache.update(policy)
         self._runtime_depth += 1
         try:
             yield
