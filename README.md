@@ -38,9 +38,9 @@ SIGMA runs in two commands. `sigma load` (stages 1–5) builds the classified li
 | 12 | Network Voronoi | `run` | each cluster's territory: the roads nearer to its members than to members of the same sector's other clusters, drawn as polygons |
 | 13 | IO coefficients | `run` | the directed technical-coefficient graph of the area's sectors; cycles and reciprocal links are kept |
 | 14 | Network X | `run` | a directed link between two clusters when their sectors have an IO coefficient, their territories overlap and a road connects their centers |
-| 15 | Katz | `run` | incoming and outgoing weighted Katz centrality on X |
+| 15 | Tile-adjusted Katz | `run` | estimate degree–area scaling by per-geography PPML; compute outgoing and incoming Katz using the focal tile's own area factor |
 | 16 | Balanced centrality | `run` | geometric mean of the two Katz values, then one L2 normalization |
-| 17 | Establishment scores | `run` | each establishment receives its cluster's centrality, tempered by its road distance to the cluster center |
+| 17 | Establishment scores | `run` | cluster centrality divided by establishment-to-1-median road distance, with a 1 m floor (canonical Katz) |
 | — | Publication | `run`, `view` | GeoParquet, CSV, GeoPackage and QGIS outputs, and a compact routing graph from which Explorer draws routes on request |
 
 Stage 9 is decided on the HDBSCAN* clusters before any Gap split, and stage 10 then refines the clusters of the final sectors. HDBSCAN* noise stays noise in both stages. The original sector (`original_economy_code`) and the original HDBSCAN* label (`hdbscan_cluster`) of every place remain in the outputs, together with `rollup_audit.json` and `median_gap_audit.json`. A network X node is a `(sector, cluster)` pair, not one firm, and an X edge is a modeled spatial-economic relationship, not evidence that two establishments trade.
@@ -98,7 +98,7 @@ The project objectives map to the implemented SIGMA pipeline as follows:
 | Project objective | SIGMA implementation |
 |---|---|
 | 1. Identify emerging MSME ecosystem clusters with strong economic potential but underserved by BPI | Place acquisition and reconciliation; PSIC classification; PSIC-to-IO mapping; road-network preparation; network-constrained clustering; cluster centers; Voronoi/partition construction. Bank coverage/underservice is a downstream overlay or reviewed attribute rather than a hard-coded SIGMA rule. |
-| 2. Develop a Network Influence Score to identify key connectors or anchors within local business ecosystems | The spatial-economic **X graph**, weighted centrality, and distance-tempered point scoring identify influential cluster nodes and establishments. |
+| 2. Develop a Network Influence Score to identify key connectors or anchors within local business ecosystems | The spatial-economic **X graph**, tile-area-adjusted balanced directed Katz, and inverse-road-distance point scoring identify influential cluster nodes and establishments. |
 | 3. Estimate which MSME ecosystems are structurally linked to other ecosystems | SIGMA's **cluster-to-cluster link generation** instantiates directed X-graph edges only where economic relationships, spatial overlap, and road-network reachability jointly support a connection. This is SIGMA's operational form of graph link prediction / structural link inference. |
 | 4. Enable ecosystem-specific acquisition strategies and product bundles | SIGMA exports ecosystem polygons, centers, linked-cluster edges and paths, centrality, point-level scores, economic relationships, and audit/provenance artifacts that can be translated into target zones, priority MSMEs, and product strategies. |
 
@@ -135,7 +135,7 @@ SIGMA supports:
 - directed input-output economic network construction;
 - cluster-to-cluster spatial-economic link generation;
 - network centrality and influence scoring;
-- point-level scoring with distance tempering;
+- point-level scoring with canonical inverse-road-distance attenuation;
 - restartable, content-addressed workflow execution; and
 - export of tabular, GeoParquet, CSV, and GeoPackage analytical products.
 
@@ -519,7 +519,7 @@ final network-node 1-median for every retained/refined cluster
 network Voronoi partitions: 50 m start, refine until convergence or a limit; planar fallback if needed
 full positive directed IO technical-coefficient graph (no transaction preprocessing)
 mean hub-mediated X distance, exact-type clustered shares, inverse-power attenuation
-balanced directed Katz centrality and distance-tempered establishment scores
+per-geography PPML tile-area-adjusted balanced directed Katz; inverse-road-distance establishment scores
 QGIS/GeoParquet and browser-native route publication (precomputed optional)
 ```
 
@@ -540,7 +540,9 @@ one final L2 normalization
 balanced centrality
 ```
 
-The default attenuation is derived from `alpha_factor = 0.85`; `beta = 1`. A weighted eigenvector method is available as an explicit alternative.
+Before either Katz pass, SIGMA fits a **per-geography pooled PPML degree–area exponent** from final Voronoi tile areas and total directed degree (including zero-degree X nodes). For each tile, $f_i=A_i^{-\hat\gamma}$; the two **focal-tile** operators are $W'^{out}=FW$ and $W'^{in}=FW^{\mathsf T}$, where $F=\mathrm{diag}(f_i)$. Neither X topology nor its stored original weights change. The two Katz components share the same spectrally safe attenuation, derived from `alpha_factor = 0.85`; `beta = 1`. The geometric mean is L2-normalized **once**, after combining the raw components. A weighted eigenvector method is available only as an explicit legacy alternative.
+
+The new area-adjusted canonical rule is on by default. `--no-area-adjustment` gives ordinary balanced Katz; `--area-adjustment` requests the default explicitly. A separate canonical **establishment scoring** choice applies $S_p=C_{c(p)}/\max(d_R(p,m_{c(p)})/(1\,\mathrm m),1)$ instead of the old bounded 15% p90 distance tempering (retained only for explicit legacy eigenvector scoring). See [Centrality](docs/book/content/methods/centrality.md), [Scoring](docs/book/content/methods/scoring.md), and [Area-adjustment diagnostics](docs/book/content/methods/area_adjustment_diagnostics.md). The Metro Manila cluster diagnostics are **not** an external economic validation or a validation of establishment-level rankings.
 
 Each line corresponds to one or more of the stages 6–17 in [How SIGMA works](#how-sigma-works-17-stages).
 
@@ -569,8 +571,14 @@ sigma run pasig --centrality-method katz
 # Legacy eigenvector option on the positive-weight undirected projection of X
 sigma run pasig --centrality-method eigenvector
 
-# Change point-score distance tempering
-sigma run pasig --distance-tempering 0.10
+# Disable tile-area correction while retaining canonical inverse-distance point scoring
+sigma run pasig --no-area-adjustment
+
+# Inspect reuse without touching expensive clustering or other stages
+sigma run pasig --plan
+
+# Legacy eigenvector ONLY: change its bounded p90 distance tempering
+sigma run pasig --centrality-method eigenvector --distance-tempering 0.10
 
 # Change clustering thresholds
 sigma run pasig --min-cluster-size 8 --min-samples 4
@@ -584,8 +592,8 @@ sigma run pasig --transaction-preprocessing mwas_ras_fast
 # Legacy Engine-equivalent profile
 sigma run pasig --equivalent --mwas-method fast
 
-# Recompute analytical stages (clustering through scoring) from already loaded places
-sigma run pasig --refresh
+# Explicit full refresh (potentially expensive; review --plan first)
+sigma run pasig --refresh --allow-expensive
 
 # Legacy: force terminal scoring; other valid stages may be reused
 sigma run pasig --force
@@ -954,7 +962,7 @@ Each spatial-economic node is identified by the pair:
 (economic type, spatial cluster)
 ```
 
-SIGMA constructs the X graph, computes network centrality, and propagates cluster influence to individual establishments through a distance-tempered point score.
+SIGMA constructs the X graph, computes tile-area-adjusted balanced Katz centrality (default), and transfers cluster centrality to establishments with full inverse-road-distance attenuation.
 
 Relevant stages:
 
@@ -964,15 +972,17 @@ analysis.centrality
 analysis.scores
 ```
 
-Canonical SIGMA centrality is **balanced weighted directed Katz** on the full directed X graph. Incoming and outgoing Katz components are computed unnormalized with the same attenuation parameters, combined nodewise by geometric mean, and normalized once at the end:
+Canonical SIGMA centrality is **tile-area-adjusted balanced weighted directed Katz** on the full directed X graph. Total directed degree is regressed on final Voronoi area (km²) using pooled PPML, estimating $\hat\gamma$ for each geography. The two tile-perspective operators $FW$ and $FW^{\mathsf T}$ discount every tile's own incoming and outgoing connections by the same $A_i^{-\hat\gamma}$ factor. The original X weights and eligibility remain unchanged.
 
-\[
-C_i = \operatorname{L2Normalize}\left(\sqrt{K_i^{in}K_i^{out}}\right).
-\]
+ Incoming and outgoing Katz components are computed unnormalized with the same attenuation parameters, combined nodewise by geometric mean, and normalized once at the end:
+
+$$
+C_i = \frac{\sqrt{K_i^{\mathrm{in}} K_i^{\mathrm{out}}}}{\sqrt{\sum_j K_j^{\mathrm{in}} K_j^{\mathrm{out}}}}.
+$$
 
 This retains direction and cycles while reducing pure-source and pure-sink dominance. The default attenuation uses `alpha_factor = 0.85` with `beta = 1`; the effective `alpha` is scaled safely from the graph's spectral radius (or a conservative safe scale for zero-radius/fallback cases). A weighted eigenvector rule is available as an explicit alternative and uses the positive-weight **undirected projection** of X.
 
-Point scores are then tempered by a business's road-network distance from its cluster center.
+Canonical point scores use **full inverse-road-distance decay**, $S_p=C_{c(p)}/\max(d_R(p,m_{c(p)})/(1\,\mathrm m),1)$; the earlier p90-scaled 15% tempering belongs only to legacy eigenvector scoring. This score is a modeling choice, not measured firm-level economic impact.
 
 Conceptually:
 
@@ -1019,7 +1029,7 @@ The canonical combined edge weight is:
 technical coefficient * (source_cluster_count / source_sector_clustered_count) * (target_cluster_count / target_sector_clustered_count) / max(mean_source_radius + center_road_distance + mean_target_radius, 1) ** x_distance_decay_lambda
 ```
 
-The default `x_distance_decay_lambda = 1.0` gives inverse-road-distance attenuation, with a one-metre floor so the spatial factor stays in `(0, 1]`. The X weight is at most the economic coefficient; longer effective hub-mediated distances weaken rather than strengthen the modeled link. The exponent does not change `road_distance`. The exponent is distinct from Katz `alpha_factor = 0.85` and establishment `distance_tempering = 0.15`. Same-cluster self-edges remain omitted by the X topology policy. Changing the exponent invalidates `analysis.x` and its downstream centrality/score artifacts, not the upstream clusters, centers, roads, or economic graph.
+The default `x_distance_decay_lambda = 1.0` gives inverse-road-distance attenuation, with a one-metre floor so the spatial factor stays in `(0, 1]`. The X weight is at most the economic coefficient; longer effective hub-mediated distances weaken rather than strengthen the modeled link. The exponent does not change `road_distance`. The X exponent is distinct from the geography-specific PPML degree–area exponent used only inside canonical Katz, and from the `alpha_factor = 0.85` Katz parameter. `distance_tempering = 0.15` is a legacy eigenvector-scoring compatibility setting, **not** canonical point scoring. Same-cluster self-edges remain omitted by the X topology policy. Changing the exponent invalidates `analysis.x` and its downstream centrality/score artifacts, not the upstream clusters, centers, roads, or economic graph.
 
 
 This produces a **multi-relational or multiplex-like ecosystem graph**: economic dependence, spatial co-location, and transport connectivity are represented together. The implementation uses a directed graph (`DiGraph`) rather than a literal `MultiDiGraph`, but the analytical interpretation is multigraph-like because each connection is supported by multiple relationship dimensions.
@@ -1096,7 +1106,7 @@ effective technical coefficients + positive-area overlap + center routing
     ↓
 numerical X: coefficients × both clustered-sector shares / mean hub distance^λ
     ↓
-balanced incoming/outgoing Katz → distance-tempered establishment scores
+tile-area-adjusted balanced incoming/outgoing Katz → inverse-road-distance establishment scores
     ↓
 GIS/CSV/GeoParquet export → browser-native on-demand routes (default)
                         └─ precomputed path geometry by explicit option only
@@ -1484,8 +1494,9 @@ Available options:
 --mwas-method VALUE
 --centrality-method VALUE        katz (default) or eigenvector
 --centrality-direction VALUE     compatibility option; balanced Katz uses both directions
+--area-adjustment / --no-area-adjustment  Katz area correction on by default
 --x-distance-decay-lambda FLOAT  X distance-decay exponent (default 1.0)
---distance-tempering FLOAT
+--distance-tempering FLOAT     legacy eigenvector scoring only (not canonical Katz)
 --min-cluster-size INTEGER
 --min-samples INTEGER
 --allow-single-cluster
@@ -1539,11 +1550,16 @@ Available options:
 --voronoi-resolution FLOAT       start grid spacing for stage 12, metres (default 50)
 --centrality-method VALUE        katz (default) or eigenvector
 --centrality-direction VALUE     compatibility option; balanced Katz uses both directions
+--area-adjustment / --no-area-adjustment  Katz area correction on by default
 --x-distance-decay-lambda FLOAT  X distance-decay exponent (default 1.0)
---distance-tempering FLOAT
+--distance-tempering FLOAT     legacy eigenvector scoring only (not canonical Katz)
 --iterative-rollup / --no-iterative-rollup
                                  stage 9 zero-cluster roll-up (on for generated hierarchies)
---refresh                        recompute analytical stages from the loaded places
+--plan                           read-only stage plan (no analysis)
+--through STAGE                  execute stage and dependencies only
+--recompute STAGE                force one stage and affected descendants
+--allow-expensive                opt in to rebuilding expensive cached stages
+--refresh                        recompute analytical stages from the loaded places (guarded)
 --force                          legacy: force only final scoring
 --route-geometry VALUE           browser (default) or precomputed
 --json

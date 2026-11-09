@@ -37,7 +37,7 @@ The workflow rebuilds when `docs/book/`, `src/sigma/`, `pyproject.toml`, or the 
 - Start here: overview, quickstart, Explorer and Under the Hood, the 17-stage workflow, notation;
 - Places and sectors (stages 1–5, `sigma load`): places, institutional activity and ownership evidence, hierarchical economy, augmentation;
 - Roads, clusters and territories (stages 6–12, `sigma run`): roads and snapping, network HDBSCAN*, zero-cluster roll-up, network Gap k-medoids, 1-median centers, network Voronoi;
-- Economy, graph X and scores (stages 13–17): IO economy, X graph, balanced Katz, establishment scoring;
+- Economy, graph X and scores (stages 13–17): IO economy, X graph, per-geography PPML tile-area-adjusted balanced Katz, inverse-road-distance establishment scoring, and empirical limitations;
 - Publication, reproducibility and interpretation: route publication, artifact recipes and savepoints, storage, defaults, outputs, method lineage; and
 - consolidated references.
 

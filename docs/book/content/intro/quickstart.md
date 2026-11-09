@@ -74,8 +74,8 @@ The ordinary selected-economy run uses:
 - network-node 1-median cluster centers, computed for every final cluster (stage 11);
 - network-Voronoi surface partitions on a grid that starts at 50 m and is refined until the territories stop changing, within a cell budget (stage 12);
 - X weights based on technical coefficients, both clustered-sector shares, and mean hub-mediated road distance (stages 13–14);
-- balanced sender-receiver weighted Katz (stages 15–16);
-- establishment distance tempering `lambda = 0.15` (stage 17); and
+- **tile-area-adjusted** sender-receiver weighted Katz: pooled PPML degree–area exponent per geography, both focal-tile weight orientations, then balanced Katz (stages 15–16; `--no-area-adjustment` opt-out);
+- **full inverse-road-distance** establishment score $S_p=C_{c(p)}/\max(d_R/(1\,\mathrm m),1)$ (stage 17; p90 tempering only in legacy eigenvector mode); and
 - browser route publication: a compact routing graph, with routes drawn on request (`--route-geometry precomputed` writes all routes at export instead).
 
 Use `sigma run pasig --no-median-gap` to compare the original HDBSCAN
@@ -84,6 +84,8 @@ The legacy `--equivalent` profile stays unrefined unless Gap is explicitly enabl
 [Gap refinement](../methods/network_gap_medians.md) gives the selection rule,
 search limits and auditing fields. These switches change the requested run,
 not an already-published Explorer bundle.
+
+Use `sigma run pasig --plan` to inspect the stage reuse plan **without executing the pipeline**. A normal `sigma run pasig` reuses compatible completed upstream artifacts when only the scoring method changes. To rebuild expensive cached spatial stages, inspect the plan first and explicitly authorize `--allow-expensive`.
 
 Use `sigma run pasig --refresh` only when downstream recomputation is actually
 needed from loaded places; it does not reclassify establishments. A matching
@@ -142,7 +144,7 @@ A useful way to audit a result is to follow this sequence:
 7. inspect `center_method` and `surface_method` for fallbacks;
 8. inspect the effective transaction table and technical coefficients;
 9. inspect X-edge overlap, road distance, and weight;
-10. inspect `katz_in_raw`, `katz_out_raw`, and final centrality; and
-11. inspect establishment distance tempering and final `sigma_score`.
+10. inspect the fitted per-geography degree–area PPML exponent, tile-factor diagnostics, `katz_in_raw`, `katz_out_raw`, and normalized centrality; and
+11. inspect establishment-to-1-median road distances and the inverse-distance `sigma_score` (not legacy p90 tempering).
 
 The remainder of this book explains why each item exists and how it is computed.

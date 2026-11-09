@@ -17,7 +17,7 @@ The area-scaling coefficient is estimated for each geography in the centrality s
 
 ```{admonition} SIGMA-specific scoring rule
 :class: important
-The inverse-distance transfer is a model rule, not a standard centrality theorem.
+The inverse-distance transfer is a model rule, not a standard centrality theorem. Unlike the separate PPML tile-area adjustment, it has not been validated by the Metro Manila cluster-centrality comparison. At 200 m a node with $C_c=0.40$ assigns $S_p=0.002$, while at 1 m or less it assigns $0.40$. This intentionally permits large within-cluster score changes. See [Empirical diagnostics and limits](area_adjustment_diagnostics.md).
 ```
 
 ## Legacy distance tempering

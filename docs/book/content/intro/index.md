@@ -32,9 +32,9 @@ sigma run ───────────────────────�
  13  economy            effective-sector table → coefficients a_ij = z_ij / x_j
  14  graph X            IO edge ∧ territory overlap ∧ road-connected centers;
                         weight with sector shares and mean hub distance
- 15  Katz               incoming and outgoing Katz on X
+ 15  Katz               per-geography PPML area scaling; tile-adjusted in/out Katz
  16  balanced           sqrt(K_in · K_out), one final L2 normalization
- 17  scores             establishment score, tempered by distance to center
+ 17  scores             inverse-road-distance transfer from cluster centrality
 publication ────────────────────────────────────────────────────────────────────
      export             GIS/CSV/GeoParquet; compact routing graph (default)
      sigma view         Explorer draws routes on request (no new numbers)
@@ -47,11 +47,11 @@ The sequence is a conceptual dependency order, not a list of managed artifacts; 
 
 Numerical X (stage 14) uses exact road distances but stores no route lines. By default the export publishes a compact routing graph and Explorer draws a route only when an edge is shown, after checking its length against the published distance; `--route-geometry precomputed` writes all routes at export instead. See [Route publication](../methods/routing.md).
 
-The default is deliberately conservative: deterministic place classification, no LLM requirement, no transaction preprocessing, the full directed economic graph, road-network-first spatial methods, and a balanced directed Katz score. New areas loaded with `sigma load AREA` use a per-area hierarchical PSA 2018 IO240/IO80/IO16 economy; an older workspace without a recorded selection keeps IO80 until it is explicitly reloaded. The X graph does not identify observed suppliers: its directed links combine input-output coefficients, positive-area territory overlap, connected 1-medians, clustered-sector shares, and mean hub-mediated road-distance attenuation.
+The default is deliberately conservative: deterministic place classification, no LLM requirement, no transaction preprocessing, the full directed economic graph, road-network-first spatial methods, and a **tile-area-adjusted** balanced directed Katz score (default on). New areas loaded with `sigma load AREA` use a per-area hierarchical PSA 2018 IO240/IO80/IO16 economy; an older workspace without a recorded selection keeps IO80 until it is explicitly reloaded. The X graph does not identify observed suppliers: its directed links combine input-output coefficients, positive-area territory overlap, connected 1-medians, clustered-sector shares, and mean hub-mediated road-distance attenuation.
 
 ```{admonition} What is a SIGMA node?
 :class: note
-A node of the final graph is not an individual establishment. It is a **spatial cluster of establishments of one sector**, identified by `(type, cluster)`. Establishments receive their final score from the centrality of that cluster, tempered by their road distance from the cluster center.
+A node of the final graph is not an individual establishment. It is a **spatial cluster of establishments of one sector**, identified by `(type, cluster)`. Establishments receive their final score from the centrality of that cluster divided by their road distance to its 1-median (1 m floor). Area adjustment is performed on the focal tile's incoming/outgoing X weights **before** Katz, not again on the establishment score. See [Centrality](../methods/centrality.md), [Scoring](../methods/scoring.md), and [Empirical diagnostics](../methods/area_adjustment_diagnostics.md).
 ```
 
 ```{admonition} Two sector identities after stage 9

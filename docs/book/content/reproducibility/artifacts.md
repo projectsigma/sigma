@@ -51,13 +51,15 @@ A unit is reused only when its manifest exists, its stage, recipe fingerprint an
 
 ## Selective invalidation
 
-Suppose only the Katz attenuation parameter changes. Area, source, places, roads, clusters, centers, partitions, economy, and X can remain reusable because their recipes do not depend on that parameter. `analysis.centrality` changes, and `analysis.scores` changes because it depends on centrality.
+Suppose only the Katz attenuation parameter or area-adjustment choice changes. Area, source, places, roads, clusters, centers, final partitions, economy, and **original unadjusted X** can remain reusable because their recipes do not depend on these centrality settings. The canonical adjusted centrality stage additionally reads the existing partition areas, without rewriting them. `analysis.centrality` changes, and `analysis.scores` changes because it depends on centrality.
 
 Conversely, changing `vertex_digits` invalidates road topology and propagates through every network-dependent spatial and analysis stage.
 
 Other examples: switching Gap refinement on or off, or changing its settings, invalidates `spatial.clusters` and everything downstream; changing `--median-gap-workers` invalidates nothing, because the worker count is not part of any recipe and 1 to 4 workers give identical results; changing `--route-geometry` invalidates only `export.bundle`; changing `--voronoi-resolution` (the start spacing of the stage 12 grid) invalidates `spatial.partitions` and everything downstream but reuses clusters and centers; switching the zero-cluster roll-up on or off changes the economy definition and the analysed places, so roads and loaded sources are reused while every stage from spatial points onward is recomputed.
 
-This dependency-local invalidation is the practical reason the workflow is represented as a DAG rather than a monolithic script.
+This dependency-local invalidation is the practical reason the workflow is represented as a DAG rather than a monolithic script. `sigma run AREA --plan` inspects expected reuse without analysis; normal runs guard unexpected expensive rebuilding of completed stages, and `--allow-expensive` is an explicit opt-in after review. Existing validated hierarchical roll-up receipts can be reused without repeating their baseline clustering. Older producer-version artifacts may be reused only when their other recipe semantics and content hashes match.
+
+This cache compatibility is **not** scientific validation: the Metro Manila analysis of the new correction was read-only, and the end-to-end post-repair large-workspace run was still pending at the time of its original review. See [diagnostics](../methods/area_adjustment_diagnostics.md).
 
 ## Storage retention is not the same as cache reuse
 
@@ -76,4 +78,4 @@ For safe previews, retention rules, and command examples, see
 
 Artifact reproducibility answers: **“Can I recreate the same computation from the same identified inputs and code contract?”** It does not by itself answer: **“Was this the right modeling assumption?”**
 
-The method chapters therefore pair every artifact with the assumptions that generated it: source matching thresholds, road topology, HDBSCAN horizon, center objective, Voronoi resolution, IO preprocessing, X weighting, centrality, and score tempering.
+The method chapters therefore pair every artifact with the assumptions that generated it: source matching thresholds, road topology, HDBSCAN horizon, center objective, Voronoi resolution, IO preprocessing, X weighting, PPML degree–area adjustment, centrality, and canonical inverse-road-distance point scoring (legacy bounded tempering only in eigenvector mode).

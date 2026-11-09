@@ -72,7 +72,9 @@ $$
 
 The Katz equations have no other area term. SIGMA writes the regression, the per-node area factors and strengths, and the remaining area diagnostics with the centrality artifact.
 
-The PPML tile-area correction is a SIGMA modeling choice. It is not a theorem that the adjusted rankings measure true economic influence.
+The PPML tile-area correction is a SIGMA modeling choice. It is not a theorem that the adjusted rankings measure true economic influence. **Measured behavior matters:** Metro Manila's read-only comparison reduced the Spearman area–balanced-Katz correlation from +0.4220 to −0.0266, but increased top-score concentration and yielded a 2.30× smallest-area-decile adjusted-degree diagnostic. See [Empirical diagnostics and limitations](area_adjustment_diagnostics.md); these are not external economic validation.
+
+**The Under the Hood four-node Katz slider is an equal-area illustration**, not the pooled PPML regression fitted to an actual published area. With $F$ proportional to the identity, the correction cancels under the shared spectral normalization; the slider still demonstrates the sender/receiver resolvent and geometric mean.
 
 ## Choosing alpha safely
 

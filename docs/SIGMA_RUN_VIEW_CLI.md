@@ -1,13 +1,13 @@
 # `sigma run` and `sigma view`: CLI reference
 
-This reference describes the canonical area workflow. `sigma run` executes pipeline stages 6–17: roads and snapping, network HDBSCAN*, zero-cluster (K=0) roll-up for generated hierarchies (stage 9), network Gap k-medoids refinement with four worker processes (stage 10, on by default), 1-median centers, network Voronoi, coefficients, numerical X, balanced Katz and establishment scores, followed by browser-native route publication. `sigma view` presents the published result. `sigma run --help` and `sigma view --help` list the options of the installed version.
+This reference describes the canonical area workflow. `sigma run` executes pipeline stages 6–17: roads and snapping, network HDBSCAN*, zero-cluster (K=0) roll-up for generated hierarchies (stage 9), network Gap k-medoids refinement with four worker processes (stage 10, on by default), 1-median centers, network Voronoi, coefficients, numerical X, per-geography tile-area-adjusted balanced Katz and inverse-road-distance establishment scores, followed by browser-native route publication. `sigma view` presents the published result. `sigma run --help` and `sigma view --help` list the options of the installed version.
 
 ## Mental model
 
 | Command | What it does | Does it touch source classification? |
 | --- | --- | --- |
 | `sigma run AREA` | Reuses valid analytical artifacts and computes stages missing or invalid under their tracked recipes; publishes SIGMA outputs | No; expects existing loaded places |
-| `sigma run AREA --refresh` | Recomputes normalized spatial points, clusters, centers, point distances, partitions, economic stages, X, centrality, and scores; republishes the result | No; retains loaded places and reused road preparation |
+| `sigma run AREA --refresh --allow-expensive` | Explicitly authorizes a potentially expensive refresh of spatial points through scoring, then republishes; inspect the stage plan first | No; retains loaded places and reused road preparation |
 | `sigma run AREA --force` | **Legacy:** forces the terminal `analysis.scores` stage; upstream cached stages are normally reused | No |
 | `sigma view AREA` | Validates the Explorer bundle against published outputs, rebuilding only if needed; starts local server | No |
 | `sigma view AREA --refresh` | Unconditionally rebuilds Explorer browser data from published outputs; starts local server | No |
@@ -46,7 +46,12 @@ The existing artifact store is *immutable by recipe*. A refresh can be rejected 
 | `--centrality-method METHOD` | `katz` (default) or `eigenvector` (legacy) |
 | `--centrality-direction DIRECTION` | `incoming` (default) or `outgoing`; compatibility-only, ignored by current Katz and eigenvector implementations |
 | `--x-distance-decay-lambda FLOAT` | `1.0`; exponent for inverse-distance attenuation of X edges |
-| `--distance-tempering FLOAT` | `0.15`; score-distance tempering |
+| `--distance-tempering FLOAT` | legacy eigenvector scoring only (default 0.15); non-default values are rejected for canonical Katz |
+| `--area-adjustment` / `--no-area-adjustment` | tile-area-adjusted balanced Katz **on** by default; opt out for unadjusted balanced Katz |
+| `--plan` | print a read-only stage plan; does not execute analysis |
+| `--through STAGE` | ensure one stage and its prerequisites only |
+| `--recompute STAGE` | force a specified stage and its affected descendants |
+| `--allow-expensive` | explicit authorization to rebuild expensive already-cached stages |
 | `--route-geometry {browser,precomputed}` | `browser` by default; only changes downstream route publication, never numerical X weights |
 | `--refresh` | Recompute *the downstream analytical stages* from already loaded places; reuse place-source and transport-road preparation |
 | `--force` | Legacy behavior: recompute `analysis.scores`; may reuse cached predecessors |
@@ -55,7 +60,7 @@ The existing artifact store is *immutable by recipe*. A refresh can be rejected 
 
 There is also a deliberately hidden compatibility option `--source-store PATH`; it must match SIGMA's initialized source store and is **not** a supported way to switch datasets. Global options go *before* the command, e.g., `sigma --quiet run quezon_city`; global `--version` prints the version.
 
-`--refresh` and `--force` are mutually exclusive, because they mean materially different things.
+`--refresh` and `--force` are mutually exclusive because they mean materially different things. A completed workspace's expensive predecessor stages are guarded; inspect `--plan` and use `--allow-expensive` only when rebuilding them is intended. Canonical Katz estimates a geography-specific PPML degree–area exponent, applies the focal tile's own area to both incoming and outgoing operators, and uses full inverse-road-distance point scoring. See [Centrality](book/content/methods/centrality.md), [Scoring](book/content/methods/scoring.md), and [Diagnostics](book/content/methods/area_adjustment_diagnostics.md).
 
 ## Zero-cluster roll-up controls (stage 9)
 
@@ -93,8 +98,12 @@ These commands are **analysis operations**, not Explorer toggles. The CLI switch
 # Normal SIGMA pipeline: reuse intact computations
 sigma run quezon_city
 
-# After changing clustering, scoring, or other analysis code, recompute the managed analysis
-sigma run quezon_city --refresh
+# For a scoring-only code change, inspect the plan, then run incrementally:
+sigma run quezon_city --plan
+sigma run quezon_city
+
+# Explicit full analysis refresh is potentially expensive and requires authorization
+sigma run quezon_city --refresh --allow-expensive
 
 # View the latest published results (rebuild browser data if stale)
 sigma view quezon_city
