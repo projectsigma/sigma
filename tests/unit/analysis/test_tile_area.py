@@ -378,3 +378,51 @@ def test_failed_comparison_is_recorded_and_scores_are_unchanged(monkeypatch):
     assert "forced comparison failure" in diagnostics["unadjusted_comparison"]["error"]
     assert result.values == expected.values
     json.dumps(diagnostics, allow_nan=False)
+
+
+def test_equal_area_rank_deciles_have_disjoint_extreme_groups():
+    """Top-k classifications must use the identical rank groups as the table."""
+    from sigma.analysis.tile_area import _area_decile_labels, _top_k_area_decile_counts
+    # Every tile is tied; stable ordering is the documented tie-breaker.
+    areas = np.full(140, 2.0)
+    groups = _area_decile_labels(areas)
+    assert np.unique(groups).tolist() == list(range(1, 11))
+    assert np.bincount(groups, minlength=11)[1:].tolist() == [14] * 10
+    assert np.array_equal(groups[:14], np.ones(14, dtype=int))
+    assert _top_k_area_decile_counts(np.arange(140), groups) == (14, 14)
+    assert _top_k_area_decile_counts(np.arange(100), groups) == (14, 0)
+    assert _top_k_area_decile_counts(np.arange(20), np.full(140, -1)) == (0, 0)
+    assert _area_decile_labels(np.array([])).size == 0
+    assert _top_k_area_decile_counts(np.array([0]), np.array([1])) == (1, 0)
+
+
+def test_equal_area_before_after_top100_deciles_agree():
+    """A no-op adjustment must report exactly the same groups before and after."""
+    nodes, edges, partitions, _ = _case(n=140, p=0.05, seed=43, equal_area=True)
+    _, diagnostics, audit = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    before = diagnostics["unadjusted_comparison"]
+    assert before["status"] == "identical_exact_no_op"
+    for key in ("top100_smallest_area_decile", "top100_largest_area_decile"):
+        assert diagnostics[key] == before[key]
+    labels = tile_area._area_decile_labels(audit["voronoi_area_km2"].to_numpy())
+    assert len(np.unique(labels)) == 10
+
+
+def test_unadjusted_comparison_numerical_failure_does_not_change_scores(monkeypatch):
+    """The optional second Katz solve must not abort an otherwise valid score."""
+    nodes, edges, partitions, _ = _case(n=40, p=0.1, seed=44)
+    original = tile_area._tile_katz
+    calls = [0]
+
+    def fail_second(*args, **kwargs):
+        calls[0] += 1
+        if calls[0] == 2:
+            raise np.linalg.LinAlgError("diagnostic only")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(tile_area, "_tile_katz", fail_second)
+    result, diagnostics, _ = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    assert calls[0] == 2
+    assert diagnostics["unadjusted_comparison"]["status"] == "failed"
+    assert "LinAlgError" in diagnostics["unadjusted_comparison"]["error"]
+    assert all(np.isfinite(v) for v in result.values.values())

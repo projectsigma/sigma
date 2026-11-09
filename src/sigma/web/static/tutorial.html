@@ -989,7 +989,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <div class="eq"><var>w</var><sub>uv</sub> = <var>a</var><sub>st</sub> · <var>q</var><sub>u</sub> · <var>q</var><sub>v</sub> / max(<var>D</var><sub>uv</sub> / 1 m, 1)<sup><var>λ</var><sub>X</sub></sup>, &nbsp; <var>λ</var><sub>X</sub> = 1</div>
           <div class="ctl"><label for="gv-p">distance exponent</label><input id="gv-p" type="range" min="0.5" max="2" step="0.1" value="1"><output id="gv-p-o" for="gv-p">1.0</output></div>
           <p class="readout" id="gv-p-out" aria-live="polite"></p>
-          <p class="mini" style="margin-top:10px">A larger exponent gives a larger share of the total weight to short links. SIGMA's canonical value is 1 (<code>--x-distance-decay-lambda</code> changes it). The weight is a model assumption: it is not an estimated trade flow and not a fitted gravity equation.</p>
+          <p class="mini" style="margin-top:10px">A larger exponent gives a larger share of the total weight to short links. SIGMA's canonical value is 1 (<code>--x-distance-decay-lambda</code> changes it). This distance-kernel slider is illustrative: the later four-node matrix/Katz example is fixed at exponent 1. The weight is a model assumption, not an estimated trade flow or fitted gravity equation.</p>
         </article>
         <article class="step" data-cap="Food sector with 8 clustered establishments in two clusters. Bars: shares q. Rectangles: the clusters' Voronoi tiles, which do not change. Move the slider to move establishments between the clusters.">
           <p class="stage"><span class="shield">14</span>Stage 14 · participation</p>
@@ -997,7 +997,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p><var>q</var><sub>u</sub> = <var>N</var><sub>u</sub> / <var>N</var><sub>s</sub> is the cluster's share of the clustered establishments of its exact sector. It is not a physical mass, not revenue and not the tile's area. Move establishments between <var>F</var><sub>1</sub> and <var>F</var><sub>2</sub>: the shares and the weight of <var>F</var><sub>1</sub>'s link change, but the tiles do not enter <var>w</var>.</p>
           <div class="ctl"><label for="gv-n">establishments in <var>F</var><sub>1</sub></label><input id="gv-n" type="range" min="1" max="7" step="1" value="4"><output id="gv-n-o" for="gv-n">4 of 8</output></div>
           <p class="readout" id="gv-n-out" aria-live="polite"></p>
-          <p class="callout">Tile area enters only later, at stage 15, as a statistical correction for how many links a tile can collect. It is not a mass, a density denominator or a gravity term. A tile's area can still be related to how closely clusters of the same sector are spaced, so the stage 15 correction can be correlated with local cluster density even though <var>w</var> itself does not use density.</p>
+          <p class="callout">This share slider changes the single illustrative Food-to-Retail weight. The later four-node matrix/Katz example resets both Food shares to ½. Tile area enters only at stage 15, as a statistical correction for how many links a tile can collect—not a mass, a density denominator, or a gravity term. Tile area and local cluster density can nevertheless be correlated.</p>
         </article>
       </div>
       <figure class="fig-wrap">
@@ -1029,14 +1029,14 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
         <article class="step" data-cap="The tile factor f = A^−γ on logarithmic axes. Dashed: f = 1 at A = 1 km². The four example tiles of stage 14 are marked. Choose an area unit; the factors change, the normalized Katz scores do not.">
           <p class="stage"><span class="shield">15</span>Stage 15 · tile factor</p>
           <h3>One factor per tile: <var>f</var><sub>i</sub> = <var>A</var><sub>i</sub><sup>−<var>γ̂</var></sup></h3>
-          <p>Each tile gets one factor from its <em>own</em> area only, with <var>A</var> in km². Tiles larger than 1 km² get <var>f</var> &lt; 1; tiles smaller than 1 km² get <var>f</var> &gt; 1. This is not an error, because only the ratios between tiles matter. The example uses <var>γ</var> = 0.44 as an example value: four tiles are too few for SIGMA's estimator.</p>
+          <p>Each tile gets one factor from its <em>own</em> area only, with <var>A</var> in km². <strong>When <var>γ</var> is positive</strong>, tiles larger than 1 km² get <var>f</var> &lt; 1 and smaller tiles get <var>f</var> &gt; 1. For negative <var>γ</var> the inequalities reverse; at zero, every factor is 1. Only the relative factors matter. The four-node example fixes <var>γ</var> = 0.44, because four tiles are too few for SIGMA's estimator.</p>
           <div class="pills" id="ar-units" role="group" aria-label="Area unit">
             <button class="pill" type="button" data-unit="1" aria-pressed="true">km²</button>
             <button class="pill" type="button" data-unit="100" aria-pressed="false">hectares</button>
             <button class="pill" type="button" data-unit="1000000" aria-pressed="false">m²</button>
           </div>
           <p class="readout" id="ar-u-out" aria-live="polite"></p>
-          <p class="mini" style="margin-top:10px">Changing the unit multiplies every factor by the same number. Katz takes <var>α</var> from the spectral radius of the adjusted matrix, so that common number cancels and <var>C</var> stays the same. Small tiles can still receive large <em>relative</em> boosts; the last step of the next section shows where that happened in Metro Manila.</p>
+          <p class="mini" style="margin-top:10px">Changing the unit multiplies every factor by the same number. Katz rescales <var>α</var> by the same factor in the opposite direction (using the spectral radius when available or a suitable positive row-sum scale), so <var>C</var> stays the same. For positive <var>γ</var>, small tiles can receive large <em>relative</em> boosts; the last step of the next section shows the observed Metro Manila adjustment.</p>
         </article>
         <article class="step" data-cap="The four-node example as 4 × 4 matrices (weights × 10⁻⁵; row = from, column = to). Gold: the row factor being applied. Rose: cells where F Wᵀ and (F W)ᵀ differ.">
           <p class="stage"><span class="shield">15</span>Stage 15 · two operators</p>
@@ -1067,14 +1067,14 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p>An edge is a direct relation. A cluster can also reach others in 2, 3, or more steps. Katz centrality adds up <em>walks</em> (nodes may repeat) and multiplies each extra step by the attenuation <var>α</var>:</p>
           <div class="eq">(<var>I</var> − <var>α</var><var>F W</var>)<sup>−1</sup> = <var>I</var> + <var>α</var><var>F W</var> + <var>α</var><sup>2</sup>(<var>F W</var>)<sup>2</sup> + …</div>
           <p>Each step out of a tile carries that tile's factor. The walk in the figure adds <var>α</var><sup>2</sup> · <var>f</var><sub>F2</sub><var>w</var>(<var>F</var><sub>2</sub>→<var>R</var><sub>2</sub>) · <var>f</var><sub>R2</sub><var>w</var>(<var>R</var><sub>2</sub>→<var>F</var><sub>1</sub>) to the outgoing score of <var>F</var><sub>2</sub>, and <var>α</var><sup>2</sup> · <var>f</var><sub>F1</sub><var>w</var>(<var>R</var><sub>2</sub>→<var>F</var><sub>1</sub>) · <var>f</var><sub>R2</sub><var>w</var>(<var>F</var><sub>2</sub>→<var>R</var><sub>2</sub>) to the incoming score of <var>F</var><sub>1</sub>.</p>
-          <p class="mini"><var>R</var><sub>2</sub>'s factor enters both sums although <var>R</var><sub>2</sub> is neither the start nor the end. A neighbour's area therefore affects a tile's Katz score through indirect walks, but never through the tile's own direct discount.</p>
+          <p class="mini"><var>R</var><sub>2</sub>'s factor enters both sums although <var>R</var><sub>2</sub> is neither the start nor the end. A neighbour's factor can affect another tile through indirect walks <strong>and</strong> through the shared global <var>α</var>, because changing a factor can change the spectral scale. Only the direct row weights of a focal tile use its own factor.</p>
         </article>
         <article class="step" data-cap="Balanced Katz computed live on the four-node example with the stage 14 tile areas. Outlined bars: the same scores without the area correction. Change α, γ, or switch the correction off.">
           <p class="stage"><span class="shield">15</span>Stage 15 · directed Katz</p>
           <h3>A receiving score and a sending score</h3>
-          <p>The tiles have the stage 14 areas: <var>F</var><sub>1</sub> 2.2, <var>F</var><sub>2</sub> 2.0, <var>R</var><sub>1</sub> 1.3 and <var>R</var><sub>2</sub> 2.9 km². Four tiles are too few for SIGMA's PPML, so <var>γ</var> is an example value here (0.44 is close to the Metro Manila estimate).</p>
-          <div class="eq"><var>K</var><sup>out</sup> = (<var>I</var> − <var>α</var><var>F W</var>)<sup>−1</sup><b>1</b>; &nbsp; <var>K</var><sup>in</sup> = (<var>I</var> − <var>α</var><var>F W</var><sup>T</sup>)<sup>−1</sup><b>1</b>; &nbsp; <var>α</var> = 0.85 / <var>ρ</var>(<var>F W</var>)</div>
-          <p><var>K</var><sup>in</sup> adds the weighted walks that end at a node; <var>K</var><sup>out</sup> adds those that start there. Both use <var>β</var> = 1 and the same <var>α</var>. <var>ρ</var> is the spectral radius (largest absolute eigenvalue); a conservative row-sum fallback handles acyclic graphs or failed spectral estimation.</p>
+          <p>The tiles have the stage 14 areas: <var>F</var><sub>1</sub> 2.2, <var>F</var><sub>2</sub> 2.0, <var>R</var><sub>1</sub> 1.3 and <var>R</var><sub>2</sub> 2.9 km². This fixed four-node example resets all participation shares to ½ and the X distance exponent to 1, irrespective of the earlier illustrative sliders. The separate invented PPML dataset above fits a different exponent; the four-node Katz example uses 0.44 by default, close to the Metro Manila estimate.</p>
+          <div class="eq"><var>K</var><sup>out</sup> = (<var>I</var> − <var>α</var><var>F W</var>)<sup>−1</sup><b>1</b>; &nbsp; <var>K</var><sup>in</sup> = (<var>I</var> − <var>α</var><var>F W</var><sup>T</sup>)<sup>−1</sup><b>1</b>; &nbsp; <var>α</var> = 0.85 / <var>s</var>(<var>F W</var>)</div>
+          <p><var>K</var><sup>in</sup> adds the weighted walks that end at a node; <var>K</var><sup>out</sup> adds those that start there. Both use <var>β</var> = 1 and the same <var>α</var>. Here <var>s</var>(<var>F W</var>) is the spectral scale: it equals the positive spectral radius <var>ρ</var> when reliably estimated, or a conservative positive row-sum bound for a DAG or spectral failure. The four-node worked example uses its positive <var>ρ</var>.</p>
           <label class="check"><input type="checkbox" id="kz-adj" checked> apply the tile-area correction (off = <code>--no-area-adjustment</code>, <var>F</var> = <var>I</var>)</label>
           <div class="ctl"><label for="kz-g"><var>γ</var> (example)</label><input id="kz-g" type="range" min="0" max="1" step="0.02" value="0.44"><output id="kz-g-o" for="kz-g">0.44</output></div>
           <div class="ctl"><label for="af"><var>α</var> factor</label><input id="af" type="range" min="0.1" max="0.95" step="0.05" value="0.85"><output id="af-o" for="af">0.85</output></div>
@@ -3149,7 +3149,7 @@ FIGS.economy = (svg) => {
 /* ================= Part 4: graph X ================= */
 /* ================= Part 4: shared four-node example ================= */
 // sigma-under-the-hood-gravity-tile-area-20261109-v1
-// One invented example is used for stage 14 weights, the tile-area operators and Katz.
+// Fixed four-node network (q=1/2, lambda=1) for matrices and Katz. Earlier controls are independent illustrations.
 const XEX = (() => {
   const P = { F1: [100, 110], R1: [300, 110], F2: [100, 330], R2: [300, 330] };
   const EDG = [['F1', 'R1', .20, 600], ['R1', 'F1', .10, 600], ['F1', 'R2', .20, 1400], ['R2', 'F1', .10, 1400], ['F2', 'R2', .20, 500], ['R2', 'F2', .10, 500]]
@@ -3186,7 +3186,7 @@ function solveLinear(A, b) {
 // f_i = (unit · A_i)^-γ; off means F = I (ordinary balanced Katz).
 const tileFactors = (gamma, on = true, unit = 1) => XEX.order.map(k => on ? Math.pow(XEX.AREA[k] * unit, -gamma) : 1);
 function areaKatz(f, alphaFactor = 0.85) {
-  // K_out = (I − αFW)^-1 1, K_in = (I − αFWᵀ)^-1 1, one α = factor / ρ(FW); then √(K_in K_out), one L2 norm.
+  // Toy four-node graph has rho(FW)>0: alpha = factor/rho(FW). Production DAG/ARPACK fallbacks use a row-sum scale.
   const W = XEX.W, n = W.length;
   const FW = W.map((r, i) => r.map(w => f[i] * w));
   const FWt = W.map((r, i) => r.map((_, j) => f[i] * W[j][i]));
@@ -3515,6 +3515,7 @@ FIGS.area = (svg, sec) => {
 
   /* scene 2: the factor curve and unit invariance */
   const g2 = sc[2];
+  // This four-node gamma is deliberately independent of the 42-observation PPML demonstration.
   const GAM = 0.44;
   const fy = f => 400 - (Math.log10(f) - Math.log10(0.2)) / (Math.log10(5) - Math.log10(0.2)) * 330;
   const fx2 = a => 60 + (Math.log10(a) - Math.log10(0.05)) / (Math.log10(20) - Math.log10(0.05)) * 300;
@@ -3691,8 +3692,8 @@ FIGS.katz = (svg, sec) => {
   const walkF = T(walk, 366, 216, '', 'xs f-muted');
   T(walk, 366, 252, '~R~_{2} is neither start nor end,', 'sm f-gold');
   T(walk, 366, 272, 'but ~f~_{R2} enters both sums', 'sm f-gold');
-  T(walk, 366, 304, 'a neighbour\'s area acts only', 'sm f-muted');
-  T(walk, 366, 322, 'through such indirect walks', 'sm f-muted');
+  T(walk, 366, 304, 'indirect walks and shared ~α~', 'sm f-muted');
+  T(walk, 366, 322, 'both transmit area effects', 'sm f-muted');
   const tokW = S('circle', { r: 8, class: 'dot f-gold off' }, g0);
   const kat = S('g', { class: 'off' }, g0);
   [['~K~^{in}', 'barb tealf'], ['~K~^{out}', 'barb blue'], ['~C~', 'barb gold']].forEach(([l, c], k) => { S('rect', { x: 370 + k * 62, y: 34, width: 12, height: 12, class: c }, kat); T(kat, 388 + k * 62, 45, l, 'sm'); });

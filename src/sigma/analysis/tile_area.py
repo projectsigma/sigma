@@ -21,7 +21,7 @@ from .centrality import CentralityResult
 
 METHOD_ID = "tile-perspective-total-degree-ppml-20261109-r3"
 # Diagnostics only (spec §9.7); the scores of METHOD_ID are unchanged.
-DIAGNOSTICS_VERSION = "spec-9.7-20261109-v1"
+DIAGNOSTICS_VERSION = "spec-9.7-20261109-v2-consistent-deciles"
 EDGE_COLUMNS = ("source_type", "source_cluster", "target_type", "target_cluster", "edge_weight")
 ORIGINAL_X_EDGE_WEIGHT = (
     "technical_coefficient_times_both_clustered_sector_shares_times_inverse_mean_hub_distance"
@@ -211,6 +211,38 @@ def _concentration(values: np.ndarray) -> dict:
             "top100_share": float(order[:100].sum() / total)}
 
 
+def _area_decile_labels(area: np.ndarray) -> np.ndarray:
+    """Assign each tiled row to one equal-count, stable area-rank group.
+
+    Group identities are reused for both area summaries and top-k diagnostics.
+    A tied-area boundary is split deterministically by row order; it is not an
+    economically meaningful distinction between tied observations.
+    """
+    area = np.asarray(area, dtype=float)
+    if not np.isfinite(area).all() or (area <= 0).any():
+        raise ValueError("Area-decile assignments require positive finite tile areas")
+    n = len(area)
+    labels = np.zeros(n, dtype=np.int64)
+    if n:
+        order = np.argsort(area, kind="stable")
+        for number, members in enumerate(np.array_split(order, min(10, n)), start=1):
+            labels[members] = number
+    return labels
+
+
+def _top_k_area_decile_counts(top: np.ndarray, decile_labels: np.ndarray) -> tuple[int, int]:
+    """Count top-k members in the same lowest/highest groups as area_deciles."""
+    labels = np.asarray(decile_labels, dtype=np.int64)
+    positive = labels[labels > 0]
+    if not len(positive):
+        return 0, 0
+    top_labels = labels[top]
+    smallest = int(np.count_nonzero(top_labels == 1))
+    # A single tiled observation has only one group, not two distinct deciles.
+    largest = int(np.count_nonzero(top_labels == positive.max())) if positive.max() > 1 else 0
+    return smallest, largest
+
+
 def _area_deciles(area: np.ndarray, degree: np.ndarray, factor: np.ndarray) -> list[dict]:
     """Equal-count tile-area groups (smallest first) of degree and f_i k_i.
 
@@ -225,9 +257,10 @@ def _area_deciles(area: np.ndarray, degree: np.ndarray, factor: np.ndarray) -> l
     adjusted = factor * degree
     mean_degree = float(degree.mean())
     mean_adjusted = float(adjusted.mean())
-    order = np.argsort(area, kind="stable")
+    labels = _area_decile_labels(area)
     rows = []
-    for number, members in enumerate(np.array_split(order, min(10, n)), start=1):
+    for number in range(1, min(10, n) + 1):
+        members = np.flatnonzero(labels == number)
         if len(members) == 0:
             continue
         rows.append({
@@ -254,7 +287,8 @@ def _rho(left: np.ndarray, right: np.ndarray) -> float | None:
 
 def _unadjusted_comparison(
     W: csr_matrix, Wt: csr_matrix, *, acyclic: bool, alpha_factor: float, beta: float,
-    adjusted: np.ndarray, has_tile: np.ndarray, area: np.ndarray, identical: bool,
+    adjusted: np.ndarray, has_tile: np.ndarray, area: np.ndarray,
+    area_decile_labels: np.ndarray, identical: bool,
 ) -> dict:
     """Ordinary balanced Katz on the same X, for the spec's before/after diagnostics.
 
@@ -277,21 +311,21 @@ def _unadjusted_comparison(
             if not np.isfinite(unadjusted).all():
                 raise RuntimeError("non-finite unadjusted balanced Katz")
             info = {"status": "ok", "alpha": alpha, "spectral_scale_method": scale["method"]}
-        except (RuntimeError, ValueError, ArpackNoConvergence, FloatingPointError) as exc:
+        except (RuntimeError, ValueError, ArpackNoConvergence, FloatingPointError,
+                ZeroDivisionError, OverflowError, np.linalg.LinAlgError) as exc:
             return {"status": "failed", "error": f"{type(exc).__name__}: {exc}"}
     k = min(100, n)
     top_before, top_after = _top_k(unadjusted, k), _top_k(adjusted, k)
     tiled_area = area[has_tile]
-    small_cut = float(np.quantile(tiled_area, 0.1)) if has_tile.any() else math.nan
-    large_cut = float(np.quantile(tiled_area, 0.9)) if has_tile.any() else math.nan
+    small_count, large_count = _top_k_area_decile_counts(top_before, area_decile_labels)
     result = {
         **info,
         "top_k": k,
         "area_katz_spearman_rho": _rho(np.log(tiled_area), unadjusted[has_tile]),
         "rank_correlation_with_adjusted": _rho(unadjusted, adjusted),
         "top_k_retained_after_adjustment": int(len(np.intersect1d(top_before, top_after))),
-        "top100_smallest_area_decile": int(np.sum(area[top_before] <= small_cut)),
-        "top100_largest_area_decile": int(np.sum(area[top_before] >= large_cut)),
+        "top100_smallest_area_decile": small_count,
+        "top100_largest_area_decile": large_count,
         "concentration": _concentration(unadjusted),
     }
     if kin is not None:
@@ -504,16 +538,19 @@ def calculate_tile_area_katz(
                                  if has_tile.sum() >= 2 else None)
     outgoing_area_correlation = (spearmanr(regression_area, outgoing[has_tile])
                                  if has_tile.sum() >= 2 else None)
-    smallest_cut = float(np.quantile(area[has_tile], 0.1)) if has_tile.any() else np.nan
-    largest_cut = float(np.quantile(area[has_tile], 0.9)) if has_tile.any() else np.nan
-    top100 = np.argsort(-centrality, kind="stable")[:min(100, n)]
+    # One partition, shared by the decile table and both top-k comparisons.
+    decile_labels = np.full(n, -1, dtype=np.int64)
+    decile_labels[has_tile] = _area_decile_labels(area[has_tile])
+    top100 = _top_k(centrality, 100)
+    smallest_top100, largest_top100 = _top_k_area_decile_counts(top100, decile_labels)
 
     # 6. Spec §9.7 comparison diagnostics. They never change any score.
     if progress is not None and gamma is not None:
         progress("area-adjusted Katz: unadjusted balanced-Katz comparison (diagnostic only)")
     comparison = _unadjusted_comparison(
         W, Wt, acyclic=acyclic, alpha_factor=float(alpha_factor), beta=float(beta),
-        adjusted=centrality, has_tile=has_tile, area=area, identical=gamma is None,
+        adjusted=centrality, has_tile=has_tile, area=area,
+        area_decile_labels=decile_labels, identical=gamma is None,
     )
     if gamma is not None:
         orientation_fits = {
@@ -557,8 +594,8 @@ def calculate_tile_area_katz(
                                       if incoming_area_correlation is not None else None),
         "area_katz_out_spearman_rho": (float(outgoing_area_correlation.statistic)
                                        if outgoing_area_correlation is not None else None),
-        "top100_smallest_area_decile": int(np.sum(area[top100] <= smallest_cut)),
-        "top100_largest_area_decile": int(np.sum(area[top100] >= largest_cut)),
+        "top100_smallest_area_decile": smallest_top100,
+        "top100_largest_area_decile": largest_top100,
         "strength_area_regressions": strength_fits,
         "degree_orientation_regressions": orientation_fits,
         "degree_balance": {
@@ -569,6 +606,7 @@ def calculate_tile_area_katz(
         },
         "factor_max_min_ratio": (float(tiled_factor.max() / tiled_factor.min())
                                  if len(tiled_factor) else None),
+        "area_decile_definition": "stable_equal_count_area_rank; ties split by X-node order; untiled nodes excluded",
         "area_deciles": _area_deciles(area[has_tile], degree[has_tile].astype(float),
                                       tiled_factor),
         "concentration": _concentration(centrality),

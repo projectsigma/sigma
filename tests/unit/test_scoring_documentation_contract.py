@@ -71,6 +71,8 @@ def test_gravity_motivation_is_attached_to_the_x_weight():
 def test_book_explains_units_indirect_effects_and_run_diagnostics():
     centrality = read("docs/book/content/methods/centrality.md")
     assert "f_i>1" in centrality and "indirect walks" in centrality
+    assert "shared spectral normalization" in centrality
+    assert "inequalities reverse" in centrality
     for key in ("unadjusted_comparison", "area_deciles", "degree_balance",
                 "degree_orientation_regressions", "factor_max_min_ratio"):
         assert key in centrality

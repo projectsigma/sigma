@@ -84,7 +84,7 @@ The Metro Manila **cluster-level** comparison did **not** validate the new estab
 
 ## Diagnostics recorded with every run
 
-The table above came from a separate read-only review. Production runs now record the same kinds of evidence with `analysis.centrality` and in `sigma_run_metadata.json` → `tile_area_adjustment` (see *Diagnostics recorded with every run* in [Centrality](centrality.md)): the unadjusted balanced-Katz comparison (area correlation, rank correlation, retained top 100, area-decile counts, concentration), adjusted concentration, the area-decile table of $k_i$ and $f_ik_i$, the in/out degree balance, orientation-specific degree fits and the extreme factor ratio. The comparison never changes a score; if it fails, the failure is recorded. Under the Hood can display the current run's decile table and comparison beside the Metro Manila figures.
+The table above came from a separate read-only review. Production runs now record the same kinds of evidence with `analysis.centrality` and in `sigma_run_metadata.json` → `tile_area_adjustment` (see *Diagnostics recorded with every run* in [Centrality](centrality.md)): the unadjusted balanced-Katz comparison (area correlation, rank correlation, retained top 100, area-decile counts, concentration), adjusted concentration, the shared equal-count area-decile assignments for $k_i$, $f_ik_i$ and top-100 counts, the in/out degree balance, orientation-specific degree fits and the extreme factor ratio. The comparison never changes a score; if it fails, the failure is recorded. Under the Hood can display the current run's decile table and comparison beside the Metro Manila figures.
 
 ## Implementation notes relative to the reviewed specification
 

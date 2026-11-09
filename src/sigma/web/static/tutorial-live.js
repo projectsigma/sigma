@@ -380,7 +380,7 @@
       if (section === 'gravity') {
         if (idx === 0) {
           const lambda = tile && Number.isFinite(tile.x_distance_decay_lambda) ? tile.x_distance_decay_lambda : null;
-          return note(example ? `Published link: ${sectorLabel(nodeMap.get(idStr(example.from))?.type)} → ${sectorLabel(nodeMap.get(idStr(example.to))?.type)}; a = ${frac(example.coefficient)}, center road distance ${fmt(example.distance, 1)} ${meta.distance_unit || ''}, X weight ${frac(example.weight)}.` : 'No incident X link for this cluster.',
+          return note(example ? `Published link: ${sectorLabel(nodeMap.get(idStr(example.from))?.type)} → ${sectorLabel(nodeMap.get(idStr(example.to))?.type)}; a = ${frac(example.coefficient)}, center road distance ${fmt(example.distance, 1)} ${meta.distance_unit || ''}${Number.isFinite(example.effective_distance) ? `, effective weight distance ${fmt(example.effective_distance, 1)} ${meta.distance_unit || ''}` : ''}, X weight ${frac(example.weight)}.` : 'No incident X link for this cluster.',
             lambda == null ? 'The X distance exponent of this run is not recorded in the bundle' : `X distance exponent in this run: ${fmt(lambda, 2)}${lambda === 1 ? ' (canonical)' : ''}`);
         }
         const group = bySector.get(idStr(node?.type)) || [];
@@ -398,14 +398,16 @@
         }
         if (idx === 2) {
           const range = tile && Array.isArray(tile.factor_min_max) ? ` Factors in this run range from ${fmt(tile.factor_min_max[0], 3)} to ${fmt(tile.factor_min_max[1], 3)}${Number.isFinite(tile.factor_max_min_ratio) ? ` (ratio ${fmt(tile.factor_max_min_ratio, 1)})` : ''}.` : '';
-          return note(factor != null ? `${nodeLabel(node)}: A = ${fmt(tileKm2, 3)} km², f = ${fmt(factor, 4)}.${range}` : `${notPublished}${range}`, 'Factors are relative; a common change of unit cancels in Katz');
+          const quantiles = tile && Array.isArray(tile.factor_quantiles_p01_p50_p99) && tile.factor_quantiles_p01_p50_p99.every(Number.isFinite)
+            ? ` Factors at p01 / median / p99: ${tile.factor_quantiles_p01_p50_p99.map(v => fmt(v, 3)).join(' / ')}.` : '';
+          return note(factor != null ? `${nodeLabel(node)}: A = ${fmt(tileKm2, 3)} km², f = ${fmt(factor, 4)}.${range}${quantiles}` : `${notPublished}${range}${quantiles}`, 'Factors are relative; a common change of unit cancels in Katz');
         }
         return note(factor != null ? `In this run, ${nodeLabel(node)}'s ${number(node.out_degree)} outgoing weights are multiplied by f = ${fmt(factor, 4)} in FW, and its ${number(node.in_degree)} incoming weights by the same f in FWᵀ.` : notPublished, 'sigma_X_edges.csv keeps the original, unadjusted weights W');
       }
       if (section === 'katz') {
         if (idx === 0) return note(node ? `In this run, ${nodeLabel(node)} has published centrality ${fmt(node.centrality, 6)} and degrees ${number(node.in_degree)} in / ${number(node.out_degree)} out.` : 'No cluster is selected.', 'The walk in the figure is invented');
         const raw = node && Number.isFinite(node.katz_in_raw) && Number.isFinite(node.katz_out_raw);
-        if (idx === 1) return note(raw ? `${nodeLabel(node)}: Kin = ${fmt(node.katz_in_raw, 4)}, Kout = ${fmt(node.katz_out_raw, 4)}, computed on the adjusted operators${factor != null ? ` (its own f = ${fmt(factor, 4)})` : ''}.` : 'Raw incoming and outgoing Katz values are not published in this bundle.', 'α is chosen in the pipeline from the spectral radius; it is not exported');
+        if (idx === 1) return note(raw ? `${nodeLabel(node)}: Kin = ${fmt(node.katz_in_raw, 4)}, Kout = ${fmt(node.katz_out_raw, 4)}, computed on the adjusted operators${factor != null ? ` (its own f = ${fmt(factor, 4)})` : ''}.` : 'Raw incoming and outgoing Katz values are not published in this bundle.', (tile && Number.isFinite(tile.shared_alpha) ? `This run's shared α = ${tile.shared_alpha.toExponential(4)} (${tile.spectral_scale_method || 'scale method not recorded'}).` : 'Shared α is not published for this run'));
         if (idx === 2) {
           const all = nodes.every(n => Number.isFinite(n.katz_in_raw) && Number.isFinite(n.katz_out_raw));
           if (!raw || !all) return note('The raw components needed to repeat the geometric mean are not published in this bundle.', 'Published combined centrality only');

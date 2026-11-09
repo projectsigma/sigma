@@ -634,7 +634,7 @@ class AnalysisPipeline:
         return ArtifactRecipe.build(
             "analysis.centrality",
             implementation_version=(
-                "tile-perspective-area-adjusted-balanced-katz-v4-spec97-diagnostics"
+                "tile-perspective-area-adjusted-balanced-katz-v5-consistent-area-deciles"
                 if self.config.centrality_method == "katz" and self.config.area_adjustment
                 else "balanced-directed-katz-geomean-v4-scaled-spectrum"
             ),

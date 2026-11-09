@@ -103,7 +103,7 @@ The two raw components explain *why* a node is balanced or unbalanced as receive
 The published bundle carries the stage 15 values without changing X:
 
 - `sigma_X_nodes.csv` adds, for each X node, `voronoi_area_km2` (final tile area, EPSG:6933), `area_factor` ($f_i$; 1.0 when the correction is off, an exact no-op, or for an isolated center without a tile), `katz_in_raw` and `katz_out_raw`;
-- `sigma_run_metadata.json` → `tile_area_adjustment` repeats the centrality diagnostics: method and diagnostics version, $\hat\gamma$ with HC1 uncertainty, factor extremes and ratio, adjusted and unadjusted area correlations, the unadjusted-versus-adjusted comparison, concentration, the area-decile table and the in/out degree balance (`null` for runs without the correction); and
+- `sigma_run_metadata.json` → `tile_area_adjustment` repeats the centrality diagnostics: method and diagnostics version, $\hat\gamma$ with HC1 uncertainty, factor extremes and ratio, adjusted and unadjusted area correlations, the unadjusted-versus-adjusted comparison, concentration, the consistently defined area-decile table and top-100 area-decile counts, in/out degree balance (`null` for runs without the correction); and
 - the Explorer bundle's `data/metadata.json` → `tile_area` holds an aggregate summary of the same block, and each node in `data/graph.json` has `area_km2`, `area_factor`, `katz_in_raw` and `katz_out_raw`. Under the Hood reads these values; it does not recompute them.
 
 ## Point score (stage 17)

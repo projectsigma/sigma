@@ -535,10 +535,18 @@ def test_explorer_builds_from_a_genuine_sigma_export(tmp_path: Path):
     for node in graph["nodes"]:
         row = nodes_csv.loc[nodes_csv["node_id"] == node["id"]].iloc[0]
         assert node["area_factor"] == pytest.approx(row["area_factor"], rel=1e-12)
-        assert node["area_km2"] == pytest.approx(row["voronoi_area_km2"], rel=1e-12)
+        if pd.isna(row["voronoi_area_km2"]):
+            assert node["area_km2"] is None  # isolated X center without a final tile
+        else:
+            assert node["area_km2"] == pytest.approx(row["voronoi_area_km2"], rel=1e-12)
         assert node["katz_in_raw"] == pytest.approx(row["katz_in_raw"], rel=1e-12)
-        if tile["gamma"] is not None:
+        if tile["gamma"] is not None and node["area_km2"] is not None:
             assert node["area_factor"] == pytest.approx(node["area_km2"] ** -tile["gamma"], rel=1e-9)
+    assert meta["tile_area"]["shared_alpha"] == pytest.approx(tile["shared_alpha"])
+    assert meta["tile_area"]["area_decile_definition"] == tile["area_decile_definition"]
+    assert meta["tile_area"]["factor_quantiles_p01_p50_p99"] == pytest.approx(
+        tile["factor_quantiles_p01_p50_p99"]
+    )
 
 
 def test_bundle_without_tile_area_values_publishes_none(published: Path, tmp_path: Path):
