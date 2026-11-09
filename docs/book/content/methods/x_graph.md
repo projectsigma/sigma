@@ -87,7 +87,7 @@ clusters; they do not use overlapping polygon *area* as a multiplier.
 Establishment counts are an imperfect proxy for economic scale (not revenue,
 employment, or transaction volume). This is a proposed modeling assumption,
 not an observed trade flow or a canonical gravity equation.
-The X exponent $\lambda_X$ is separate from the Katz attenuation and from point-score tempering.
+The X exponent $\lambda_X$ is separate from the Katz attenuation and from inverse-distance establishment scoring.
 
 ```{admonition} Interpretation of the weight
 :class: warning
@@ -100,6 +100,10 @@ including imported and out-of-city inputs, is not identified by X. The
 **implemented coefficient is $a_{ij}$**, not the Leontief inverse; an
 A-versus-Leontief option is a proposed change, not a deployed feature.
 ```
+
+## Downstream tile-area normalization
+
+The managed X edge weight above is the **original gravity-inspired weight**, not a density or Voronoi-area-normalized weight. Stage 15 independently estimates how each geography's total directed node degree scales with final Voronoi area, and constructs two orientation-specific adjusted operators for balanced Katz. It does **not** replace the original `analysis.x/x_edges.csv`. See [Tile-area-adjusted balanced Katz](centrality.md).
 
 ## Self-use
 

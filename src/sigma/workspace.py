@@ -204,7 +204,9 @@ class SigmaWorkspace:
             if stored_semantic == requested_semantic:
                 payload["area"] = requested_area
         payload["last_opened_at"] = datetime.now(UTC).isoformat()
-        _atomic_json(workspace_path, payload)
+        from .incremental import read_only_plan
+        if not read_only_plan():
+            _atomic_json(workspace_path, payload)
         return cls(root, payload)
 
     @property

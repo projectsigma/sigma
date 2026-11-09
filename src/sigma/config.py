@@ -87,6 +87,14 @@ class AnalysisConfig:
     katz_beta: float = 1.0
     x_distance_decay_lambda: float = 1.0
     distance_tempering: float = 0.15
+    area_adjustment: bool = True
+
+    def __post_init__(self) -> None:
+        if self.centrality_method == "katz" and self.distance_tempering != 0.15:
+            raise ValueError(
+                "distance_tempering is retired for canonical Katz inverse-distance scoring; "
+                "use the default 0.15 or select legacy eigenvector scoring"
+            )
 
 
 @dataclass(frozen=True, slots=True)

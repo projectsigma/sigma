@@ -298,6 +298,7 @@ def _config(
     centrality_direction: str = "incoming",
     x_distance_decay_lambda: float = 1.0,
     distance_tempering: float = 0.15,
+    area_adjustment: bool = True,
     compatibility_export: bool = True,
     unified_export: bool = True,
 ) -> SigmaConfig:
@@ -320,6 +321,11 @@ def _config(
         raise typer.BadParameter("centrality method must be katz or eigenvector")
     if centrality_direction not in {"incoming", "outgoing"}:
         raise typer.BadParameter("centrality direction must be incoming or outgoing")
+    if distance_tempering != 0.15 and (centrality_method or base.analysis.centrality_method) == "katz":
+        raise typer.BadParameter(
+            "--distance-tempering is retired for canonical Katz inverse-distance scoring; "
+            "omit this option or select legacy eigenvector scoring."
+        )
 
     spatial = replace(
         base.spatial,
@@ -371,6 +377,7 @@ def _config(
             katz_beta=base.analysis.katz_beta,
             x_distance_decay_lambda=x_distance_decay_lambda,
             distance_tempering=distance_tempering,
+            area_adjustment=area_adjustment,
         ),
         export=ExportConfig(compatibility=compatibility_export, unified=unified_export),
     )
@@ -529,12 +536,24 @@ def run_command(
         1.0, "--x-distance-decay-lambda",
         help="Exponent of inverse road-distance attenuation on X edges (default 1.0).",
     ),
-    distance_tempering: float = typer.Option(0.15, "--distance-tempering"),
+    distance_tempering: float = typer.Option(
+        0.15,
+        "--distance-tempering",
+        help="Retired for canonical Katz; used only by explicit legacy eigenvector scoring.",
+    ),
+    area_adjustment: bool = typer.Option(
+        True, "--area-adjustment/--no-area-adjustment",
+        help="Area-adjusted Katz (default on). --no-area-adjustment uses ordinary balanced Katz.",
+    ),
     iterative_rollup: bool | None = typer.Option(
         None, "--iterative-rollup/--no-iterative-rollup",
         help="Default for generated hierarchical IO: roll up zero-cluster sectors into valid residuals; "
              "--no-iterative-rollup preserves the original partition.",
     ),
+    plan: bool = typer.Option(False, "--plan", help="Read-only stage preflight; never run analysis."),
+    through: str | None = typer.Option(None, "--through", help="Ensure this stage and its prerequisites only."),
+    recompute: str | None = typer.Option(None, "--recompute", help="Force one stage, then run its affected descendants."),
+    allow_expensive: bool = typer.Option(False, "--allow-expensive", help="Authorize rebuilding expensive cached stages."),
     refresh: bool = typer.Option(
         False, "--refresh",
         help="Recompute analytical stages from loaded places; reuse sources and prepared roads.",
@@ -553,6 +572,12 @@ def run_command(
             raise ValueError("--route-geometry must be browser or precomputed")
         if refresh and force:
             raise ValueError("--refresh and --force cannot be combined")
+        if through and (refresh or force or recompute):
+            raise ValueError("--through cannot be combined with --refresh, --force or --recompute")
+        if recompute and (refresh or force):
+            raise ValueError("--recompute cannot be combined with --refresh or --force")
+        if plan and (refresh or force or recompute):
+            raise ValueError("--plan is inspection-only; do not combine with recompute/force/refresh")
         road_source = _road_source(roads, managed_roads, roads_layer, required=True)
         shared_store = _initialized_source_store(source_store)
         workspace = _workspace_for(area, workspace, areas_file)
@@ -572,6 +597,7 @@ def run_command(
             centrality_method=centrality_method, centrality_direction=centrality_direction,
             x_distance_decay_lambda=x_distance_decay_lambda,
             distance_tempering=distance_tempering,
+            area_adjustment=area_adjustment,
         )
         # Resolve the CLI override before iterative roll-up: the baseline
         # roll-up test must use unrefined HDBSCAN even when Gap is default.
@@ -581,18 +607,26 @@ def run_command(
             from .economy.hierarchical_auto import read_profile, profile_is_current
             profile = read_profile()
             if profile is not None and not profile_is_current(workspace, profile):
+                if plan:
+                    raise RuntimeError("Read-only plan blocked: hierarchical sector profile needs a rebuild. "
+                                       "Inspect/load it separately before planning.")
                 if progress is not None:
                     progress("rebuilding this area's hierarchical sector partition")
                 _hierarchical_build_from_profile(workspace, profile)
             if profile is None and not (workspace / "hierarchical" / "economy" / "economy.yml").is_file():
                 typer.echo("Hierarchical IO240 not configured; running the IO80 economy. "
                            "Configure once with 'sigma economy hierarchical-configure --help'.", err=True)
-        job = _job(
-            area=area, workspace=workspace, roads=road_source, roads_layer=roads_layer,
-            output_dir=output_dir, source_store=shared_store, economy=economy,
-            areas_file=areas_file, config=config, progress=progress,
-            route_geometry=route_geometry,
-        )
+        from .incremental import read_only_plan_context
+        from contextlib import nullcontext
+        if plan and not (Path(workspace) / "workspace.json").is_file():
+            raise RuntimeError("No existing workspace to inspect; run sigma load first")
+        with (read_only_plan_context() if plan else nullcontext()):
+            job = _job(
+                area=area, workspace=workspace, roads=road_source, roads_layer=roads_layer,
+                output_dir=output_dir, source_store=shared_store, economy=economy,
+                areas_file=areas_file, config=config, progress=progress,
+                route_geometry=route_geometry,
+            )
         # SIGMA_ITERATIVE_RESIDUAL_ROLLUP_CLI_V1: derive an alternative full
         # economic partition from baseline clustering BEFORE building network X.
         rollup_package = None
@@ -609,85 +643,181 @@ def run_command(
         should_rollup = (
             iterative_rollup is True or (iterative_rollup is None and is_baseline_hierarchy)
         )
-        if should_rollup:
-            if economy is not None or equivalent or config.spatial.classification is not None:
-                raise ValueError("--iterative-rollup requires the generated hierarchical economy; "
-                                 "do not combine it with --economy or --equivalent")
-            if not (workspace / "hierarchical" / "economy" / "membership.csv").is_file():
-                raise ValueError("--iterative-rollup requires an existing generated hierarchical "
-                                 "economy with membership.csv; run sigma load AREA first")
-            from .spatial.iterative_rollup import prepare_iterative_rollup
-            # Roll-up eligibility and prediction use original HDBSCAN labels,
-            # not the later k-medoids subdivision of those labels.
+        if through is not None and (through in {"area.definition", "area.boundary",
+                                    "transport.roads", "spatial.points"}
+                                    or through.startswith("source.")
+                                    or through.startswith("places.")
+                                    or through.startswith("classification.")
+                                    or through.startswith("economy.")):
+            should_rollup = False
+        # An earlier completed run may already have an immutable effective
+        # roll-up economy. Resolve it from the exact baseline cluster lineage;
+        # do NOT rerun counterfactual HDBSCAN trials just to discover it.
+        if should_rollup and isinstance(job, Sigma):
+            from .incremental import find_cached_iterative_rollup
             base_config = (
                 replace(config, spatial=replace(config.spatial, median_gap_refinement=False))
                 if median_gap_refinement else config
             )
-            base_job = (
-                _job(area=area, workspace=workspace, roads=road_source,
-                     roads_layer=roads_layer, output_dir=output_dir,
-                     source_store=shared_store, economy=economy,
-                     areas_file=areas_file, config=base_config, progress=progress,
-                     route_geometry=route_geometry)
-                if median_gap_refinement else job
-            )
-            original_places = base_job._require_loaded_places()
-            baseline = base_job.ensure("spatial.clusters")
-            rollup_package = prepare_iterative_rollup(
-                workspace=workspace, base_economy=base_job.economy,
-                base_places=original_places, cluster_ref=baseline, progress=progress,
-            )
-            if rollup_package is not None:
-                # Verify the baseline prediction without k-median refinement.
-                # Only then prepare the effective job with the user's setting.
-                verification_job = _job(
-                    area=area, workspace=workspace, roads=road_source,
-                    roads_layer=roads_layer, output_dir=output_dir,
-                    source_store=shared_store, economy=str(rollup_package / "economy"),
-                    areas_file=areas_file, config=base_config, progress=progress,
-                    route_geometry=route_geometry,
-                )
-                import json as _rollup_preflight_json
-                expected_clusters = _rollup_preflight_json.loads(
-                    (rollup_package / "economy" / "rollup_audit.json").read_text(encoding="utf-8")
-                )["predicted_cluster_count"]
-                verification_job.ensure("spatial.clusters")
-                effective_cluster_manifest = verification_job.workspace.manifest("spatial.clusters")
-                if (effective_cluster_manifest is None
-                        or effective_cluster_manifest.metadata.get("cluster_count") != expected_clusters):
-                    raise RuntimeError(
-                        f"iterative roll-up clusters do not match verified prediction "
-                        f"({expected_clusters}); refusing to build X or publish exports"
-                    )
-                job = (
+            with (read_only_plan_context() if plan else nullcontext()):
+                base_job = (
                     _job(area=area, workspace=workspace, roads=road_source,
                          roads_layer=roads_layer, output_dir=output_dir,
-                         source_store=shared_store,
-                         economy=str(rollup_package / "economy"),
-                         areas_file=areas_file, config=config, progress=progress,
-                         route_geometry=route_geometry)
-                    if median_gap_refinement else verification_job
+                         source_store=shared_store, economy=economy,
+                         areas_file=areas_file, config=base_config,
+                         progress=progress, route_geometry=route_geometry)
+                    if median_gap_refinement else job
                 )
-        if progress is not None:
-            # Keep the public CLI compatible with jobs that expose places_path
-            # without the private resolver (including CLI integration fakes).
-            resolver = getattr(job, "_require_loaded_places", None)
-            input_path = resolver() if callable(resolver) else job.places_path
-            progress(f"analysis input: {input_path}")
-            progress("starting spatial, economic, X, centrality, scoring, and export stages")
-        result = job.refresh() if refresh else job.run(force=force)
-        if rollup_package is not None and not median_gap_refinement:
-            import json as _rollup_json
-            prediction = _rollup_json.loads(
-                (rollup_package / "economy" / "rollup_audit.json").read_text(encoding="utf-8")
-            )["predicted_cluster_count"]
-            actual = job.workspace.manifest("spatial.clusters")
-            if actual is None or actual.metadata.get("cluster_count") != prediction:
+                base_steps, base_refs = base_job._planner_for("spatial.clusters").plan_with_refs(
+                    "spatial.clusters"
+                )
+                baseline = base_refs.get("spatial.clusters")
+                cached_rollup = (
+                    find_cached_iterative_rollup(
+                        workspace_root=workspace, base_economy=base_job.economy,
+                        base_places=base_job._require_loaded_places(), baseline=baseline,
+                    ) if baseline is not None else None
+                )
+                if cached_rollup is not None:
+                    job = _job(
+                        area=area, workspace=workspace, roads=road_source,
+                        roads_layer=roads_layer, output_dir=output_dir,
+                        source_store=shared_store,
+                        economy=str(cached_rollup / "economy"),
+                        areas_file=areas_file, config=config, progress=progress,
+                        route_geometry=route_geometry,
+                    )
+                    should_rollup = False
+                    if progress is not None:
+                        progress(f"reuse verified iterative roll-up: {cached_rollup}")
+                elif not plan and job.workspace.artifact("export.bundle") is not None and not allow_expensive:
+                    missing = ", ".join(f"{s.stage}:{s.reason}" for s in base_steps
+                                        if s.action != "reuse") or "no matching roll-up package"
+                    raise RuntimeError(
+                        "Completed workspace has no verified reusable roll-up for this "
+                        f"baseline ({missing}). Refusing unplanned roll-up/clustering. "
+                        "Use --plan to inspect; --allow-expensive only for intentional rebuilding."
+                    )
+        if plan:
+            from .incremental import inspect_plan
+            if should_rollup and isinstance(job, Sigma) and job.workspace.artifact("export.bundle") is not None:
                 raise RuntimeError(
-                    f"iterative roll-up final clusters differ from verified preview "
-                    f"(expected {prediction}, got {None if actual is None else actual.metadata.get('cluster_count')}); "
-                    "review package before using downstream outputs"
+                    "Cannot produce a safe full plan: this completed workspace has "
+                    "no validated cached effective roll-up for its current baseline. "
+                    "Use an explicit previously completed --economy path for diagnosis; "
+                    "no analysis was executed."
                 )
+            target = through or "export.bundle"
+            inspect_plan(job, target, allow_expensive=allow_expensive,
+                         print_plan=True, enforce=False)
+            if should_rollup:
+                typer.echo("WARNING: this is a preliminary first-run plan; "
+                           "hierarchical roll-up is not yet materialized.")
+            return
+        from .incremental import inspect_plan, restore_active_index_on_error
+        with restore_active_index_on_error(workspace):
+            if should_rollup:
+                if economy is not None or equivalent or config.spatial.classification is not None:
+                    raise ValueError("--iterative-rollup requires the generated hierarchical economy; "
+                                     "do not combine it with --economy or --equivalent")
+                if not (workspace / "hierarchical" / "economy" / "membership.csv").is_file():
+                    raise ValueError("--iterative-rollup requires an existing generated hierarchical "
+                                     "economy with membership.csv; run sigma load AREA first")
+                from .spatial.iterative_rollup import prepare_iterative_rollup
+                # Roll-up eligibility and prediction use original HDBSCAN labels,
+                # not the later k-medoids subdivision of those labels.
+                base_config = (
+                    replace(config, spatial=replace(config.spatial, median_gap_refinement=False))
+                    if median_gap_refinement else config
+                )
+                base_job = (
+                    _job(area=area, workspace=workspace, roads=road_source,
+                         roads_layer=roads_layer, output_dir=output_dir,
+                         source_store=shared_store, economy=economy,
+                         areas_file=areas_file, config=base_config, progress=progress,
+                         route_geometry=route_geometry)
+                    if median_gap_refinement else job
+                )
+                original_places = base_job._require_loaded_places()
+                inspect_plan(base_job, "spatial.clusters", allow_expensive=allow_expensive, print_plan=False)
+                baseline = base_job.ensure("spatial.clusters")
+                rollup_package = prepare_iterative_rollup(
+                    workspace=workspace, base_economy=base_job.economy,
+                    base_places=original_places, cluster_ref=baseline, progress=progress,
+                )
+                if rollup_package is not None:
+                    # Verify the baseline prediction without k-median refinement.
+                    # Only then prepare the effective job with the user's setting.
+                    verification_job = _job(
+                        area=area, workspace=workspace, roads=road_source,
+                        roads_layer=roads_layer, output_dir=output_dir,
+                        source_store=shared_store, economy=str(rollup_package / "economy"),
+                        areas_file=areas_file, config=base_config, progress=progress,
+                        route_geometry=route_geometry,
+                    )
+                    import json as _rollup_preflight_json
+                    expected_clusters = _rollup_preflight_json.loads(
+                        (rollup_package / "economy" / "rollup_audit.json").read_text(encoding="utf-8")
+                    )["predicted_cluster_count"]
+                    inspect_plan(verification_job, "spatial.clusters", allow_expensive=allow_expensive, print_plan=False)
+                    verification_job.ensure("spatial.clusters")
+                    effective_cluster_manifest = verification_job.workspace.manifest("spatial.clusters")
+                    if (effective_cluster_manifest is None
+                            or effective_cluster_manifest.metadata.get("cluster_count") != expected_clusters):
+                        raise RuntimeError(
+                            f"iterative roll-up clusters do not match verified prediction "
+                            f"({expected_clusters}); refusing to build X or publish exports"
+                        )
+                    job = (
+                        _job(area=area, workspace=workspace, roads=road_source,
+                             roads_layer=roads_layer, output_dir=output_dir,
+                             source_store=shared_store,
+                             economy=str(rollup_package / "economy"),
+                             areas_file=areas_file, config=config, progress=progress,
+                             route_geometry=route_geometry)
+                        if median_gap_refinement else verification_job
+                    )
+            if progress is not None:
+                # Keep the public CLI compatible with jobs that expose places_path
+                # without the private resolver (including CLI integration fakes).
+                resolver = getattr(job, "_require_loaded_places", None)
+                input_path = resolver() if callable(resolver) else job.places_path
+                progress(f"analysis input: {input_path}")
+                progress("starting spatial, economic, X, centrality, scoring, and export stages")
+            target = through or "export.bundle"
+            # The production job is always a Sigma facade. Existing CLI delegation
+            # tests replace `_job` with a tiny stand-in that intentionally has no
+            # planner/workspace; preserve that public delegation test seam without
+            # weakening the guard on actual Sigma instances.
+            if isinstance(job, Sigma):
+                inspect_plan(job, target, allow_expensive=allow_expensive,
+                             print_plan=True, force_stage=recompute)
+                if (refresh and job.workspace.artifact("export.bundle") is not None
+                        and not allow_expensive):
+                    raise RuntimeError("--refresh explicitly recomputes expensive stages; "
+                                       "add --allow-expensive after reviewing the plan")
+            elif through is not None or recompute is not None or allow_expensive:
+                # A non-Sigma stub cannot support new stage-specific operations.
+                # Do not silently pretend that planning or forcing took place.
+                raise RuntimeError("Stage controls require a real Sigma job")
+            if through:
+                typer.echo(job.ensure(through).artifact_id)
+                return
+            if recompute:
+                job.ensure(recompute, force=True)
+            result = job.refresh() if refresh else job.run(force=force)
+            if rollup_package is not None and not median_gap_refinement:
+                import json as _rollup_json
+                prediction = _rollup_json.loads(
+                    (rollup_package / "economy" / "rollup_audit.json").read_text(encoding="utf-8")
+                )["predicted_cluster_count"]
+                actual = job.workspace.manifest("spatial.clusters")
+                if actual is None or actual.metadata.get("cluster_count") != prediction:
+                    raise RuntimeError(
+                        f"iterative roll-up final clusters differ from verified preview "
+                        f"(expected {prediction}, got {None if actual is None else actual.metadata.get('cluster_count')}); "
+                        "review package before using downstream outputs"
+                    )
         payload = {"run_manifest": str(result.run_manifest) if result.run_manifest else None,
                    "places_input": str(job.places_path),
                    "outputs": {k: str(v) for k, v in result.outputs.items()}}
@@ -1362,6 +1492,10 @@ def analysis_run(
         None, "--centrality-method",
         help="Centrality method: katz (canonical default) or eigenvector (legacy undirected projection).",
     ),
+    area_adjustment: bool = typer.Option(
+        True, "--area-adjustment/--no-area-adjustment",
+        help="Adjust Katz for Voronoi tile area (default on).",
+    ),
     centrality_direction: str = typer.Option(
         "incoming", "--centrality-direction",
         help="Compatibility option; canonical Katz combines incoming and outgoing and ignores this. Eigenvector also ignores it.",
@@ -1370,7 +1504,11 @@ def analysis_run(
         1.0, "--x-distance-decay-lambda",
         help="Exponent of inverse road-distance attenuation on X edges (default 1.0).",
     ),
-    distance_tempering: float = typer.Option(0.15, "--distance-tempering"),
+    distance_tempering: float = typer.Option(
+        0.15,
+        "--distance-tempering",
+        help="Retired for canonical Katz; used only by explicit legacy eigenvector scoring.",
+    ),
     min_cluster_size: int = typer.Option(5, "--min-cluster-size"),
     min_samples: int | None = typer.Option(None, "--min-samples"),
     allow_single_cluster: bool = typer.Option(False, "--allow-single-cluster"),
@@ -1388,6 +1526,7 @@ def analysis_run(
             centrality_method=centrality_method, centrality_direction=centrality_direction,
             x_distance_decay_lambda=x_distance_decay_lambda,
             distance_tempering=distance_tempering,
+            area_adjustment=area_adjustment,
             min_cluster_size=min_cluster_size, min_samples=min_samples,
             allow_single_cluster=allow_single_cluster, voronoi_resolution=voronoi_resolution,
         )

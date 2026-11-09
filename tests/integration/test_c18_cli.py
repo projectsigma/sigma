@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
 from sigma import Economy, GeofabrikRoadSource, Sigma, SigmaConfig, __version__
@@ -50,11 +51,13 @@ def test_classification_check_verifies_packaged_bytes_without_requiring_pyarrow(
 
 
 def test_cli_config_matches_public_profile_constructors():
-    canonical = _config(transaction_preprocessing="mwas_ras_fast", distance_tempering=0.25)
+    canonical = _config(transaction_preprocessing="mwas_ras_fast")
     assert canonical.economic.transaction_preprocessing == "mwas_ras_fast"
     assert canonical.economic.legacy_mwas_method is None
     assert canonical.analysis.centrality_method == "katz"
-    assert canonical.analysis.distance_tempering == 0.25
+    assert canonical.analysis.distance_tempering == 0.15
+    with pytest.raises(typer.BadParameter, match="retired"):
+        _config(distance_tempering=0.25)
 
     equivalent = _config(equivalent=True, mwas_method="exact")
     public = SigmaConfig.equivalent(mwas_method="exact")
@@ -62,6 +65,7 @@ def test_cli_config_matches_public_profile_constructors():
     assert equivalent.economic.legacy_mwas_method == public.economic.legacy_mwas_method == "exact"
     assert equivalent.economic.transaction_preprocessing == "none"
     assert equivalent.analysis.centrality_method == public.analysis.centrality_method == "eigenvector"
+    assert _config(equivalent=True, distance_tempering=0.3).analysis.distance_tempering == 0.3
 
 
 def test_economy_graph_cli_and_python_api_have_same_target_and_artifact(tmp_path: Path):
@@ -171,7 +175,6 @@ def test_full_run_command_delegates_to_sigma_run_without_cli_orchestration(monke
             "--workspace", str(tmp_path / "ws"),
             "--roads", str(roads),
             "--transaction-preprocessing", "mwas_ras_fast",
-            "--distance-tempering", "0.3",
             "--force",
             "--json",
         ],
@@ -181,9 +184,30 @@ def test_full_run_command_delegates_to_sigma_run_without_cli_orchestration(monke
     config = calls["config"]
     assert config.economic.transaction_preprocessing == "mwas_ras_fast"
     assert config.analysis.centrality_method == "katz"
-    assert config.analysis.distance_tempering == 0.3
+    assert config.analysis.distance_tempering == 0.15
 
 
+
+
+def test_full_run_rejects_retired_distance_tempering_flag(monkeypatch, tmp_path: Path):
+    roads = tmp_path / "roads.gpkg"
+    roads.write_bytes(b"placeholder")
+
+    def no_job(**kwargs):
+        raise AssertionError("the job must not start")
+
+    monkeypatch.setattr("sigma.cli._job", no_job)
+    result = runner.invoke(
+        app,
+        [
+            "run", "quezon_city",
+            "--workspace", str(tmp_path / "ws"),
+            "--roads", str(roads),
+            "--distance-tempering", "0.3",
+        ],
+    )
+    assert result.exit_code == 2
+    assert "retired" in result.output
 
 
 def test_full_run_cli_refresh_recomputes_managed_analysis(monkeypatch, tmp_path: Path):

@@ -168,7 +168,7 @@ def test_write_qgis_project_uses_wgs84_fixed_palette_labels_and_requested_order(
     text_style = points.find("labeling/settings/text-style")
     assert text_style is not None
     assert text_style.attrib["isExpression"] == "1"
-    assert text_style.attrib["fieldName"] == 'concat("canonical_name", \'-\', round(100 * "sigma_score", 2))'
+    assert text_style.attrib["fieldName"] == 'concat("canonical_name", \' - \', format_number("sigma_score", 10))'
     categories = points.find("renderer-v2/categories")
     assert categories is not None
     labels = [category.attrib["label"] for category in categories.findall("category")]
