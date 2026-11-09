@@ -34,8 +34,10 @@ def test_marker_is_hollow_circle_and_different_from_cluster_center():
     assert "'circle-color': 'rgba(0,0,0,0)'" in layer
     assert "'circle-radius': unclusteredPointRadius" in layer
     sizes = s.split("const unclusteredPointRadius = radiusAtFit([", 1)[1].split("]);", 1)[0]
-    assert "scoreRadius(2.1, 4.6, 'visual_min_score')" in sizes
-    assert "scoreRadius(3.3, 7.8, 'visual_min_score')" in sizes
+    assert "[-3, 0.775], [-1, 1.175], [0, 1.375]" in sizes
+    assert "[2, 1.975], [4, 2.375]" in sizes
+    assert "visual_min_score" not in sizes
+    assert "'circle-stroke-width': 1.2" in layer
     assert "'circle-stroke-color': sigmaPointColorExpr" in layer
     assert "const radiusAtFit = stops => ['interpolate', ['linear'], ['zoom']" in s
 

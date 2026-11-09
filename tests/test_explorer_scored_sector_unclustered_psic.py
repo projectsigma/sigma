@@ -14,8 +14,11 @@ def test_hollow_circles_match_sector_minimum_without_fake_scores():
     assert "'circle-color': 'rgba(0,0,0,0)'" in layer
     assert "'circle-radius': unclusteredPointRadius" in layer
     sizes = app.split("const unclusteredPointRadius = radiusAtFit([", 1)[1].split("]);", 1)[0]
-    assert "scoreRadius(2.1, 4.6, 'visual_min_score')" in sizes
-    assert "scoreRadius(2.8, 6.6, 'visual_min_score')" in sizes
+    assert "[-3, 0.775], [-1, 1.175], [0, 1.375]" in sizes
+    assert "[2, 1.975], [4, 2.375]" in sizes
+    assert "visual_min_score" not in sizes
+    assert "scoreRadius(1.8, 5.5)" in app
+    assert "'circle-stroke-width': 1.2" in layer
     assert "'circle-stroke-color': sigmaPointColorExpr" in layer
     assert "sector.min_score : (meta.score_range?.[0] ?? 0)" in app
     assert "sector_min_scores[code] = min(float(score)" in builder
@@ -52,4 +55,4 @@ def test_two_overlay_control_rows_are_aligned():
     css = (STATIC / "style.css").read_text(encoding="utf-8")
     app = (STATIC / "app.js").read_text(encoding="utf-8")
     assert ".sector-panel .sector-overlay-control,\n.sector-panel .sigma-linked-unscored-control" in css
-    assert "Show unclustered for scored sectors" in app
+    assert "Show unclustered places in scored sectors" in app

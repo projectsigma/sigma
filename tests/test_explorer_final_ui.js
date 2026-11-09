@@ -27,9 +27,13 @@ assert(!js.includes('`a ${fmtCoef(score)}`'), 'Sector rows must not display unex
 assert.match(js, /Circle AREA, not radius, is proportional to normalized SIGMA score/);
 // Scored markers stay area-scaled but use initial-fit-relative zoom stops.
 assert.match(js, /const scoredPointRadius = radiusAtFit\(\[/);
-assert.match(js, /\[0, scoreRadius\(2\.1, 4\.6\)\]/);
-assert.match(js, /\[2, scoreRadius\(2\.8, 6\.6\)\]/);
-assert.match(js, /\[4, scoreRadius\(3\.3, 7\.8\)\]/);
+assert.match(js, /\[0, scoreRadius\(1\.8, 5\.5\)\]/);
+assert.match(js, /\[2, scoreRadius\(2\.4, 7\.7\)\]/);
+assert.match(js, /\[4, scoreRadius\(2\.8, 9\.2\)\]/);
 assert.match(css, /sigma-explorer-final-20261019-v3/);
 assert.match(js, /function updateCenterVisibility\(\)/);
+// Unclustered hollow outlines must have the same *external footprint* as
+// minimum-value scored points, not a size inferred from visual_min_score.
+assert.match(js, /const unclusteredPointRadius = radiusAtFit\(\[\s*\[-3, 0\.775\], \[-1, 1\.175\], \[0, 1\.375\],\s*\[2, 1\.975\], \[4, 2\.375\]\]\);/);
+assert.match(js, /'circle-stroke-width': 1\.2, 'circle-stroke-opacity': 0\.95/);
 console.log('PASS: custom depth, explicit hierarchical sorting, coefficient help, area-scaled SIGMA points.');

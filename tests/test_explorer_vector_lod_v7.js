@@ -151,7 +151,7 @@ assert(!ghostSrc.includes('map.getBounds()'), 'Ghost polygon footprint must not 
 console.log('PASS: v13 ghost layer: 10% cap, stable pan, bounded exact polygons, click isolation');
 // Fit-relative point sizing: execute the actual sizing expressions at two
 // different workspace fit zooms. At the same relative zoom, all four layer
-// types must produce the same radii; score ordering and the 7.8px cap remain.
+// types must produce the same radii; score ordering and the 9.2px cap remain.
 const sizesStart = src.indexOf('    const [minimum, maximum] = meta.score_range || [null, null];');
 const sizesEnd = src.indexOf('    const sectorColorExpr', sizesStart);
 assert(sizesStart >= 0 && sizesEnd > sizesStart, 'adaptive radius definitions missing');
@@ -204,13 +204,21 @@ function radiusAt(expr, zoom, props) {
 }
 for (const [sizes,z] of [[aSizes,10.5],[bSizes,13.4]]) {
   const scored = sizes.scoredPointRadius;
-  assert(Math.abs(radiusAt(scored,z,{score:0})-2.1)<1e-8);
-  assert(Math.abs(radiusAt(scored,z,{score:1})-4.6)<1e-8);
+  assert(Math.abs(radiusAt(scored,z,{score:0})-1.8)<1e-8);
+  assert(Math.abs(radiusAt(scored,z,{score:1})-5.5)<1e-8);
   assert(radiusAt(scored,z,{score:0.6}) > radiusAt(scored,z,{score:0.3}));
-  assert(Math.abs(radiusAt(scored,z+8,{score:1})-7.8)<1e-8);
-  assert(Math.abs(radiusAt(scored,z+8,{score:0})-3.3)<1e-8);
-  assert(Math.abs(radiusAt(sizes.unclusteredPointRadius,z,
-    {visual_min_score:0.5})-radiusAt(scored,z,{score:0.5}))<1e-8);
+  assert(Math.abs(radiusAt(scored,z+8,{score:1})-9.2)<1e-8);
+  assert(Math.abs(radiusAt(scored,z+8,{score:0})-2.8)<1e-8);
+  // Hollow markers have no score. Their visible edge must match the minimum
+  // scored circle's edge despite the deliberately thicker hollow outline.
+  for (const relativeZoom of [0, 2, 4]) {
+    const hollow = radiusAt(sizes.unclusteredPointRadius,z+relativeZoom,{visual_min_score:0.1});
+    const hollowWithDifferentScore = radiusAt(sizes.unclusteredPointRadius,z+relativeZoom,{visual_min_score:0.9});
+    const scoredMin = radiusAt(scored,z+relativeZoom,{score:0});
+    assert(Math.abs(hollow + 1.2/2 - (scoredMin + 0.35/2))<1e-8,
+      'Hollow outer radius equals scored minimum outer radius');
+    assert.equal(hollow, hollowWithDifferentScore, 'Unclustered markers never imply a score');
+  }
 }
 console.log('PASS: fit-relative scored/hollow/ghost/summary sizes, score ordering and detail cap');
 console.log('PASS: v7 MapLibre native layer, valid zoom root, X filtering, and clicking true locations');
