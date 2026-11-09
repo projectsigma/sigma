@@ -60,6 +60,32 @@ For compatibility the numerical artifact can contain `x_paths.parquet`, but in t
 
 Routes are shortest geographical paths from one cluster center to another, not the **mean hub-mediated** effective separation used in weighting. Uncertainty from the road graph (undirected routing, topology and coverage) applies in either mode. A browser reconstruction can follow a different *equal-length* shortest path if ties occur; equal length, not identical coordinates, is the enforced contract.
 
+## Gravity-model motivation
+
+Newton's law of gravitation has the multiplicative form
+
+$$
+F_{ij}=G\,\frac{m_i\,m_j}{r_{ij}^{2}}.
+$$
+
+SIGMA borrows only this **interaction structure**, not the physics: participation on both sides and an intersectoral linkage coefficient increase potential interaction, and separation decreases it. The same structure underlies the gravity equation for trade (Tinbergen, 1962). The correspondence is:
+
+| Newton | SIGMA X edge $A\to B$ | Meaning in SIGMA |
+|---|---|---|
+| constant $G$ | $a_{s(A)s(B)}$ | positive **directed** technical coefficient of the exact sectors |
+| masses $m_i$, $m_j$ | $1\cdot q_A$ and $1\cdot q_B$ | the two notional masses are set to **one**; $q_A=N_A/N_{s(A)}$ and $q_B=N_B/N_{s(B)}$ are dimensionless participation shares |
+| $r^{2}$ | $\max(D_{AB}/1\,\mathrm m,1)^{\lambda_X}$ | mean hub-mediated road distance with a one-metre floor; **exponent $\lambda_X=1$** in the canonical method, not Newton's 2 |
+
+Consequences of this construction:
+
+- The kernel is **inverse-distance**, not inverse-square. With $\lambda_X=1$, a link at 1,400 m keeps $500/1400\approx 1/2.8$ of the weight of an otherwise equal link at 500 m; with exponent 2 it would keep $1/7.84$. A larger exponent gives a larger share of the total weight to short links. `--x-distance-decay-lambda` changes the exponent, but the canonical specification fixes it at 1.
+- The shares $q$ are **economic participation factors**, not physical mass, revenue, employment or density.
+- The final Voronoi area is **not** used as a mass, a density denominator or an area-share term: neither $A_A/A_{s(A)}$ nor any other area ratio appears in $w$.
+- The later tile-area adjustment (stage 15) is a **statistical correction for observed connectivity scaling**, not a new gravity law and not an identified causal effect.
+- A tile's area is a catchment-size proxy, and it may be related to how closely the clusters of the *same sector* are spaced. The stage 15 correction can therefore be correlated with local cluster density, even though $w$ does not use the discarded relative-density formula. The two constructions should not be conflated.
+
+Under the Hood shows the analogy term by term, with a slider on the distance exponent, and a second figure in which moving establishments between clusters changes $q$ and $w$ but not the tiles.
+
 ## Edge weight
 
 The direct technical coefficient determines economic strength, distributed by cluster shares and attenuated by effective road distance:

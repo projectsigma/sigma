@@ -20,6 +20,8 @@ from scipy.stats import norm, spearmanr
 from .centrality import CentralityResult
 
 METHOD_ID = "tile-perspective-total-degree-ppml-20261109-r3"
+# Diagnostics only (spec §9.7); the scores of METHOD_ID are unchanged.
+DIAGNOSTICS_VERSION = "spec-9.7-20261109-v2-consistent-deciles"
 EDGE_COLUMNS = ("source_type", "source_cluster", "target_type", "target_cluster", "edge_weight")
 ORIGINAL_X_EDGE_WEIGHT = (
     "technical_coefficient_times_both_clustered_sector_shares_times_inverse_mean_hub_distance"
@@ -191,6 +193,157 @@ def _tile_katz(W: csr_matrix, Wt: csr_matrix, factor: np.ndarray, alpha: float, 
                                         "last_l1_error_in": error_in,
                                         "last_l1_error_out": error_out}
     raise RuntimeError(f"Area-adjusted Katz did not converge after {max_iter} iterations")
+
+
+def _top_k(values: np.ndarray, k: int) -> np.ndarray:
+    """Indices of the ``k`` largest values; ties keep node order (stable)."""
+    return np.argsort(-np.asarray(values, dtype=float), kind="stable")[:min(int(k), len(values))]
+
+
+def _concentration(values: np.ndarray) -> dict:
+    """Shares of the summed normalized scores held by the top 10 and top 100 nodes."""
+    values = np.asarray(values, dtype=float)
+    total = float(values.sum())
+    if not math.isfinite(total) or total <= 0:
+        return {"top10_share": None, "top100_share": None}
+    order = np.sort(values)[::-1]
+    return {"top10_share": float(order[:10].sum() / total),
+            "top100_share": float(order[:100].sum() / total)}
+
+
+def _area_decile_labels(area: np.ndarray) -> np.ndarray:
+    """Assign each tiled row to one equal-count, stable area-rank group.
+
+    Group identities are reused for both area summaries and top-k diagnostics.
+    A tied-area boundary is split deterministically by row order; it is not an
+    economically meaningful distinction between tied observations.
+    """
+    area = np.asarray(area, dtype=float)
+    if not np.isfinite(area).all() or (area <= 0).any():
+        raise ValueError("Area-decile assignments require positive finite tile areas")
+    n = len(area)
+    labels = np.zeros(n, dtype=np.int64)
+    if n:
+        order = np.argsort(area, kind="stable")
+        for number, members in enumerate(np.array_split(order, min(10, n)), start=1):
+            labels[members] = number
+    return labels
+
+
+def _top_k_area_decile_counts(top: np.ndarray, decile_labels: np.ndarray) -> tuple[int, int]:
+    """Count top-k members in the same lowest/highest groups as area_deciles."""
+    labels = np.asarray(decile_labels, dtype=np.int64)
+    positive = labels[labels > 0]
+    if not len(positive):
+        return 0, 0
+    top_labels = labels[top]
+    smallest = int(np.count_nonzero(top_labels == 1))
+    # A single tiled observation has only one group, not two distinct deciles.
+    largest = int(np.count_nonzero(top_labels == positive.max())) if positive.max() > 1 else 0
+    return smallest, largest
+
+
+def _area_deciles(area: np.ndarray, degree: np.ndarray, factor: np.ndarray) -> list[dict]:
+    """Equal-count tile-area groups (smallest first) of degree and f_i k_i.
+
+    Each mean is divided by the mean over every tiled node, so a value above 1
+    means that area group has more than the average. Groups split the
+    area-sorted nodes into ten equal-count parts (fewer when n < 10); ties keep
+    node order. This is the spec's diagnostic for small-tile overcompensation.
+    """
+    n = len(area)
+    if n == 0:
+        return []
+    adjusted = factor * degree
+    mean_degree = float(degree.mean())
+    mean_adjusted = float(adjusted.mean())
+    labels = _area_decile_labels(area)
+    rows = []
+    for number in range(1, min(10, n) + 1):
+        members = np.flatnonzero(labels == number)
+        if len(members) == 0:
+            continue
+        rows.append({
+            "decile": number,
+            "nodes": int(len(members)),
+            "area_km2_min": float(area[members].min()),
+            "area_km2_max": float(area[members].max()),
+            "mean_degree": float(degree[members].mean()),
+            "mean_adjusted_degree": float(adjusted[members].mean()),
+            "relative_mean_degree": (float(degree[members].mean()) / mean_degree
+                                     if mean_degree > 0 else None),
+            "relative_mean_adjusted_degree": (float(adjusted[members].mean()) / mean_adjusted
+                                              if mean_adjusted > 0 else None),
+        })
+    return rows
+
+
+def _rho(left: np.ndarray, right: np.ndarray) -> float | None:
+    if len(left) < 2 or np.ptp(left) == 0 or np.ptp(right) == 0:
+        return None  # a constant input has no rank correlation
+    value = float(spearmanr(left, right).statistic)
+    return value if math.isfinite(value) else None
+
+
+def _area_katz_rho(log_area: np.ndarray, scores: np.ndarray) -> float | None:
+    """Area–Katz rho is undefined when area is constant at PPML precision.
+
+    Use the same log-area threshold as the not_identified_constant_area
+    scoring branch. Tiny projected-polygon rounding noise has no rank meaning.
+    Ordinary score-vs-score correlations continue to use _rho unchanged.
+    """
+    if len(log_area) < 2 or np.ptp(log_area) < 1e-12:
+        return None
+    return _rho(log_area, scores)
+
+
+def _unadjusted_comparison(
+    W: csr_matrix, Wt: csr_matrix, *, acyclic: bool, alpha_factor: float, beta: float,
+    adjusted: np.ndarray, has_tile: np.ndarray, area: np.ndarray,
+    area_decile_labels: np.ndarray, identical: bool,
+) -> dict:
+    """Ordinary balanced Katz on the same X, for the spec's before/after diagnostics.
+
+    The comparison is diagnostic only: it never changes the published scores,
+    and a failure is recorded instead of stopping the stage. When the area
+    factor is an exact no-op, the unadjusted result equals the adjusted one.
+    """
+    n = W.shape[0]
+    if identical:
+        unadjusted, kin, kout = adjusted, None, None
+        info = {"status": "identical_exact_no_op"}
+    else:
+        try:
+            ones = np.ones(n, dtype=float)
+            scale = _spectral_scale(W, Wt, ones, acyclic=acyclic)
+            alpha = float(alpha_factor) / scale["scale"]
+            kin, kout, _ = _tile_katz(W, Wt, ones, alpha, float(beta))
+            combined = np.sqrt(np.maximum(kin, 0.0) * np.maximum(kout, 0.0))
+            unadjusted = combined / float(np.linalg.norm(combined))
+            if not np.isfinite(unadjusted).all():
+                raise RuntimeError("non-finite unadjusted balanced Katz")
+            info = {"status": "ok", "alpha": alpha, "spectral_scale_method": scale["method"]}
+        except (RuntimeError, ValueError, ArpackNoConvergence, FloatingPointError,
+                ZeroDivisionError, OverflowError, np.linalg.LinAlgError) as exc:
+            return {"status": "failed", "error": f"{type(exc).__name__}: {exc}"}
+    k = min(100, n)
+    top_before, top_after = _top_k(unadjusted, k), _top_k(adjusted, k)
+    tiled_area = area[has_tile]
+    small_count, large_count = _top_k_area_decile_counts(top_before, area_decile_labels)
+    result = {
+        **info,
+        "top_k": k,
+        "area_katz_spearman_rho": _area_katz_rho(np.log(tiled_area), unadjusted[has_tile]),
+        "rank_correlation_with_adjusted": _rho(unadjusted, adjusted),
+        "top_k_retained_after_adjustment": int(len(np.intersect1d(top_before, top_after))),
+        "top100_smallest_area_decile": small_count,
+        "top100_largest_area_decile": large_count,
+        "concentration": _concentration(unadjusted),
+    }
+    if kin is not None:
+        result["area_katz_in_spearman_rho"] = _area_katz_rho(np.log(tiled_area), kin[has_tile])
+        result["area_katz_out_spearman_rho"] = _area_katz_rho(np.log(tiled_area), kout[has_tile])
+    return result
 
 
 def _node_index(frame: pd.DataFrame, typ: str, cluster: str) -> pd.MultiIndex:
@@ -391,17 +544,37 @@ def calculate_tile_area_katz(
         "in_after": _ppml(adjusted_in_strength[has_tile], regression_area,
                           "in_strength_adjusted"),
     }
-    area_correlation = (spearmanr(regression_area, centrality[has_tile])
-                        if has_tile.sum() >= 2 else None)
-    incoming_area_correlation = (spearmanr(regression_area, incoming[has_tile])
-                                 if has_tile.sum() >= 2 else None)
-    outgoing_area_correlation = (spearmanr(regression_area, outgoing[has_tile])
-                                 if has_tile.sum() >= 2 else None)
-    smallest_cut = float(np.quantile(area[has_tile], 0.1)) if has_tile.any() else np.nan
-    largest_cut = float(np.quantile(area[has_tile], 0.9)) if has_tile.any() else np.nan
-    top100 = np.argsort(-centrality, kind="stable")[:min(100, n)]
+    # Use the existing constant-safe rank-correlation helper for all three
+    # area/Katz diagnostics. A constant input has no defined Spearman rho.
+    area_correlation = _area_katz_rho(regression_area, centrality[has_tile])
+    incoming_area_correlation = _area_katz_rho(regression_area, incoming[has_tile])
+    outgoing_area_correlation = _area_katz_rho(regression_area, outgoing[has_tile])
+    # One partition, shared by the decile table and both top-k comparisons.
+    decile_labels = np.full(n, -1, dtype=np.int64)
+    decile_labels[has_tile] = _area_decile_labels(area[has_tile])
+    top100 = _top_k(centrality, 100)
+    smallest_top100, largest_top100 = _top_k_area_decile_counts(top100, decile_labels)
+
+    # 6. Spec §9.7 comparison diagnostics. They never change any score.
+    if progress is not None and gamma is not None:
+        progress("area-adjusted Katz: unadjusted balanced-Katz comparison (diagnostic only)")
+    comparison = _unadjusted_comparison(
+        W, Wt, acyclic=acyclic, alpha_factor=float(alpha_factor), beta=float(beta),
+        adjusted=centrality, has_tile=has_tile, area=area,
+        area_decile_labels=decile_labels, identical=gamma is None,
+    )
+    if gamma is not None:
+        orientation_fits = {
+            "in_degree": _ppml(in_degree[has_tile], regression_area, "in_degree"),
+            "out_degree": _ppml(out_degree[has_tile], regression_area, "out_degree"),
+        }
+    else:
+        orientation_fits = {"status": "not_estimated_exact_no_op"}
+    degree_gap = np.abs(in_degree - out_degree)
+    tiled_factor = factor[has_tile]
     diagnostics = _json_safe({
         "method": METHOD_ID,
+        "diagnostics_version": DIAGNOSTICS_VERSION,
         "input_edge_weights": "original_x_gravity_shares_coefficient_inverse_mean_hub_distance",
         "area_units": "km2",
         "area_projection": AREA_CRS,
@@ -426,15 +599,26 @@ def calculate_tile_area_katz(
                               float(area[has_tile].max())] if has_tile.any() else None),
         "factor_min_max": [float(factor.min()), float(factor.max())],
         "factor_quantiles_p01_p50_p99": [float(v) for v in np.quantile(factor, [0.01, 0.5, 0.99])],
-        "area_katz_spearman_rho": (float(area_correlation.statistic)
-                                   if area_correlation is not None else None),
-        "area_katz_in_spearman_rho": (float(incoming_area_correlation.statistic)
-                                      if incoming_area_correlation is not None else None),
-        "area_katz_out_spearman_rho": (float(outgoing_area_correlation.statistic)
-                                       if outgoing_area_correlation is not None else None),
-        "top100_smallest_area_decile": int(np.sum(area[top100] <= smallest_cut)),
-        "top100_largest_area_decile": int(np.sum(area[top100] >= largest_cut)),
+        "area_katz_spearman_rho": area_correlation,
+        "area_katz_in_spearman_rho": incoming_area_correlation,
+        "area_katz_out_spearman_rho": outgoing_area_correlation,
+        "top100_smallest_area_decile": smallest_top100,
+        "top100_largest_area_decile": largest_top100,
         "strength_area_regressions": strength_fits,
+        "degree_orientation_regressions": orientation_fits,
+        "degree_balance": {
+            "max_abs_in_minus_out": int(degree_gap.max()) if n else 0,
+            "nodes_with_unequal_in_out": int(np.count_nonzero(degree_gap)),
+            "zero_degree_nodes": int(np.count_nonzero(degree == 0)),
+            "zero_degree_nodes_in_regression": int(np.count_nonzero(regression_degree == 0)),
+        },
+        "factor_max_min_ratio": (float(tiled_factor.max() / tiled_factor.min())
+                                 if len(tiled_factor) else None),
+        "area_decile_definition": "stable_equal_count_area_rank; ties split by X-node order; untiled nodes excluded",
+        "area_deciles": _area_deciles(area[has_tile], degree[has_tile].astype(float),
+                                      tiled_factor),
+        "concentration": _concentration(centrality),
+        "unadjusted_comparison": comparison,
     })
     audit = pd.DataFrame({
         "node_id": identifiers,

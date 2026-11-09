@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import warnings
 
 import geopandas as gpd
 import networkx as nx
@@ -11,6 +12,7 @@ import pandas as pd
 import pytest
 from scipy.sparse import csr_matrix, diags, identity
 from scipy.sparse.linalg import spsolve
+from scipy.stats import ConstantInputWarning
 from shapely.geometry import box
 
 import sigma.analysis.tile_area as tile_area
@@ -113,11 +115,27 @@ def test_constant_area_is_exact_no_op_and_diagnostics_are_strict_json():
     assert diagnostics["gamma"] is None
     assert diagnostics["regression"]["status"] == "not_identified_constant_area"
     assert (audit["area_factor"] == 1.0).all()
+    assert diagnostics["area_katz_spearman_rho"] is None
+    assert diagnostics["area_katz_in_spearman_rho"] is None
+    assert diagnostics["area_katz_out_spearman_rho"] is None
+    assert diagnostics["unadjusted_comparison"]["area_katz_spearman_rho"] is None
     assert any("exact no-op" in message for message in messages)
     reference = balanced_katz_centrality(graph)
     for node, value in reference.values.items():
         assert math.isclose(result.values[node], value, rel_tol=1e-8)
     json.dumps(diagnostics, allow_nan=False)
+
+
+def test_area_katz_rho_ignores_log_area_roundoff_but_not_real_area_variation():
+    # Simulate geometrically equal tiles with floating-point polygon-area jitter.
+    log_area = np.log(np.array([0.5, 0.5 * (1 + 1e-14), 0.5 * (1 - 1e-14)]))
+    scores = np.array([0.3, 0.1, 0.2])
+    assert np.ptp(log_area) > 0
+    assert np.ptp(log_area) < 1e-12
+    assert tile_area._area_katz_rho(log_area, scores) is None
+    # Material area variation must still generate a correlation.
+    assert tile_area._area_katz_rho(np.log(np.array([1., 2., 4.])),
+                                    np.array([1., 2., 3.])) == pytest.approx(1.0)
 
 
 def test_acyclic_x_uses_row_sum_scale_not_arpack():
@@ -143,7 +161,13 @@ def test_edgeless_x_is_exact_no_op_like_existing_solver():
     nodes, edges, partitions, graph = _case()
     edges = edges.iloc[0:0]
     graph.remove_edges_from(list(graph.edges))
-    result, diagnostics, _ = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always", ConstantInputWarning)
+        result, diagnostics, _ = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    assert not any(isinstance(item.message, ConstantInputWarning) for item in recorded)
+    assert diagnostics["area_katz_spearman_rho"] is None
+    assert diagnostics["area_katz_in_spearman_rho"] is None
+    assert diagnostics["area_katz_out_spearman_rho"] is None
     reference = balanced_katz_centrality(graph)
     assert diagnostics["regression"]["status"] == "not_identified_no_edges"
     assert diagnostics["spectral_scale_method"] == reference.spectral_scale_kind == "unit_no_edges"
@@ -269,3 +293,160 @@ def test_no_edges_and_no_tiles_are_neutral():
     assert all(v == 1.0 for v in result.katz_in_raw.values())
     assert audit["voronoi_area_km2"].isna().all()
     json.dumps(diagnostics, allow_nan=False)
+
+
+def test_section97_comparison_matches_independent_unadjusted_katz():
+    """Spec §9.7: before/after diagnostics use ordinary balanced Katz on the same X."""
+    nodes, edges, partitions, graph = _case(n=140, p=0.05, seed=21)
+    result, diagnostics, audit = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    comparison = diagnostics["unadjusted_comparison"]
+    assert comparison["status"] == "ok"
+    reference = balanced_katz_centrality(graph)
+    ids = nodes["node_id"].tolist()
+    before = np.array([reference.values[i] for i in ids])
+    after = np.array([result.values[i] for i in ids])
+    area = audit["voronoi_area_km2"].to_numpy()
+    from scipy.stats import spearmanr
+    assert math.isclose(comparison["area_katz_spearman_rho"],
+                        spearmanr(np.log(area), before).statistic, abs_tol=1e-9)
+    assert math.isclose(comparison["rank_correlation_with_adjusted"],
+                        spearmanr(before, after).statistic, abs_tol=1e-9)
+    top_before = set(np.argsort(-before, kind="stable")[:100])
+    top_after = set(np.argsort(-after, kind="stable")[:100])
+    assert comparison["top_k_retained_after_adjustment"] == len(top_before & top_after)
+    ordered = np.sort(before)[::-1]
+    assert math.isclose(comparison["concentration"]["top10_share"],
+                        ordered[:10].sum() / ordered.sum(), rel_tol=1e-9)
+    ordered = np.sort(after)[::-1]
+    assert math.isclose(diagnostics["concentration"]["top100_share"],
+                        ordered[:100].sum() / ordered.sum(), rel_tol=1e-9)
+    json.dumps(diagnostics, allow_nan=False)
+
+
+def test_section97_deciles_degree_balance_and_orientation_fits():
+    nodes, edges, partitions, _ = _case(n=140, p=0.05, seed=22)
+    _, diagnostics, audit = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    index = tile_area._node_index(nodes, "type", "cluster")
+    source, target, _ = tile_area._edge_arrays(index, edges)
+    k_out = np.bincount(source, minlength=len(nodes))
+    k_in = np.bincount(target, minlength=len(nodes))
+    balance = diagnostics["degree_balance"]
+    assert balance["max_abs_in_minus_out"] == int(np.abs(k_in - k_out).max())
+    assert balance["nodes_with_unequal_in_out"] == int(np.count_nonzero(k_in != k_out))
+    assert balance["zero_degree_nodes"] == int(np.count_nonzero(k_in + k_out == 0))
+    deciles = diagnostics["area_deciles"]
+    assert [row["decile"] for row in deciles] == list(range(1, 11))
+    assert sum(row["nodes"] for row in deciles) == len(nodes)
+    assert all(a["area_km2_max"] <= b["area_km2_min"]
+               for a, b in zip(deciles[:-1], deciles[1:], strict=True))
+    adjusted = audit["area_factor"].to_numpy() * (k_in + k_out)
+    weighted = sum(row["nodes"] * row["mean_adjusted_degree"] for row in deciles)
+    assert math.isclose(weighted / len(nodes), adjusted.mean(), rel_tol=1e-12)
+    for row in deciles:
+        assert math.isclose(row["relative_mean_adjusted_degree"],
+                            row["mean_adjusted_degree"] / adjusted.mean(), rel_tol=1e-12)
+    fits = diagnostics["degree_orientation_regressions"]
+    assert fits["in_degree"]["status"] == fits["out_degree"]["status"] == "ok"
+    factor = audit["area_factor"].to_numpy()
+    assert math.isclose(diagnostics["factor_max_min_ratio"], factor.max() / factor.min(),
+                        rel_tol=1e-12)
+
+
+def test_symmetric_x_has_equal_in_out_degree_and_equal_orientation_exponents():
+    """Metro Manila had k_in = k_out for every node, so all three fits agree."""
+    nodes, edges, partitions, _ = _case(n=120, p=0.06, seed=23)
+    reverse = edges.rename(columns={
+        "source_type": "target_type", "source_cluster": "target_cluster",
+        "target_type": "source_type", "target_cluster": "source_cluster",
+    })[edges.columns]
+    both = pd.concat([edges, reverse], ignore_index=True).drop_duplicates(
+        subset=["source_type", "source_cluster", "target_type", "target_cluster"])
+    _, diagnostics, _ = tile_area.calculate_tile_area_katz(nodes, both, partitions)
+    assert diagnostics["degree_balance"]["max_abs_in_minus_out"] == 0
+    fits = diagnostics["degree_orientation_regressions"]
+    gamma = diagnostics["gamma"]
+    assert math.isclose(fits["in_degree"]["area_elasticity"], gamma, abs_tol=1e-6)
+    assert math.isclose(fits["out_degree"]["area_elasticity"], gamma, abs_tol=1e-6)
+
+
+def test_constant_area_comparison_is_identical_without_second_solve(monkeypatch):
+    nodes, edges, partitions, _ = _case(equal_area=True)
+    calls = []
+    original = tile_area._tile_katz
+    monkeypatch.setattr(tile_area, "_tile_katz",
+                        lambda *a, **k: calls.append(1) or original(*a, **k))
+    _, diagnostics, _ = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    comparison = diagnostics["unadjusted_comparison"]
+    assert len(calls) == 1
+    assert comparison["status"] == "identical_exact_no_op"
+    assert math.isclose(comparison["rank_correlation_with_adjusted"], 1.0)
+    assert comparison["top_k_retained_after_adjustment"] == comparison["top_k"]
+    assert diagnostics["degree_orientation_regressions"]["status"] == "not_estimated_exact_no_op"
+
+
+def test_failed_comparison_is_recorded_and_scores_are_unchanged(monkeypatch):
+    nodes, edges, partitions, _ = _case(seed=24)
+    expected, _, _ = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    original = tile_area._tile_katz
+    calls = []
+
+    def second_call_fails(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 2:
+            raise RuntimeError("forced comparison failure")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(tile_area, "_tile_katz", second_call_fails)
+    result, diagnostics, _ = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    assert diagnostics["unadjusted_comparison"]["status"] == "failed"
+    assert "forced comparison failure" in diagnostics["unadjusted_comparison"]["error"]
+    assert result.values == expected.values
+    json.dumps(diagnostics, allow_nan=False)
+
+
+def test_equal_area_rank_deciles_have_disjoint_extreme_groups():
+    """Top-k classifications must use the identical rank groups as the table."""
+    from sigma.analysis.tile_area import _area_decile_labels, _top_k_area_decile_counts
+    # Every tile is tied; stable ordering is the documented tie-breaker.
+    areas = np.full(140, 2.0)
+    groups = _area_decile_labels(areas)
+    assert np.unique(groups).tolist() == list(range(1, 11))
+    assert np.bincount(groups, minlength=11)[1:].tolist() == [14] * 10
+    assert np.array_equal(groups[:14], np.ones(14, dtype=int))
+    assert _top_k_area_decile_counts(np.arange(140), groups) == (14, 14)
+    assert _top_k_area_decile_counts(np.arange(100), groups) == (14, 0)
+    assert _top_k_area_decile_counts(np.arange(20), np.full(140, -1)) == (0, 0)
+    assert _area_decile_labels(np.array([])).size == 0
+    assert _top_k_area_decile_counts(np.array([0]), np.array([1])) == (1, 0)
+
+
+def test_equal_area_before_after_top100_deciles_agree():
+    """A no-op adjustment must report exactly the same groups before and after."""
+    nodes, edges, partitions, _ = _case(n=140, p=0.05, seed=43, equal_area=True)
+    _, diagnostics, audit = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    before = diagnostics["unadjusted_comparison"]
+    assert before["status"] == "identical_exact_no_op"
+    for key in ("top100_smallest_area_decile", "top100_largest_area_decile"):
+        assert diagnostics[key] == before[key]
+    labels = tile_area._area_decile_labels(audit["voronoi_area_km2"].to_numpy())
+    assert len(np.unique(labels)) == 10
+
+
+def test_unadjusted_comparison_numerical_failure_does_not_change_scores(monkeypatch):
+    """The optional second Katz solve must not abort an otherwise valid score."""
+    nodes, edges, partitions, _ = _case(n=40, p=0.1, seed=44)
+    original = tile_area._tile_katz
+    calls = [0]
+
+    def fail_second(*args, **kwargs):
+        calls[0] += 1
+        if calls[0] == 2:
+            raise np.linalg.LinAlgError("diagnostic only")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(tile_area, "_tile_katz", fail_second)
+    result, diagnostics, _ = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    assert calls[0] == 2
+    assert diagnostics["unadjusted_comparison"]["status"] == "failed"
+    assert "LinAlgError" in diagnostics["unadjusted_comparison"]["error"]
+    assert all(np.isfinite(v) for v in result.values.values())

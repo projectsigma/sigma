@@ -25,8 +25,8 @@ The same symbols recur throughout the book and in Under the Hood. Stage numbers 
 | $m_A$ | network-node 1-median of cluster $A$ |
 | $r_A$ | mean shortest-road distance from establishments in $A$ to $m_A$ |
 | $D_{AB}$ | effective hub-mediated distance $r_A+d_R(m_A,m_B)+r_B$ |
-| $N_A/N_{s(A)}$ | share of all retained **clustered** establishments of exact sector $s(A)$ found in cluster $A$ |
-| $\lambda_X$ | inverse-road-distance exponent on X edges (default 1) |
+| $q_A=N_A/N_{s(A)}$ | share of all retained **clustered** establishments of exact sector $s(A)$ found in cluster $A$ (a dimensionless participation factor in the gravity-inspired weight; not a mass or an area) |
+| $\lambda_X$ | inverse-road-distance exponent on X edges (default 1; Newton's law would use 2) |
 | $A_i$ | final Voronoi tile area of node $i$ in km², evaluated in an equal-area CRS |
 | $k_i^{total}$ | original X incoming plus outgoing directed degree, including zero-degree nodes |
 | $\hat\gamma$ | per-geography PPML exponent of total directed degree on tile area |

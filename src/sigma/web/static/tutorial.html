@@ -246,6 +246,15 @@ pre.cmd{font-family:var(--mono);font-size:.86rem;background:var(--plate);border:
 .dn.stale rect{fill:var(--gold-soft);stroke:var(--gold);stroke-width:2.5}
 .dn.src rect{stroke:var(--rose);stroke-width:3}
 .de{fill:none;stroke:var(--muted);stroke-width:1.5}.de.stale{stroke:var(--gold);stroke-width:2.4}
+.mcell{fill:var(--plate);stroke:var(--line);stroke-width:1.2}.mcell.nz{fill:var(--grid)}.mcell.hot{fill:var(--gold-soft);stroke:var(--gold);stroke-width:2}.mcell.diff{fill:var(--rose-soft);stroke:var(--rose);stroke-width:2}
+.ghostb{fill:none;stroke:var(--ink);stroke-width:1.2;stroke-dasharray:3 3}
+.pairbox{fill:var(--gold-soft);stroke:var(--gold);stroke-width:1.5}
+.focal{fill:var(--gold);fill-opacity:.45;stroke:var(--gold);stroke-width:2.5}
+.boost{fill:var(--gold-soft)}
+.terrN{fill:var(--ink);fill-opacity:.1;stroke:var(--muted);stroke-width:1.5}.terrN2{fill:var(--ink);fill-opacity:.2;stroke:var(--muted);stroke-width:1.5}
+.terrX{fill:var(--grey);fill-opacity:.12;stroke:var(--grey);stroke-width:1.2;stroke-dasharray:4 4}
+.terrR.hit,.terrR2.hit,.terrN.hit,.terrN2.hit{stroke:var(--ink);stroke-width:3}.terrX.hit{stroke:var(--muted);stroke-width:2.4}
+.fig text.dim{opacity:.35}
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}
 }
@@ -941,7 +950,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
     <div class="part-head gut">
       <p class="part-no">Part 4 · Stages 14–17 · <code>sigma run</code></p>
       <h2>Constructing and scoring the spatial–economic graph</h2>
-      <p>Clusters become nodes. Economic coefficients and territory overlap decide the edges. A per-geography PPML degree–area correction changes each tile's own incoming and outgoing weights <em>inside Katz</em>, without changing X edges. Final cluster scores are transferred to establishments by full inverse road distance.</p>
+      <p>Clusters become nodes. Economic coefficients and territory overlap decide which edges exist, and a gravity-inspired weight sets their strength. A per-geography PPML degree–area correction then changes each tile's own incoming and outgoing weights <em>inside Katz</em>, without changing X edges. Final cluster scores are transferred to establishments by full inverse road distance.</p>
     </div>
     <div class="scrolly gut" data-fig="xgraph">
       <div class="steps">
@@ -958,26 +967,116 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <h3>Economic coupling combines sector shares and road distance</h3>
           <p class="hint">Cluster shares count clustered establishments per exact economic type; the worked example uses 1/2 per cluster. Unclustered places are excluded from the totals.</p>
           <div class="eq"><var>w</var><sub>uv</sub> = <var>a</var><sub>st</sub> · (<var>N</var><sub>u</sub>/<var>N</var><sub>s</sub>) · (<var>N</var><sub>v</sub>/<var>N</var><sub>t</sub>) / max(1, (<var>r</var><sub>u</sub> + <var>d</var><sub>R</sub>(<var>m</var><sub>u</sub>, <var>m</var><sub>v</sub>) + <var>r</var><sub>v</sub>) / 1 m)<sup><var>λ</var><sub>X</sub></sup></div>
-          <p><var>m</var><sub><var>u</var></sub> and <var>m</var><sub><var>v</var></sub> are the two cluster centers. An edge is kept only if the centers are connected by road and the weight is strictly positive.</p>
+          <p><var>m</var><sub><var>u</var></sub> and <var>m</var><sub><var>v</var></sub> are the two cluster centers. An edge is kept only if the centers are connected by road and the weight is strictly positive. This is SIGMA's <strong>gravity-inspired</strong> weight: two participation terms multiplied together, divided by a separation. The next section compares it with Newton's law.</p>
           <p class="callout">For a fixed coefficient, <strong>more separation gives less weight</strong>. With <var>λ</var><sub>X</sub> = 1, a 500 m route keeps 1/500 of the coefficient; a 1,400 m route keeps 1/1,400. This schematic sets the within-cluster mean road radii to zero; in a real run both radii are added to the center route before attenuation. In this schematic, two equally sized clusters per sector give both sector shares 1/2, making every edge 1/4 of its distance-only weight. The one-metre floor caps the distance factor at 1. The worked example highlights the strongest attenuated link, which is not the longest one.</p>
           <p class="mini">Same-cluster self-edges remain omitted by an explicit topology rule, even though capped decay at 0 m equals 1. Disconnected centers produce a diagnostic, not an edge. Two-way coefficients still produce two-way edges when territories overlap. The X distance exponent is separate from the PPML degree–area exponent estimated for Katz; canonical establishment scoring has a 1/d distance rule, not p90 tempering.</p>
         </article>
-        <article class="step" data-cap="A two-step walk F2 → R2 → F1. Katz adds every walk, discounted by α per step.">
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-xgraph" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
+
+    <div class="scrolly gut" data-fig="gravity" id="gravity">
+      <div class="steps">
+        <article class="step" data-cap="Top: Newton's law and SIGMA's X weight, term by term. Bottom: relative weight of a link against road distance, set to 1 at 500 m, on a logarithmic vertical axis. Teal: the selected exponent. Dashed: exponent 2 (Newton).">
+          <p class="stage"><span class="shield">14</span>Stage 14 · gravity analogy</p>
+          <h3>Where the weight comes from: a gravity analogy</h3>
+          <p>Newton's law of gravitation multiplies two masses and a constant, then divides by the squared distance:</p>
+          <div class="eq"><var>F</var> = <var>G</var> · <var>m</var><sub><var>i</var></sub> <var>m</var><sub><var>j</var></sub> / <var>r</var><sup>2</sup></div>
+          <p>SIGMA borrows only this <em>structure</em>, not the physics. The constant becomes the directed technical coefficient <var>a</var><sub>st</sub>. Each notional mass is set to 1 and then multiplied by a dimensionless participation share <var>q</var> (next step). The separation is the mean hub-mediated road distance <var>D</var>, and its exponent is 1 by default, not 2:</p>
+          <div class="eq"><var>w</var><sub>uv</sub> = <var>a</var><sub>st</sub> · <var>q</var><sub>u</sub> · <var>q</var><sub>v</sub> / max(<var>D</var><sub>uv</sub> / 1 m, 1)<sup><var>λ</var><sub>X</sub></sup>, &nbsp; <var>λ</var><sub>X</sub> = 1</div>
+          <div class="ctl"><label for="gv-p">distance exponent</label><input id="gv-p" type="range" min="0.5" max="2" step="0.1" value="1"><output id="gv-p-o" for="gv-p">1.0</output></div>
+          <p class="readout" id="gv-p-out" aria-live="polite"></p>
+          <p class="mini" style="margin-top:10px">A larger exponent gives a larger share of the total weight to short links. SIGMA's canonical value is 1 (<code>--x-distance-decay-lambda</code> changes it). This distance-kernel slider is illustrative: the later four-node matrix/Katz example is fixed at exponent 1. The weight is a model assumption, not an estimated trade flow or fitted gravity equation.</p>
+        </article>
+        <article class="step" data-cap="Food sector with 8 clustered establishments in two clusters. Bars: shares q. Rectangles: the clusters' Voronoi tiles, which do not change. Move the slider to move establishments between the clusters.">
+          <p class="stage"><span class="shield">14</span>Stage 14 · participation</p>
+          <h3>Shares are participation, not mass or area</h3>
+          <p><var>q</var><sub>u</sub> = <var>N</var><sub>u</sub> / <var>N</var><sub>s</sub> is the cluster's share of the clustered establishments of its exact sector. It is not a physical mass, not revenue and not the tile's area. Move establishments between <var>F</var><sub>1</sub> and <var>F</var><sub>2</sub>: the shares and the weight of <var>F</var><sub>1</sub>'s link change, but the tiles do not enter <var>w</var>.</p>
+          <div class="ctl"><label for="gv-n">establishments in <var>F</var><sub>1</sub></label><input id="gv-n" type="range" min="1" max="7" step="1" value="4"><output id="gv-n-o" for="gv-n">4 of 8</output></div>
+          <p class="readout" id="gv-n-out" aria-live="polite"></p>
+          <p class="callout">This share slider changes the single illustrative Food-to-Retail weight. The later four-node matrix/Katz example resets both Food shares to ½. Tile area enters only at stage 15, as a statistical correction for how many links a tile can collect—not a mass, a density denominator, or a gravity term. Tile area and local cluster density can nevertheless be correlated.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-gravity" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
+
+    <div class="scrolly gut" data-fig="area" id="tile-area">
+      <div class="steps">
+        <article class="step" data-cap="One focal Food tile (gold) and the tiles of three other sectors along the same strip. Every sector's tiles cover the whole strip. Grey: a sector with no positive coefficient to Food. Inset: overlapped tiles against focal tile width.">
+          <p class="stage"><span class="shield">15</span>Stage 15 · why area matters</p>
+          <h3>A larger tile overlaps more tiles</h3>
+          <p>Every sector has its own network Voronoi partition, and each partition covers the study area. An X edge needs a positive-area overlap of two tiles, so a tile that covers more ground overlaps more tiles of other sectors and collects more candidate links. That can raise its Katz score even when the extra links do not show greater economic importance.</p>
+          <div class="ctl"><label for="ar-w">focal tile width</label><input id="ar-w" type="range" min="0.1" max="3" step="0.05" value="0.6"><output id="ar-w-o" for="ar-w">0.60 km</output></div>
+          <p class="readout" id="ar-w-out" aria-live="polite"></p>
+          <p class="mini" style="margin-top:10px">Even a very narrow tile overlaps at least one tile of each other sector. This gives a <strong>baseline of geometric overlaps</strong> near zero area, which a pure power law (zero at zero area) cannot represent. It is not a guaranteed degree floor: a zero coefficient (grey) or a missing road connection removes candidates, and the Metro Manila X graph had 19 zero-degree nodes.</p>
+        </article>
+        <article class="step" data-cap="Invented tiles: total directed degree against tile area (logarithmic axes). Zero-degree tiles sit on the separate bottom row. Teal: the PPML fit. Gold: the curve for the γ on the slider, with its best intercept. Inset: Poisson deviance against γ.">
+          <p class="stage"><span class="shield">15</span>Stage 15 · degree–area exponent</p>
+          <h3>Estimate how degree grows with area (PPML)</h3>
+          <p>For every X node with a final tile, including zero-degree nodes, SIGMA counts the total directed degree <var>k</var><sub>i</sub> = <var>k</var><sub>i</sub><sup>in</sup> + <var>k</var><sub>i</sub><sup>out</sup> and fits one exponent by Poisson pseudo-maximum likelihood (PPML) with a log link:</p>
+          <div class="eq"><var>E</var>[<var>k</var><sub>i</sub> | <var>A</var><sub>i</sub>] = exp(<var>β</var><sub>0</sub>) · <var>A</var><sub>i</sub><sup><var>γ</var></sup></div>
+          <p>PPML fits the expected count directly, so a degree of 0 needs no logarithm and stays in the fit. <var>γ̂</var> is the average degree–area scaling: doubling the area multiplies the expected degree by 2<sup><var>γ̂</var></sup>. SIGMA estimates <var>γ̂</var> again for every geography and run. It needs at least five tiles and some variation in area, and it stops with an error if the fit fails instead of borrowing another area's exponent.</p>
+          <div class="ctl"><label for="ar-g">try <var>γ</var></label><input id="ar-g" type="range" min="0" max="1" step="0.01" value="0.2"><output id="ar-g-o" for="ar-g">0.20</output></div>
+          <p class="readout" id="ar-g-out" aria-live="polite"></p>
+          <p class="mini" style="margin-top:10px">The tiles are invented. Metro Manila's read-only review estimated <var>γ̂</var> = 0.44457936 (doubling the area: about 36.1% more expected links); the Pasig run estimated 0.376620537. One power law is a global description: it need not fit small and large tiles equally well, it can mix within-sector and between-sector differences, and spatially dependent tiles make the HC1 standard error optimistic.</p>
+        </article>
+        <article class="step" data-cap="The tile factor f = A^−γ on logarithmic axes. Dashed: f = 1 at A = 1 km². The four example tiles of stage 14 are marked. Choose an area unit; the factors change, the normalized Katz scores do not.">
+          <p class="stage"><span class="shield">15</span>Stage 15 · tile factor</p>
+          <h3>One factor per tile: <var>f</var><sub>i</sub> = <var>A</var><sub>i</sub><sup>−<var>γ̂</var></sup></h3>
+          <p>Each tile gets one factor from its <em>own</em> area only, with <var>A</var> in km². <strong>When <var>γ</var> is positive</strong>, tiles larger than 1 km² get <var>f</var> &lt; 1 and smaller tiles get <var>f</var> &gt; 1. For negative <var>γ</var> the inequalities reverse; at zero, every factor is 1. Only the relative factors matter. The four-node example fixes <var>γ</var> = 0.44, because four tiles are too few for SIGMA's estimator.</p>
+          <div class="pills" id="ar-units" role="group" aria-label="Area unit">
+            <button class="pill" type="button" data-unit="1" aria-pressed="true">km²</button>
+            <button class="pill" type="button" data-unit="100" aria-pressed="false">hectares</button>
+            <button class="pill" type="button" data-unit="1000000" aria-pressed="false">m²</button>
+          </div>
+          <p class="readout" id="ar-u-out" aria-live="polite"></p>
+          <p class="mini" style="margin-top:10px">Changing the unit multiplies every factor by the same number. Katz rescales <var>α</var> by the same factor in the opposite direction (using the spectral radius when available or a suitable positive row-sum scale), so <var>C</var> stays the same. For positive <var>γ</var>, small tiles can receive large <em>relative</em> boosts; the last step of the next section shows the observed Metro Manila adjustment.</p>
+        </article>
+        <article class="step" data-cap="The four-node example as 4 × 4 matrices (weights × 10⁻⁵; row = from, column = to). Gold: the row factor being applied. Rose: cells where F Wᵀ and (F W)ᵀ differ.">
+          <p class="stage"><span class="shield">15</span>Stage 15 · two operators</p>
+          <h3>Two operators: a tile's own incoming and outgoing links</h3>
+          <p>A directed edge has a source tile and a destination tile. SIGMA evaluates each tile's own links from that tile's point of view, so row <var>i</var> of both operators uses the same factor <var>f</var><sub>i</sub>:</p>
+          <div class="eq"><var>W</var><sup>out′</sup> = <var>F W</var>, &nbsp; <var>W</var><sup>in′</sup> = <var>F W</var><sup>T</sup>, &nbsp; <var>F</var> = diag(<var>f</var><sub>1</sub>, …, <var>f</var><sub>n</sub>)</div>
+          <p>Row <var>i</var> of <var>F W</var> is tile <var>i</var>'s outgoing weights times <var>f</var><sub>i</sub>; row <var>i</var> of <var>F W</var><sup>T</sup> is its incoming weights times the same <var>f</var><sub>i</sub>. Neither divides tile <var>i</var>'s direct links by a neighbour's area. In general <var>F W</var><sup>T</sup> is not (<var>F W</var>)<sup>T</sup> = <var>W</var><sup>T</sup><var>F</var>, which scales <em>columns</em> and would discount each incoming link by its source's area.</p>
+          <div class="pills" id="ar-ops" role="group" aria-label="Matrix">
+            <button class="pill" type="button" data-op="w" aria-pressed="true"><var>W</var></button>
+            <button class="pill" type="button" data-op="out" aria-pressed="false"><var>F W</var></button>
+            <button class="pill" type="button" data-op="in" aria-pressed="false"><var>F W</var><sup>T</sup></button>
+            <button class="pill" type="button" data-op="cmp" aria-pressed="false">compare with (<var>F W</var>)<sup>T</sup></button>
+          </div>
+          <p class="mini" style="margin-top:10px">Both operators have the same spectral radius, <var>ρ</var>(<var>F W</var><sup>T</sup>) = <var>ρ</var>(<var>W F</var>) = <var>ρ</var>(<var>F W</var>), so one <var>α</var> serves both. The original X weights in <code>sigma_X_edges.csv</code> never change; <var>F W</var> and <var>F W</var><sup>T</sup> exist only inside the centrality stage, and no edge is added or removed.</p>
+        </article>
+      </div>
+      <figure class="fig-wrap">
+        <svg class="fig" id="fig-area" viewBox="0 0 600 440" role="img"></svg>
+        <figcaption class="figcap"></figcaption>
+      </figure>
+    </div>
+
+    <div class="scrolly gut" data-fig="katz" id="katz">
+      <div class="steps">
+        <article class="step" data-cap="A two-step walk F2 → R2 → F1. Katz adds every walk, discounted by α per step; each step also carries the factor of the tile it starts from.">
           <p class="stage"><span class="shield">15</span>Stage 15</p>
           <h3>Why count paths of many steps?</h3>
           <p>An edge is a direct relation. A cluster can also reach others in 2, 3, or more steps. Katz centrality adds up <em>walks</em> (nodes may repeat) and multiplies each extra step by the attenuation <var>α</var>:</p>
-          <div class="eq">(<var>I</var> − <var>α</var><var>W</var>)<sup>−1</sup> = <var>I</var> + <var>α</var><var>W</var> + <var>α</var><sup>2</sup><var>W</var><sup>2</sup> + …</div>
-          <p>(<var>W</var><sup><var>k</var></sup>)<sub><var>ij</var></sub> adds, over all <var>k</var>-step walks from <var>i</var> to <var>j</var>, the product of their edge weights. The walk in the figure adds <var>α</var><sup>2</sup> × (0.20×0.25/500) × (0.10×0.25/1,400) to the outgoing score of <var>F</var><sub>2</sub> and to the incoming score of <var>F</var><sub>1</sub>.</p>
+          <div class="eq">(<var>I</var> − <var>α</var><var>F W</var>)<sup>−1</sup> = <var>I</var> + <var>α</var><var>F W</var> + <var>α</var><sup>2</sup>(<var>F W</var>)<sup>2</sup> + …</div>
+          <p>Each step out of a tile carries that tile's factor. The walk in the figure adds <var>α</var><sup>2</sup> · <var>f</var><sub>F2</sub><var>w</var>(<var>F</var><sub>2</sub>→<var>R</var><sub>2</sub>) · <var>f</var><sub>R2</sub><var>w</var>(<var>R</var><sub>2</sub>→<var>F</var><sub>1</sub>) to the outgoing score of <var>F</var><sub>2</sub>, and <var>α</var><sup>2</sup> · <var>f</var><sub>F1</sub><var>w</var>(<var>R</var><sub>2</sub>→<var>F</var><sub>1</sub>) · <var>f</var><sub>R2</sub><var>w</var>(<var>F</var><sub>2</sub>→<var>R</var><sub>2</sub>) to the incoming score of <var>F</var><sub>1</sub>.</p>
+          <p class="mini"><var>R</var><sub>2</sub>'s factor enters both sums although <var>R</var><sub>2</sub> is neither the start nor the end. A neighbour's factor can affect another tile through indirect walks <strong>and</strong> through the shared global <var>α</var>, because changing a factor can change the spectral scale. Only the direct row weights of a focal tile use its own factor.</p>
         </article>
-        <article class="step" data-cap="Balanced Katz illustrated live on an equal-area four-node graph (so F is proportional to I). The actual model first estimates a per-geography PPML area exponent. Change α with the slider.">
+        <article class="step" data-cap="Balanced Katz computed live on the four-node example with the stage 14 tile areas. Outlined bars: the same scores without the area correction. Change α, γ, or switch the correction off.">
           <p class="stage"><span class="shield">15</span>Stage 15 · directed Katz</p>
           <h3>A receiving score and a sending score</h3>
-          <p>First fit <var>E</var>[<var>k</var><sub>i</sub><sup>total</sup> | <var>A</var><sub>i</sub>] = exp(<var>β</var><sub>0</sub>) <var>A</var><sub>i</sub><sup><var>γ</var></sup> by pooled PPML on <strong>all X nodes, including zero-degree nodes</strong>. The area <var>A</var><sub>i</sub> is each final Voronoi tile's km² area; <var>γ̂</var> is re-estimated for every geography. Define <var>f</var><sub>i</sub> = <var>A</var><sub>i</sub><sup>−<var>γ̂</var></sup> and <var>F</var> = diag(<var>f</var><sub>i</sub>).</p>
-          <div class="eq"><var>W</var><sup>out′</sup> = <var>F</var><var>W</var>; &nbsp; <var>W</var><sup>in′</sup> = <var>F</var><var>W</var><sup>T</sup>; &nbsp; <var>K</var><sup>out</sup> = (<var>I</var> − <var>α</var><var>F</var><var>W</var>)<sup>−1</sup><b>1</b>; &nbsp; <var>K</var><sup>in</sup> = (<var>I</var> − <var>α</var><var>F</var><var>W</var><sup>T</sup>)<sup>−1</sup><b>1</b></div>
-          <p class="mini">The <strong>same focal tile's factor</strong> applies to both its incoming and outgoing rows. In general <var>F</var><var>W</var><sup>T</sup> is not the transpose of <var>F</var><var>W</var>. No original X edge is added, removed or overwritten. The four-node slider below assumes <em>equal tile areas</em>, so the common factor cancels under spectral normalization; it illustrates Katz itself, not a fitted PPML regression.</p>
-          <p><var>K</var><sup>in</sup> adds the weighted walks that end at a node; <var>K</var><sup>out</sup> adds those that start there. Both use <var>β</var> = 1 and the same <var>α</var>:</p>
-          <div class="eq"><var>α</var> = 0.85 / <var>ρ</var>(<var>F</var><var>W</var>) = 0.85 / <var>ρ</var>(<var>F</var><var>W</var><sup>T</sup>)</div>
-          <p class="mini" style="margin-top:-4px"><var>ρ</var>(<var>W</var>) is the spectral radius (largest absolute eigenvalue). The two adjusted operators have equal spectral radii, so SIGMA uses one shared attenuation. A conservative row-sum fallback handles acyclic graphs or failed spectral estimation. In this equal-area toy example, <var>F</var> can be taken as <var>I</var>.</p>
+          <p>The tiles have the stage 14 areas: <var>F</var><sub>1</sub> 2.2, <var>F</var><sub>2</sub> 2.0, <var>R</var><sub>1</sub> 1.3 and <var>R</var><sub>2</sub> 2.9 km². This fixed four-node example resets all participation shares to ½ and the X distance exponent to 1, irrespective of the earlier illustrative sliders. The separate invented PPML dataset above fits a different exponent; the four-node Katz example uses 0.44 by default, close to the Metro Manila estimate.</p>
+          <div class="eq"><var>K</var><sup>out</sup> = (<var>I</var> − <var>α</var><var>F W</var>)<sup>−1</sup><b>1</b>; &nbsp; <var>K</var><sup>in</sup> = (<var>I</var> − <var>α</var><var>F W</var><sup>T</sup>)<sup>−1</sup><b>1</b>; &nbsp; <var>α</var> = 0.85 / <var>s</var>(<var>F W</var>)</div>
+          <p><var>K</var><sup>in</sup> adds the weighted walks that end at a node; <var>K</var><sup>out</sup> adds those that start there. Both use <var>β</var> = 1 and the same <var>α</var>. Here <var>s</var>(<var>F W</var>) is the spectral scale: it equals the positive spectral radius <var>ρ</var> when reliably estimated, or a conservative positive row-sum bound for a DAG or spectral failure. The four-node worked example uses its positive <var>ρ</var>.</p>
+          <label class="check"><input type="checkbox" id="kz-adj" checked> apply the tile-area correction (off = <code>--no-area-adjustment</code>, <var>F</var> = <var>I</var>)</label>
+          <div class="ctl"><label for="kz-g"><var>γ</var> (example)</label><input id="kz-g" type="range" min="0" max="1" step="0.02" value="0.44"><output id="kz-g-o" for="kz-g">0.44</output></div>
           <div class="ctl"><label for="af"><var>α</var> factor</label><input id="af" type="range" min="0.1" max="0.95" step="0.05" value="0.85"><output id="af-o" for="af">0.85</output></div>
           <p class="readout" id="af-out" aria-live="polite"></p>
           <p class="mini" style="margin-top:10px">Because <var>α</var> is set relative to the adjusted spectral radius, multiplying every adjusted weight by one constant does not change <var>K</var>. An isolated node keeps <var>K</var><sup>in</sup> = <var>K</var><sup>out</sup> = 1.</p>
@@ -991,13 +1090,22 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <p class="readout" id="kin-out" aria-live="polite"></p>
           <p class="mini" style="margin-top:10px">For nodes A (9, 1), B (5, 5), and C (1, 9): <var>g</var> = 3, 5, 3 and <var>C</var> = 0.457, 0.762, 0.457. The rule “geometric mean, then one final L2 normalization” is a SIGMA construction motivated by the published sender–receiver Katz product; it is not a separately published named index.</p>
         </article>
+        <article class="step" data-cap="Mean of f_i k_i in each tile-area decile (smallest left), divided by the mean over all nodes. Dashed line: 1.0, a perfectly flat result. Table: unadjusted against adjusted balanced Katz.">
+          <p class="stage"><span class="shield">16</span>Stages 15–16 · diagnostics</p>
+          <h3>What the correction did in Metro Manila</h3>
+          <p>A read-only review of cached Metro Manila artifacts (14,631 clusters, 2,031,788 directed X edges, <var>γ̂</var> = 0.44457936) compared adjusted and unadjusted balanced Katz. The overall area association nearly disappeared, but the smallest tiles were favoured (2.30 × the mean of <var>f</var><sub>i</sub><var>k</var><sub>i</sub>) and the top of the ranking became more concentrated. This could be overcorrection, real dense business centres, or both; the data cannot tell them apart.</p>
+          <div class="pills" id="kz-src" role="group" aria-label="Diagnostic source">
+            <button class="pill" type="button" data-src="mm" aria-pressed="true">Metro Manila review</button>
+            <button class="pill" type="button" data-src="run" aria-pressed="false" disabled>this run (not published)</button>
+          </div>
+          <p class="mini" style="margin-top:10px">Every Metro Manila node had equal incoming and outgoing degree, so incoming, outgoing and total degree gave the same <var>γ̂</var>. SIGMA now records this check, the decile table, the unadjusted comparison and the score concentration with every run (<code>tile_area_adjustment</code> in <code>sigma_run_metadata.json</code>). None of these figures is an economic validation, and the review was not a production run.</p>
+        </article>
       </div>
       <figure class="fig-wrap">
-        <svg class="fig" id="fig-xgraph" viewBox="0 0 600 440" role="img"></svg>
+        <svg class="fig" id="fig-katz" viewBox="0 0 600 440" role="img"></svg>
         <figcaption class="figcap"></figcaption>
       </figure>
     </div>
-
     <div class="scrolly gut" data-fig="score" id="scores">
       <div class="steps">
         <article class="step" data-cap="Canonical inverse-road-distance scoring on a logarithmic vertical scale; C_c = 0.40, and at 200 m S_p = 0.002. The plotted toy curve is not a per-run economic validation.">
@@ -1008,7 +1116,7 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
           <div class="ctl"><label for="dp"><var>d</var><sub><var>p</var></sub></label><input id="dp" type="range" min="0" max="2000" step="20" value="200"><output id="dp-o" for="dp">200 m</output></div>
           <p class="readout" id="dp-out" aria-live="polite"></p>
           <p style="margin-top:10px">With <var>C</var><sub>c</sub> = 0.40, 200 m yields <var>S</var><sub>p</sub> = 0.40 / 200 = <strong>0.002</strong>; 500 m yields 0.0008. A distance at or below 1 m receives the full 0.40. This is <strong>not</strong> the previous capped 15% p90 tempering. The logarithmic vertical axis makes the steep distance effect visible; rankings can change substantially even inside a single cluster.</p>
-          <p class="mini">The PPML tile-area factor was applied to the cluster's weight operators <em>before</em> Katz. It is not applied a second time to the establishment score. The 1 m floor prevents division by zero. The score is not an observed place-to-place trade flow, and the Metro Manila area-correction diagnostic does not validate these establishment rankings.</p>
+          <p class="mini">This is a one-sided distance decay from one cluster center, not the two-sided gravity-inspired weight of stage 14. The PPML tile-area factor was applied to the cluster's weight operators <em>before</em> Katz. It is not applied a second time to the establishment score. The 1 m floor prevents division by zero. The score is not an observed place-to-place trade flow, and the Metro Manila area-correction diagnostic does not validate these establishment rankings.</p>
         </article>
         <article class="step" data-cap="One invented establishment through all 17 stages. Bold numbers are stage numbers.">
           <p class="stage"><span class="shield">✓</span>All stages</p>
@@ -1161,9 +1269,9 @@ header.top .sigma-brand-icon.sigma-original-logo-mark img {
         <tr><td>Centers</td><td>network-node 1-median (location theory)</td><td>road-node candidates; labeled centroid recovery</td></tr>
         <tr><td>Territories</td><td>graph and network Voronoi</td><td>finite-grid 2-D rendering from a 50 m start, halved until at most 0.5 % of the area changes owner (within a cell budget and five halvings); Euclidean fallback only without a network surface</td></tr>
         <tr><td>Economy</td><td>IO technical coefficients; RAS</td><td>configurable table; optional greedy MWAS and support repair</td></tr>
-        <tr><td>Centrality</td><td>Katz; PPML degree–area scaling</td><td>one fitted exponent per geography, own-area operators FW and FW<sup>T</sup>, shared α; geometric mean, one final L2 normalization</td></tr>
-        <tr><td>Point scoring</td><td>gravity-inspired inverse-distance attenuation</td><td>canonical S<sub>p</sub> = C<sub>c</sub> / max(d<sub>R</sub> / 1 m, 1); p90 tempering is legacy eigenvector only</td></tr>
-        <tr><td>Graph <var>X</var></td><td colspan="2">modeled positive technical-coefficient edge and positive-area partition overlap; numerical weight <var>w</var><sub>uv</sub> = <var>a</var><sub>st</sub> · (<var>N</var><sub>u</sub>/<var>N</var><sub>s</sub>) · (<var>N</var><sub>v</sub>/<var>N</var><sub>t</sub>) / max(1, (<var>r</var><sub>u</sub> + <var>d</var><sub>R</sub> + <var>r</var><sub>v</sub>) / 1 m)<sup><var>λ</var><sub>X</sub></sup>. Numeric X does not compute route geometries; browser routing is on demand by default.</td></tr>
+        <tr><td>Centrality</td><td>Katz; PPML degree–area scaling (Santos Silva &amp; Tenreyro)</td><td>one fitted exponent per geography, own-area operators FW and FW<sup>T</sup>, shared α; geometric mean, one final L2 normalization</td></tr>
+        <tr><td>Point scoring</td><td>inverse road-distance attenuation from the cluster 1-median (a SIGMA rule, separate from the gravity-inspired X weight)</td><td>canonical S<sub>p</sub> = C<sub>c</sub> / max(d<sub>R</sub> / 1 m, 1); p90 tempering is legacy eigenvector only</td></tr>
+        <tr><td>Graph <var>X</var></td><td colspan="2">gravity-inspired interaction structure (a Newton-form analogy with masses set to 1, not a fitted gravity equation); modeled positive technical-coefficient edge and positive-area partition overlap; numerical weight <var>w</var><sub>uv</sub> = <var>a</var><sub>st</sub> · (<var>N</var><sub>u</sub>/<var>N</var><sub>s</sub>) · (<var>N</var><sub>v</sub>/<var>N</var><sub>t</sub>) / max(1, (<var>r</var><sub>u</sub> + <var>d</var><sub>R</sub> + <var>r</var><sub>v</sub>) / 1 m)<sup><var>λ</var><sub>X</sub></sup>. Numeric X does not compute route geometries; browser routing is on demand by default.</td></tr>
         <tr><td>Route display</td><td>Dijkstra shortest paths</td><td>contracted routing graph without establishment vertices; length checked against the published distance</td></tr>
       </table></div>
     </div>
@@ -1249,6 +1357,7 @@ sigma view pasig</pre>
         <li>Erwig (2000), <em>Networks</em> 36(3); Okabe &amp; Sugihara (2012), <em>Spatial Analysis along Networks</em>.</li>
         <li>Leontief (1986); Bacharach (1970).</li>
         <li>Katz (1953), <em>Psychometrika</em> 18; Sharkey (2017), <em>Scientific Reports</em> 7; Everett &amp; Schoch (2022), <em>Social Networks</em> 70; Kleinberg (1999), <em>JACM</em> 46(5).</li>
+        <li>Tinbergen (1962), <em>Shaping the World Economy</em>; Santos Silva &amp; Tenreyro (2006), <em>Review of Economics and Statistics</em> 88(4).</li>
       </ul>
       <p class="mini" style="margin-top:12px">Specification: <a href="https://projectsigma.github.io/sigma/content/intro/index.html" target="_blank" rel="noopener">SIGMA documentation</a> · <a href="https://projectsigma.github.io/sigma/content/reference/method_lineage.html" target="_blank" rel="noopener">method lineage</a> · <a href="https://projectsigma.github.io/sigma/content/reference/references.html" target="_blank" rel="noopener">full references</a></p>
     </div>
@@ -1375,7 +1484,7 @@ function overview() {
     K: [0, 2, 'ec', 'National IO table', 'transactions ~Z~, output ~x~', 'economy'],
     L: [1, 2, 'ec', '13 Coefficients', '~a~_{~ij~} = ~z~_{~ij~} / ~x~_{~j~}', 'economy'],
     X: [2, 3, 'ou', '14 Graph ~X~', 'nodes (~t~, ~c~)', 'graph'],
-    Q: [3, 3, 'ou', '15–16 Balanced Katz', 'centrality ~C~', 'graph'],
+    Q: [3, 3, 'ou', '15–16 Area-adjusted Katz', 'centrality ~C~', 'tile-area'],
     P: [4, 3, 'ou', '17 Establishment', 'score ~S~_{~p~}', 'scores'],
     U: [5, 3, 'ou', 'Publish', 'routes on request', 'routes']
   };
@@ -3038,9 +3147,82 @@ FIGS.economy = (svg) => {
 };
 
 /* ================= Part 4: graph X ================= */
+/* ================= Part 4: shared four-node example ================= */
+// sigma-under-the-hood-gravity-tile-area-20261109-v1
+// Fixed four-node network (q=1/2, lambda=1) for matrices and Katz. Earlier controls are independent illustrations.
+const XEX = (() => {
+  const P = { F1: [100, 110], R1: [300, 110], F2: [100, 330], R2: [300, 330] };
+  const EDG = [['F1', 'R1', .20, 600], ['R1', 'F1', .10, 600], ['F1', 'R2', .20, 1400], ['R2', 'F1', .10, 1400], ['F2', 'R2', .20, 500], ['R2', 'F2', .10, 500]]
+    .map(([a, b, coefficient, d]) => [a, b, coefficient * 0.5 * 0.5 / Math.max(1, d), coefficient, d]);
+  const order = ['F1', 'F2', 'R1', 'R2'];
+  // Final tile areas in km²: the stage 14 strip widths (Food 2.2 + 2.0, Retail 1.3 + 2.9).
+  const AREA = { F1: 2.2, F2: 2.0, R1: 1.3, R2: 2.9 };
+  const W = order.map(s => order.map(t => (EDG.find(([a, b]) => a === s && b === t) || [0, 0, 0])[2]));
+  return { P, EDG, order, AREA, W, maxW: Math.max(...EDG.map(e => e[2])), RAD: 28 };
+})();
+const nodeTex = k => `~${k[0]}~_{${k[1]}}`;
+const nodeHtml = k => `${k[0]}<sub>${k[1]}</sub>`;
+const fx = (v, d = 3) => (v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
+function spectralRadius(M) {
+  // Perron root of a nonnegative matrix: power iteration on M + sI (s = largest row sum).
+  const n = M.length, s = Math.max(...M.map(r => r.reduce((a, b) => a + b, 0)));
+  let x = Array(n).fill(1), lam = 0;
+  for (let it = 0; it < 600; it++) {
+    const y = x.map((_, i) => M[i].reduce((a, w, j) => a + w * x[j], 0) + s * x[i]);
+    lam = y.reduce((a, v, i) => a + v * x[i], 0) / x.reduce((a, v) => a + v * v, 0);
+    const nm = Math.hypot(...y); x = y.map(v => v / nm);
+  }
+  return lam - s;
+}
+function solveLinear(A, b) {
+  const n = b.length, M = A.map((r, i) => [...r, b[i]]);
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]];
+    for (let r = 0; r < n; r++) { if (r === c) continue; const f = M[r][c] / M[c][c]; for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+  }
+  return M.map((r, i) => r[n] / r[i]);
+}
+// f_i = (unit · A_i)^-γ; off means F = I (ordinary balanced Katz).
+const tileFactors = (gamma, on = true, unit = 1) => XEX.order.map(k => on ? Math.pow(XEX.AREA[k] * unit, -gamma) : 1);
+function areaKatz(f, alphaFactor = 0.85) {
+  // Toy four-node graph has rho(FW)>0: alpha = factor/rho(FW). Production DAG/ARPACK fallbacks use a row-sum scale.
+  const W = XEX.W, n = W.length;
+  const FW = W.map((r, i) => r.map(w => f[i] * w));
+  const FWt = W.map((r, i) => r.map((_, j) => f[i] * W[j][i]));
+  const rho = spectralRadius(FW), a = alphaFactor / rho, one = Array(n).fill(1);
+  const kout = solveLinear(FW.map((r, i) => r.map((v, j) => (i === j ? 1 : 0) - a * v)), one);
+  const kin = solveLinear(FWt.map((r, i) => r.map((v, j) => (i === j ? 1 : 0) - a * v)), one);
+  const g = kin.map((v, i) => Math.sqrt(v * kout[i])), nm = Math.hypot(...g);
+  return { rho, a, kin, kout, C: g.map(v => v / nm), FW, FWt };
+}
+const rankText = C => XEX.order.map((k, i) => [k, C[i]]).sort((u, v) => v[1] - u[1]).map(([k]) => k);
+function drawXGraph(g, AH) {
+  const { P, EDG, RAD, maxW } = XEX;
+  const edgeEls = EDG.map(([a, b, w]) => {
+    const p = P[a], q = P[b], mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2, dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy);
+    const nx = -dy / l, ny = dx / l, c = [mx + nx * 26, my + ny * 26];
+    const u1 = Math.hypot(c[0] - p[0], c[1] - p[1]), u2 = Math.hypot(c[0] - q[0], c[1] - q[1]);
+    const s = [p[0] + (c[0] - p[0]) / u1 * RAD, p[1] + (c[1] - p[1]) / u1 * RAD], e = [q[0] + (c[0] - q[0]) / u2 * (RAD + 3), q[1] + (c[1] - q[1]) / u2 * (RAD + 3)];
+    const f = a[0] === 'F';
+    const path = S('path', { d: `M${s}Q${c} ${e}`, class: (f ? 'edgeF' : 'edgeR') + ' draw', pathLength: 1, 'stroke-width': (1.4 + 3 * w / maxW).toFixed(1), 'marker-end': AH(f ? 'teal' : 'blue') }, g);
+    const geom = S('path', { d: `M${s}Q${c} ${e}`, style: 'opacity:0;fill:none' }, g);
+    const lx = 0.25 * s[0] + 0.5 * c[0] + 0.25 * e[0] + nx * 13, ly = 0.25 * s[1] + 0.5 * c[1] + 0.25 * e[1] + ny * 13;
+    const t = T(g, lx, ly + 4, w.toFixed(6), 'sm mono halo ' + (f ? 'f-teal' : 'f-blue'), { 'text-anchor': 'middle' });
+    return { path, geom, t, a, b, w };
+  });
+  const nodeEls = {};
+  Object.entries(P).forEach(([k, [x, y]]) => {
+    const c = S('circle', { cx: x, cy: y, r: RAD, class: k[0] === 'F' ? 'nodeF' : 'nodeR' }, g);
+    const t = T(g, x, y + 6, nodeTex(k), 'hd', { 'text-anchor': 'middle' });
+    nodeEls[k] = { c, t };
+  });
+  return { edgeEls, nodeEls };
+}
+
 FIGS.xgraph = (svg, sec) => {
   const AH = plate(svg); const ctx = Ctx();
-  const sc = scenes(svg, 3);
+  const sc = scenes(svg, 2);
   /* scene 0: strips */
   const g0 = sc[0];
   const L = 60, Rr = 540, fS = L + 480 * 2.2 / 4.2, rS = L + 480 * 1.3 / 4.2;
@@ -3063,125 +3245,517 @@ FIGS.xgraph = (svg, sec) => {
   T(ovl2, 300, 354, 'Retail → Food: ~a~_{RF} = 0.10 > 0', 'sm f-blue', { 'text-anchor': 'middle' });
   T(ovl2, 300, 386, 'each overlapping pair gets edges in both directions', 'sm f-muted', { 'text-anchor': 'middle' });
 
-  /* scene 1: graph */
+  /* scene 1: graph and weight table */
   const g1 = sc[1];
-  const P = { F1: [100, 110], R1: [300, 110], F2: [100, 330], R2: [300, 330] };
-  const RAD = 28;
-  const EDG = [['F1', 'R1', .20, 600], ['R1', 'F1', .10, 600], ['F1', 'R2', .20, 1400], ['R2', 'F1', .10, 1400], ['F2', 'R2', .20, 500], ['R2', 'F2', .10, 500]]
-    .map(([a, b, coefficient, d]) => [a, b, coefficient * 0.5 * 0.5 / Math.max(1, d), coefficient, d]);
-  const maxXWeight = Math.max(...EDG.map(e => e[2]));
-  const edgeEls = EDG.map(([a, b, w]) => {
-    const p = P[a], q = P[b], mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2, dx = q[0] - p[0], dy = q[1] - p[1], l = Math.hypot(dx, dy);
-    const nx = -dy / l, ny = dx / l, c = [mx + nx * 26, my + ny * 26];
-    const u1 = Math.hypot(c[0] - p[0], c[1] - p[1]), u2 = Math.hypot(c[0] - q[0], c[1] - q[1]);
-    const s = [p[0] + (c[0] - p[0]) / u1 * RAD, p[1] + (c[1] - p[1]) / u1 * RAD], e = [q[0] + (c[0] - q[0]) / u2 * (RAD + 3), q[1] + (c[1] - q[1]) / u2 * (RAD + 3)];
-    const f = a[0] === 'F';
-    const path = S('path', { d: `M${s}Q${c} ${e}`, class: (f ? 'edgeF' : 'edgeR') + ' draw', pathLength: 1, 'stroke-width': (1.4 + 3 * w / maxXWeight).toFixed(1), 'marker-end': AH(f ? 'teal' : 'blue') }, g1);
-    const geom = S('path', { d: `M${s}Q${c} ${e}`, style: 'opacity:0;fill:none' }, g1);
-    const lx = 0.25 * s[0] + 0.5 * c[0] + 0.25 * e[0] + nx * 13, ly = 0.25 * s[1] + 0.5 * c[1] + 0.25 * e[1] + ny * 13;
-    const t = T(g1, lx, ly + 4, w.toFixed(6), 'sm mono halo ' + (f ? 'f-teal' : 'f-blue'), { 'text-anchor': 'middle' });
-    return { path, geom, t, a, b, w };
-  });
-  const nodeEls = {};
-  Object.entries(P).forEach(([k, [x, y]]) => {
-    const c = S('circle', { cx: x, cy: y, r: RAD, class: k[0] === 'F' ? 'nodeF' : 'nodeR' }, g1);
-    const t = T(g1, x, y + 6, `~${k[0]}~_{${k[1]}}`, 'hd', { 'text-anchor': 'middle' });
-    nodeEls[k] = { c, t };
-  });
-  /* right panels */
-  const tab = S('g', { class: 'off' }, g1);
-  const cx = [372, 470, 532, 586];
+  const { edgeEls } = drawXGraph(g1, AH);
+  const tab = S('g', null, g1);
+  const cx = [366, 460, 516, 596];
   ['edge', '~a~', '~d~ (m)', '~w~'].forEach((h, k) => T(tab, k === 0 ? cx[0] : cx[k], 70, h, 'sm f-muted', { 'text-anchor': k === 0 ? 'start' : 'end' }));
-  S('path', { d: 'M366,80H590', class: 'axis' }, tab);
-  EDG.forEach(([a, b, w, ac, d], k) => {
+  S('path', { d: 'M362,80H596', class: 'axis' }, tab);
+  XEX.EDG.forEach(([a, b, w, ac, d], k) => {
     const y = 104 + k * 28;
-    T(tab, cx[0], y, `~${a[0]}~_{${a[1]}} → ~${b[0]}~_{${b[1]}}`, 'sm');
+    T(tab, cx[0], y, `${nodeTex(a)} → ${nodeTex(b)}`, 'sm');
     T(tab, cx[1], y, ac.toFixed(2), 'sm mono', { 'text-anchor': 'end' });
     T(tab, cx[2], y, fmt(d), 'sm mono', { 'text-anchor': 'end' });
-    T(tab, cx[3], y, w.toFixed(6), 'sm mono' + (w === maxXWeight ? ' f-gold' : ''), { 'text-anchor': 'end', 'font-weight': w === maxXWeight ? 700 : 400 });
+    T(tab, cx[3], y, w.toFixed(6), 'sm mono' + (w === XEX.maxW ? ' f-gold' : ''), { 'text-anchor': 'end', 'font-weight': w === XEX.maxW ? 700 : 400 });
   });
-  T(tab, 366, 300, '~w~ = ~a~ / max(1,~d~) ; distances in m', 'sm f-muted');
+  T(tab, 366, 300, '~w~ = ~a~ · ½ · ½ / max(1, ~d~), ~d~ in m', 'xs f-muted');
   T(tab, 366, 324, 'strongest: ~F~_{2} → ~R~_{2} (500 m)', 'sm f-gold');
-  const walk = S('g', { class: 'off' }, g1);
-  T(walk, 366, 80, '1 step adds  ~α~ · ~w~', 'hd'); T(walk, 366, 110, '2 steps add  ~α~^{2} · ~w~ · ~w~', 'hd'); T(walk, 366, 140, '3 steps add  ~α~^{3} · ~w~ · ~w~ · ~w~', 'hd');
-  T(walk, 366, 196, 'this walk: ~F~_{2} → ~R~_{2} → ~F~_{1}', 'sm f-gold'); T(walk, 366, 220, 'adds ~α~^{2} × .000400 × .0000714', 'sm f-gold');
-  T(walk, 366, 244, 'to ~K~^{out}(~F~_{2}) and ~K~^{in}(~F~_{1})', 'sm f-gold');
-  const tokW = S('circle', { r: 8, class: 'dot f-gold off' }, g1);
-  const kat = S('g', { class: 'off' }, g1);
-  const kLeg = [['~K~^{in}', 'barb tealf'], ['~K~^{out}', 'barb blue'], ['~C~', 'barb gold']];
-  kLeg.forEach(([l, c], k) => { S('rect', { x: 370 + k * 70, y: 40, width: 12, height: 12, class: c }, kat); T(kat, 388 + k * 70, 51, l, 'sm'); });
-  const order = ['F1', 'F2', 'R1', 'R2'];
+  T(tab, 366, 360, 'gravity form: share × share', 'xs f-muted');
+  T(tab, 366, 376, '÷ separation (next section)', 'xs f-muted');
+
+  return {
+    step(i) {
+      ctx.clear();
+      showScene(sc, i === 0 ? 0 : 1);
+      if (i === 0) {
+        vis([ovl, ovl2], false); rG.setAttribute('transform', 'translate(0,150)'); vis(rTitle, true);
+        ctx.after(700, () => ctx.tween(1100, e => rG.setAttribute('transform', `translate(0,${150 * (1 - e)})`), () => { vis(rTitle, false); vis(ovl, true); ctx.after(900, () => vis(ovl2, true)); }));
+      } else edgeEls.forEach((e, k) => drawIn(e.path, ctx, 150 + k * 260));
+    }
+  };
+};
+
+/* ================= Part 4a: the gravity analogy (stage 14) ================= */
+FIGS.gravity = (svg, sec) => {
+  plate(svg); const ctx = Ctx();
+  const sc = scenes(svg, 2);
+  /* scene 0: Newton's form beside the X weight, then the distance kernel */
+  const g0 = sc[0];
+  const cols = [200, 270, 340, 432];
+  const boxes = cols.map(x => S('rect', { x: x - 34, y: 44, width: 68, height: 118, rx: 6, class: 'pairbox off' }, g0));
+  T(g0, 30, 76, 'Newton', 'sm f-muted');
+  T(g0, 30, 146, 'SIGMA X', 'sm f-muted');
+  T(g0, 150, 76, '~F~ =', 'big', { 'text-anchor': 'end' });
+  T(g0, 150, 146, '~w~_{~uv~} =', 'big', { 'text-anchor': 'end' });
+  ['~G~', '~m~_{~i~}', '~m~_{~j~}', '/ ~r~^{2}'].forEach((s, k) => T(g0, cols[k], 76, s, 'big', { 'text-anchor': 'middle' }));
+  ['~a~_{~st~}', '~q~_{~u~}', '~q~_{~v~}', '/ ~D~^{~λ~}'].forEach((s, k) => T(g0, cols[k], 146, s, 'big f-teal', { 'text-anchor': 'middle' }));
+  T(g0, 490, 76, '(× 1 · 1)', 'sm f-muted');
+  T(g0, 490, 146, '~λ~ = 1', 'sm f-teal');
+  const links = cols.map(x => S('path', { d: `M${x},88V122`, class: 'arw gold draw', pathLength: 1 }, g0));
+  const pairText = [
+    'constant ~G~ → directed IO coefficient ~a~_{~st~} (sector ~s~ supplies sector ~t~)',
+    'mass ~m~_{~i~} → 1 × participation share ~q~_{~u~} = ~N~_{~u~} / ~N~_{~s~}',
+    'mass ~m~_{~j~} → 1 × participation share ~q~_{~v~} = ~N~_{~v~} / ~N~_{~t~}',
+    '~r~^{2} → mean hub road distance ~D~, exponent 1 by default (not 2)'
+  ];
+  const pairT = T(g0, 300, 192, '', 'sm f-gold', { 'text-anchor': 'middle' });
+  // kernel chart: weight relative to an equal link at 500 m
+  const dx = d => 80 + (d - 100) / 1900 * 470;
+  const lo = Math.log10(0.03), hi = Math.log10(30);
+  const dy = v => 396 - (Math.log10(clamp(v, 0.03, 30)) - lo) / (hi - lo) * 166;
+  S('path', { d: `M80,226V396H${dx(2000) + 8}`, class: 'axis' }, g0);
+  [100, 500, 1000, 1400, 2000].forEach(d => { S('path', { d: `M${dx(d)},396v5`, class: 'axis' }, g0); T(g0, dx(d), 412, fmt(d), 'xs mono f-muted', { 'text-anchor': 'middle' }); });
+  [0.1, 1, 10].forEach(v => { S('path', { d: `M80,${dy(v)}H${dx(2000)}`, class: 'gridl' }, g0); T(g0, 74, dy(v) + 4, String(v), 'xs mono f-muted', { 'text-anchor': 'end' }); });
+  T(g0, 316, 430, 'road distance ~D~ (m)', 'xs f-muted', { 'text-anchor': 'middle' });
+  T(g0, 86, 222, 'weight relative to the same link at 500 m (log scale)', 'xs f-muted');
+  const kernel = p => { let d = ''; for (let x = 100; x <= 2000; x += 10) d += (d ? 'L' : 'M') + dx(x).toFixed(1) + ',' + dy(Math.pow(x / 500, -p)).toFixed(1); return d; };
+  S('path', { d: kernel(2), class: 'mean' }, g0);
+  T(g0, dx(240), dy(Math.pow(240 / 500, -2)) - 8, 'exponent 2', 'xs f-gold halo', { 'text-anchor': 'middle' });
+  const kCurve = S('path', { class: 'curve' }, g0);
+  const m500 = S('circle', { cx: dx(500), cy: dy(1), r: 5, class: 'dot f-ink' }, g0);
+  const m1400 = S('circle', { r: 6, class: 'handle f-teal' }, g0);
+  const mLab = T(g0, 0, 0, '', 'xs halo f-teal');
+  const elP = $('#gv-p', sec), oP = $('#gv-p-o', sec), outP = $('#gv-p-out', sec);
+  let p = 1;
+  function renderP() {
+    setAttrs(kCurve, { d: kernel(p) });
+    const r = Math.pow(1400 / 500, -p);
+    setAttrs(m1400, { cx: dx(1400), cy: dy(r) });
+    setAttrs(mLab, { x: dx(1400) + 10, y: dy(r) - 10 }); setT(mLab, `1,400 m: ×${r.toFixed(3)}`);
+    oP.textContent = p.toFixed(1); elP.value = p;
+    outP.innerHTML = `Exponent ${p.toFixed(1)}: a link at 1,400 m keeps 1/${(1 / r).toFixed(2)} of the weight of an equal link at 500 m.<br>` +
+      `SIGMA's default (1) keeps 1/2.80; Newton's exponent (2) would keep 1/7.84.`;
+  }
+  elP.addEventListener('input', () => { p = +elP.value; renderP(); });
+  renderP();
+  void m500;
+  function cyclePairs(k) {
+    boxes.forEach((b, j) => vis(b, j === k)); setT(pairT, pairText[k]);
+    drawIn(links[k], ctx);
+    if (!RM) ctx.after(2300, () => cyclePairs((k + 1) % 4));
+  }
+
+  /* scene 1: participation shares are not mass and not area */
+  const g1 = sc[1];
+  const L = 60, Rr = 540, mid = L + 480 * 2.2 / 4.2;
+  T(g1, L, 40, 'Food sector: 8 clustered establishments in two clusters', 'sm f-muted');
+  S('rect', { x: L, y: 52, width: mid - L, height: 74, class: 'terrF' }, g1);
+  S('rect', { x: mid, y: 52, width: Rr - mid, height: 74, class: 'terrF2' }, g1);
+  T(g1, L + 10, 70, '~F~_{1} tile', 'sm'); T(g1, mid + 10, 70, '~F~_{2} tile', 'sm');
+  T(g1, (L + mid) / 2, 144, '2.2 km² · unchanged', 'xs f-muted', { 'text-anchor': 'middle' });
+  T(g1, (mid + Rr) / 2, 144, '2.0 km² · unchanged', 'xs f-muted', { 'text-anchor': 'middle' });
+  const slot = (x0, x1, k) => [x0 + 34 + (k % 4) * ((x1 - x0 - 68) / 3), 92 + Math.floor(k / 4) * 22];
+  const dots = Array.from({ length: 8 }, () => S('circle', { r: 7, class: 'dot f-teal' }, g1));
+  let cur = 4;
+  const where = (d, k) => d < k ? slot(L, mid, d) : slot(mid, Rr, d - k);
+  dots.forEach((e, d) => { const [x, y] = where(d, cur); setAttrs(e, { cx: x, cy: y }); });
+  const bx = 150, bw = 320;
+  T(g1, L, 186, 'participation shares ~q~ = ~N~_{~u~} / ~N~_{~s~}', 'sm f-muted');
+  const qBars = [0, 1].map(j => {
+    const y = 200 + j * 34;
+    T(g1, L, y + 15, j ? '~q~_{~F2~}' : '~q~_{~F1~}', 'sm');
+    S('rect', { x: bx, y, width: bw, height: 20, class: 'barb' }, g1);
+    return { r: S('rect', { x: bx, y, width: 0, height: 20, class: 'barb tealf' }, g1), t: T(g1, 0, y + 15, '', 'sm mono') };
+  });
+  T(g1, L, 300, 'edge ~F~_{1} → ~R~_{1}: ~w~ = 0.20 · ~q~_{~F1~} · ~q~_{~R1~} / 600, with ~q~_{~R1~} = ½', 'sm f-muted');
+  S('rect', { x: bx, y: 314, width: bw, height: 20, class: 'barb' }, g1);
+  const wBar = S('rect', { x: bx, y: 314, width: 0, height: 20, class: 'barb gold' }, g1);
+  T(g1, L, 329, '~w~', 'sm');
+  const wT = T(g1, 0, 329, '', 'sm mono');
+  T(g1, 300, 380, 'tile area ~A~ is not a term of ~w~ (it enters at stage 15)', 'sm f-rose', { 'text-anchor': 'middle' });
+  const wMax = 0.20 * (7 / 8) * 0.5 / 600;
+  const elN = $('#gv-n', sec), oN = $('#gv-n-o', sec), outN = $('#gv-n-out', sec);
+  function renderN(animate) {
+    const k = cur, q1 = k / 8, q2 = 1 - q1, w = 0.20 * q1 * 0.5 / 600;
+    [q1, q2].forEach((q, j) => { setAttrs(qBars[j].r, { width: bw * q }); setAttrs(qBars[j].t, { x: bx + bw * q + 6 }); setT(qBars[j].t, `${j ? 8 - k : k}/8 = ${q.toFixed(3)}`); });
+    setAttrs(wBar, { width: bw * w / wMax }); setAttrs(wT, { x: bx + bw * w / wMax + 6 }); setT(wT, w.toExponential(3));
+    oN.textContent = `${k} of 8`; elN.value = k;
+    outN.innerHTML = `<var>q</var><sub>F1</sub> = ${k}/8 = ${q1.toFixed(3)}, <var>q</var><sub>F2</sub> = ${(8 - k)}/8 = ${q2.toFixed(3)}.<br>` +
+      `<var>w</var>(F<sub>1</sub>→R<sub>1</sub>) = 0.20 × ${q1.toFixed(3)} × 0.500 / 600 = ${w.toExponential(3)}. Tile areas: unchanged.`;
+    dots.forEach((e, d) => {
+      const [x, y] = where(d, k);
+      if (!animate) { setAttrs(e, { cx: x, cy: y }); return; }
+      const x0 = +e.getAttribute('cx'), y0 = +e.getAttribute('cy');
+      if (x0 !== x || y0 !== y) ctx.tween(500, t => setAttrs(e, { cx: x0 + (x - x0) * t, cy: y0 + (y - y0) * t }));
+    });
+  }
+  elN.addEventListener('input', () => { cur = +elN.value; renderN(true); });
+  renderN(false);
+
+  return {
+    step(i) {
+      ctx.clear(); showScene(sc, i);
+      if (i === 0) { renderP(); links.forEach(l => undraw(l)); cyclePairs(0); }
+      else renderN(false);
+    }
+  };
+};
+
+/* ================= Part 4b: tile-area correction (stage 15) ================= */
+FIGS.area = (svg, sec) => {
+  plate(svg); const ctx = Ctx();
+  const sc = scenes(svg, 4);
+
+  /* scene 0: a wider focal tile overlaps more tiles of other sectors */
+  const g0 = sc[0];
+  const L = 60, R = 540, KM = 4.2, px = km => L + km / KM * (R - L), C0 = 2.1;
+  const bands = [
+    { name: 'Retail · ~a~ > 0', y: 120, cut: [0, .7, 1.3, 2.0, 2.5, 3.3, 4.2], cls: ['terrR', 'terrR2'], ok: true },
+    { name: 'Transport · ~a~ > 0', y: 182, cut: [0, 1.1, 1.9, 2.8, 4.2], cls: ['terrN', 'terrN2'], ok: true },
+    { name: 'Services · ~a~ = 0 (no edge)', y: 244, cut: [0, .5, 1.2, 1.6, 2.3, 3.0, 3.6, 4.2], cls: ['terrX', 'terrX'], ok: false }
+  ];
+  T(g0, L, 44, 'Food (focal tile in gold)', 'sm f-teal');
+  S('rect', { x: L, y: 52, width: R - L, height: 36, class: 'terrF' }, g0);
+  const focal = S('rect', { y: 52, height: 36, class: 'focal' }, g0);
+  bands.forEach(b => {
+    T(g0, L, b.y - 6, b.name, 'sm' + (b.ok ? '' : ' f-muted'));
+    b.tiles = b.cut.slice(0, -1).map((a, k) => S('rect', { x: px(a), y: b.y, width: px(b.cut[k + 1]) - px(a), height: 30, class: b.cls[k % 2] }, g0));
+  });
+  const edgeL = S('line', { y1: 48, y2: 280, class: 'guide' }, g0), edgeR = S('line', { y1: 48, y2: 280, class: 'guide' }, g0);
+  const hitsAt = w => bands.map(b => b.cut.slice(0, -1).filter((a, k) => Math.min(b.cut[k + 1], C0 + w / 2) - Math.max(a, C0 - w / 2) > 1e-9).length);
+  // inset: overlap count against focal width
+  const ix = w => 80 + (w - 0.1) / 2.9 * 270, maxCount = hitsAt(3).reduce((a, b) => a + b, 0);
+  const iy = c => 410 - c / maxCount * 96;
+  S('path', { d: `M80,306V410H${ix(3) + 6}`, class: 'axis' }, g0);
+  [0.1, 1, 2, 3].forEach(w => T(g0, ix(w), 424, w + ' km', 'xs mono f-muted', { 'text-anchor': 'middle' }));
+  [0, Math.round(maxCount / 2), maxCount].forEach(c => T(g0, 74, iy(c) + 4, c, 'xs mono f-muted', { 'text-anchor': 'end' }));
+  T(g0, 86, 302, 'overlapped tiles against focal tile width', 'xs f-muted');
+  let dAll = '', dOk = '';
+  for (let w = 0.1; w <= 3.0001; w += 0.01) {
+    const h = hitsAt(w), all = h[0] + h[1] + h[2], ok = h[0] + h[1];
+    dAll += (dAll ? 'L' : 'M') + ix(w).toFixed(1) + ',' + iy(all).toFixed(1);
+    dOk += (dOk ? 'L' : 'M') + ix(w).toFixed(1) + ',' + iy(ok).toFixed(1);
+  }
+  S('path', { d: dAll, class: 'mean' }, g0); S('path', { d: dOk, class: 'curve' }, g0);
+  T(g0, ix(3) + 4, iy(maxCount) + 4, 'all', 'xs f-gold');
+  const iMark = S('circle', { r: 6, class: 'handle f-teal' }, g0);
+  T(g0, 400, 318, 'tiles overlapped', 'xs f-muted');
+  const cntT = [T(g0, 400, 338, '', 'sm'), T(g0, 400, 358, '', 'sm'), T(g0, 400, 378, '', 'sm f-muted'), T(g0, 400, 404, '', 'sm f-teal')];
+  const elW = $('#ar-w', sec), oW = $('#ar-w-o', sec), outW = $('#ar-w-out', sec);
+  let wid = 0.6;
+  function renderW(w) {
+    const a = C0 - w / 2, b = C0 + w / 2;
+    setAttrs(focal, { x: px(a), width: px(b) - px(a) });
+    setAttrs(edgeL, { x1: px(a), x2: px(a) }); setAttrs(edgeR, { x1: px(b), x2: px(b) });
+    const h = hitsAt(w);
+    bands.forEach(bd => bd.tiles.forEach((t, k) => t.classList.toggle('hit', Math.min(bd.cut[k + 1], b) - Math.max(bd.cut[k], a) > 1e-9)));
+    setT(cntT[0], `Retail: ${h[0]}`); setT(cntT[1], `Transport: ${h[1]}`);
+    setT(cntT[2], `Services: ${h[2]} (~a~ = 0)`); setT(cntT[3], `candidate neighbours: ${h[0] + h[1]}`);
+    setAttrs(iMark, { cx: ix(w), cy: iy(h[0] + h[1]) });
+    return h;
+  }
+  function renderWidth() {
+    const h = renderW(wid);
+    oW.textContent = wid.toFixed(2) + ' km'; elW.value = wid;
+    outW.innerHTML = `Focal tile ${wid.toFixed(2)} km wide: it overlaps ${h[0]} Retail, ${h[1]} Transport and ${h[2]} Services tiles.<br>` +
+      `Candidate X neighbours (positive coefficient): <strong>${h[0] + h[1]}</strong>. At the narrowest width there are still ${hitsAt(0.1)[0] + hitsAt(0.1)[1]}.`;
+  }
+  elW.addEventListener('input', () => { ctx.clear(); wid = +elW.value; renderWidth(); });
+  renderWidth();
+
+  /* scene 1: PPML fit on invented tiles */
+  const g1 = sc[1];
+  const rnd = (seed => () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; })(20261109);
+  const poisson = mu => { const lim = Math.exp(-mu); let k = 0, q = 1; do { k++; q *= rnd(); } while (q > lim); return k - 1; };
+  const NT = 42, la0 = Math.log(0.06), la1 = Math.log(14);
+  const toy = Array.from({ length: NT }, (_, i) => { const x = la0 + (la1 - la0) * (i + rnd()) / NT; return { x, y: poisson(5 * Math.exp(0.45 * x)) }; });
+  const sumY = toy.reduce((a, t) => a + t.y, 0);
+  const b0For = g => Math.log(sumY / toy.reduce((a, t) => a + Math.exp(g * t.x), 0));
+  const deviance = (b0, g) => 2 * toy.reduce((a, t) => { const mu = Math.exp(b0 + g * t.x); return a + (t.y > 0 ? t.y * Math.log(t.y / mu) : 0) - (t.y - mu); }, 0);
+  const fit = (() => { // Newton–Raphson on the Poisson score equations (log link)
+    let b0 = Math.log(sumY / NT), b1 = 0;
+    for (let it = 0; it < 100; it++) {
+      let s0 = 0, s1 = 0, h00 = 0, h01 = 0, h11 = 0;
+      for (const t of toy) { const mu = Math.exp(b0 + b1 * t.x), r = t.y - mu; s0 += r; s1 += r * t.x; h00 += mu; h01 += mu * t.x; h11 += mu * t.x * t.x; }
+      const det = h00 * h11 - h01 * h01, d0 = (h11 * s0 - h01 * s1) / det, d1 = (h00 * s1 - h01 * s0) / det;
+      b0 += d0; b1 += d1; if (Math.abs(d0) + Math.abs(d1) < 1e-12) break;
+    }
+    return { b0, g: b1 };
+  })();
+  const ax = a => 70 + (Math.log10(a) - Math.log10(0.05)) / (Math.log10(20) - Math.log10(0.05)) * 330;
+  const ay = k => 330 - (Math.log10(k) - Math.log10(0.8)) / (Math.log10(50) - Math.log10(0.8)) * 270;
+  S('path', { d: `M70,52V352H${ax(20) + 6}`, class: 'axis' }, g1);
+  [0.1, 1, 10].forEach(a => { S('path', { d: `M${ax(a)},352v5`, class: 'axis' }, g1); T(g1, ax(a), 370, a + ' km²', 'xs mono f-muted', { 'text-anchor': 'middle' }); });
+  [1, 3, 10, 30].forEach(k => { S('path', { d: `M70,${ay(k)}H${ax(20)}`, class: 'gridl' }, g1); T(g1, 64, ay(k) + 4, k, 'xs mono f-muted', { 'text-anchor': 'end' }); });
+  T(g1, 64, 349, '0', 'xs mono f-muted', { 'text-anchor': 'end' });
+  T(g1, 76, 46, 'total directed degree ~k~ (log scale; zeros on the bottom row)', 'xs f-muted');
+  T(g1, 236, 392, 'final tile area ~A~ (log scale)', 'xs f-muted', { 'text-anchor': 'middle' });
+  const pts = toy.map(t => S('circle', { cx: ax(Math.exp(t.x)), cy: t.y > 0 ? ay(t.y) : 345, r: 4.5, class: 'dot ' + (t.y > 0 ? 'f-ink' : 'f-rose') + ' off' }, g1));
+  const curveFor = (b0, g) => { let d = ''; for (let a = 0.05; a <= 20.001; a *= 1.06) { const k = Math.exp(b0 + g * Math.log(a)); d += (d ? 'L' : 'M') + ax(a).toFixed(1) + ',' + ay(clamp(k, 0.8, 50)).toFixed(1); } return d; };
+  const fitPath = S('path', { d: curveFor(fit.b0, fit.g), class: 'curve draw', pathLength: 1 }, g1);
+  const tryPath = S('path', { class: 'mean' }, g1);
+  const fitLab = T(g1, ax(14), ay(Math.exp(fit.b0 + fit.g * Math.log(14))) - 12, `PPML fit: ~γ~ = ${fit.g.toFixed(3)}`, 'sm f-teal halo', { 'text-anchor': 'end' });
+  // inset: deviance against γ
+  const gx = g => 440 + g * 140, devs = [];
+  for (let g = 0; g <= 1.0001; g += 0.01) devs.push([g, deviance(b0For(g), g)]);
+  const dMin = Math.min(...devs.map(d => d[1])), dMax = Math.max(...devs.map(d => d[1]));
+  const gy = d => 200 - (d - dMin) / (dMax - dMin) * 120;
+  S('path', { d: 'M440,74V200H586', class: 'axis' }, g1);
+  T(g1, 440, 66, 'Poisson deviance against ~γ~', 'xs f-muted');
+  [0, 0.5, 1].forEach(g => T(g1, gx(g), 214, g, 'xs mono f-muted', { 'text-anchor': 'middle' }));
+  S('path', { d: devs.map(([g, d], k) => (k ? 'L' : 'M') + gx(g).toFixed(1) + ',' + gy(d).toFixed(1)).join(''), class: 'curve' }, g1);
+  S('path', { d: `M${gx(fit.g)},${gy(deviance(fit.b0, fit.g))}V200`, class: 'guide' }, g1);
+  const gDot = S('circle', { r: 6, class: 'handle f-gold' }, g1);
+  const runT = T(g1, 436, 246, '', 'xs f-blue'), runT2 = T(g1, 436, 262, '', 'xs f-blue'), runT3 = T(g1, 436, 278, '', 'xs f-blue');
+  T(g1, 440, 300, 'red points: degree 0,', 'xs f-rose'); T(g1, 440, 316, 'kept in the PPML fit', 'xs f-rose');
+  const elG = $('#ar-g', sec), oG = $('#ar-g-o', sec), outG = $('#ar-g-out', sec);
+  let gTry = 0.2;
+  function renderG() {
+    const b0 = b0For(gTry), dev = deviance(b0, gTry);
+    setAttrs(tryPath, { d: curveFor(b0, gTry) });
+    setAttrs(gDot, { cx: gx(gTry), cy: gy(dev) });
+    oG.textContent = gTry.toFixed(2); elG.value = gTry;
+    outG.innerHTML = `<var>γ</var> = ${gTry.toFixed(2)}: best intercept <var>β</var><sub>0</sub> = ${b0.toFixed(3)}, deviance ${dev.toFixed(2)} ` +
+      `(minimum ${deviance(fit.b0, fit.g).toFixed(2)} at <var>γ̂</var> = ${fit.g.toFixed(3)}).<br>Doubling the area multiplies the expected degree by 2<sup>${gTry.toFixed(2)}</sup> = ${Math.pow(2, gTry).toFixed(3)}; ` +
+      `${toy.filter(t => t.y === 0).length} of ${NT} invented tiles have degree 0.`;
+  }
+  elG.addEventListener('input', () => { gTry = +elG.value; renderG(); });
+  renderG();
+
+  /* scene 2: the factor curve and unit invariance */
+  const g2 = sc[2];
+  // This four-node gamma is deliberately independent of the 42-observation PPML demonstration.
+  const GAM = 0.44;
+  const fy = f => 400 - (Math.log10(f) - Math.log10(0.2)) / (Math.log10(5) - Math.log10(0.2)) * 330;
+  const fx2 = a => 60 + (Math.log10(a) - Math.log10(0.05)) / (Math.log10(20) - Math.log10(0.05)) * 300;
+  S('rect', { x: 60, y: 70, width: fx2(1) - 60, height: fy(1) - 70, class: 'boost' }, g2);
+  T(g2, 70, 90, '~f~ > 1: tiles under 1 km²', 'xs f-gold');
+  S('path', { d: `M60,70V400H${fx2(20) + 6}`, class: 'axis' }, g2);
+  [0.1, 1, 10].forEach(a => { S('path', { d: `M${fx2(a)},400v5`, class: 'axis' }, g2); T(g2, fx2(a), 418, a + ' km²', 'xs mono f-muted', { 'text-anchor': 'middle' }); });
+  [0.25, 0.5, 1, 2, 4].forEach(f => { S('path', { d: `M60,${fy(f)}H${fx2(20)}`, class: 'gridl' }, g2); T(g2, 54, fy(f) + 4, f, 'xs mono f-muted', { 'text-anchor': 'end' }); });
+  S('path', { d: `M${fx2(1)},70V400M60,${fy(1)}H${fx2(20)}`, class: 'guide' }, g2);
+  T(g2, 66, 62, '~f~ = ~A~^{−0.44} (example ~γ~)', 'xs f-muted');
+  let fd = ''; for (let a = 0.05; a <= 20.001; a *= 1.05) fd += (fd ? 'L' : 'M') + fx2(a).toFixed(1) + ',' + fy(Math.pow(a, -GAM)).toFixed(1);
+  const fCurve = S('path', { d: fd, class: 'curve draw', pathLength: 1 }, g2);
+  const labelAt = { F1: [12, -8, 'start'], F2: [-12, 18, 'end'], R1: [-10, -10, 'end'], R2: [10, 20, 'start'] };
+  const fPts = XEX.order.map(k => {
+    const a = XEX.AREA[k], f = Math.pow(a, -GAM), [ox, oy, an] = labelAt[k];
+    const c = S('circle', { cx: fx2(a), cy: fy(f), r: 6, class: 'dot ' + (k[0] === 'F' ? 'f-teal' : 'f-blue') + ' off' }, g2);
+    const t = T(g2, fx2(a) + ox, fy(f) + oy, nodeTex(k), 'sm halo off', { 'text-anchor': an });
+    return [c, t];
+  });
+  const tx = [392, 478, 534, 590];
+  const unitHead = T(g2, tx[1], 70, '', 'xs f-muted', { 'text-anchor': 'end' });
+  T(g2, tx[0], 70, 'tile', 'xs f-muted'); T(g2, tx[2], 70, '~f~', 'xs f-muted', { 'text-anchor': 'end' }); T(g2, tx[3], 70, '~C~', 'xs f-muted', { 'text-anchor': 'end' });
+  S('path', { d: 'M380,78H590', class: 'axis' }, g2);
+  const rows = XEX.order.map((k, i) => {
+    const y = 100 + i * 26;
+    T(g2, tx[0], y, nodeTex(k), 'sm');
+    return [1, 2, 3].map(j => T(g2, tx[j], y, '', 'sm mono', { 'text-anchor': 'end' }));
+  });
+  T(g2, 384, 230, '~f~ changes with the unit;', 'xs f-muted');
+  T(g2, 384, 248, 'the ratios ~f~_{~i~} / ~f~_{~j~} and ~C~ do not.', 'xs f-teal');
+  const ratioT = T(g2, 384, 280, '', 'xs mono f-muted'), ratioT2 = T(g2, 384, 298, '', 'xs mono f-muted');
+  const outU = $('#ar-u-out', sec), unitPills = $$('#ar-units .pill', sec);
+  let unit = 1;
+  const unitName = { 1: 'km²', 100: 'ha', 1000000: 'm²' };
+  function renderU() {
+    const f = tileFactors(GAM, true, unit), K = areaKatz(f);
+    setT(unitHead, `~A~ (${unitName[unit]})`);
+    XEX.order.forEach((k, i) => {
+      setT(rows[i][0], unit === 1 ? XEX.AREA[k].toFixed(1) : (XEX.AREA[k] * unit).toLocaleString('en-US', { maximumFractionDigits: 0 }));
+      setT(rows[i][1], f[i] < 0.01 ? f[i].toExponential(2) : f[i].toFixed(3));
+      setT(rows[i][2], K.C[i].toFixed(4));
+    });
+    setT(ratioT, `~f~_{R1} / ~f~_{R2} = ${(f[2] / f[3]).toFixed(4)}`);
+    setT(ratioT2, `rank: ${rankText(K.C).join(' › ')}`);
+    unitPills.forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.unit === unit)));
+    outU.innerHTML = `Unit ${unitName[unit]}: every factor is multiplied by ${unit}<sup>−0.44</sup> = ${Math.pow(unit, -GAM).toPrecision(3)}.<br>` +
+      `<var>C</var> = ${K.C.map((c, i) => `${nodeHtml(XEX.order[i])} ${c.toFixed(4)}`).join(', ')} (unchanged).`;
+  }
+  unitPills.forEach(b => b.addEventListener('click', () => { unit = +b.dataset.unit; renderU(); }));
+  renderU();
+
+  /* scene 3: the two operators as matrices */
+  const g3 = sc[3];
+  const f44 = tileFactors(GAM);
+  const Wt = XEX.W.map((r, i) => r.map((_, j) => XEX.W[j][i]));
+  const mats = {
+    w: XEX.W,
+    out: XEX.W.map((r, i) => r.map(v => f44[i] * v)),
+    in: Wt.map((r, i) => r.map(v => f44[i] * v)),
+    inT: XEX.W.map((r, i) => r.map(v => f44[i] * v)).map((r, i, M) => r.map((_, j) => M[j][i]))
+  };
+  function grid(x0, y0, cw, ch, title, sub) {
+    const g = S('g', null, g3);
+    T(g, x0, y0 - 30, title, 'sm');
+    T(g, x0, y0 - 12, sub, 'xs f-muted');
+    const cells = XEX.order.map((rk, i) => {
+      T(g, x0 - 8, y0 + i * ch + ch / 2 + 4, nodeTex(rk), 'xs', { 'text-anchor': 'end' });
+      return XEX.order.map((ck, j) => {
+        if (i === 0) T(g, x0 + j * cw + cw / 2, y0 + 4 * ch + 16, nodeTex(ck), 'xs', { 'text-anchor': 'middle' });
+        const r = S('rect', { x: x0 + j * cw, y: y0 + i * ch, width: cw, height: ch, class: 'mcell' }, g);
+        const t = T(g, x0 + j * cw + cw / 2, y0 + i * ch + ch / 2 + 4, '', 'xs mono', { 'text-anchor': 'middle' });
+        return { r, t };
+      });
+    });
+    return { g, cells };
+  }
+  const one = grid(150, 96, 74, 50, '', '');
+  const fCol = XEX.order.map((k, i) => T(g3, 470, 96 + i * 50 + 29, '', 'xs mono f-gold'));
+  const fHead = T(g3, 470, 84, '', 'xs f-gold');
+  const cmpL = grid(62, 112, 56, 46, '~F W~^{T} (SIGMA, rows × ~f~)', 'row ~i~: incoming links × ~f~_{~i~}');
+  const cmpR = grid(352, 112, 56, 46, '(~F W~)^{T} = ~W~^{T}~F~ (not used)', 'column ~j~ × ~f~_{~j~}');
+  const oneTitle = T(g3, 150, 66, '', 'sm'), oneSub = T(g3, 150, 84, '', 'xs f-muted');
+  const diffNote = T(g3, 300, 380, '', 'sm f-rose', { 'text-anchor': 'middle' });
+  const legend = T(g3, 300, 420, 'values × 10^{−5}; example ~γ~ = 0.44, so ~f~ = (0.707, 0.737, 0.891, 0.626)', 'xs f-muted', { 'text-anchor': 'middle' });
+  const show = v => v === 0 ? '·' : (v * 1e5).toFixed(2);
+  function paint(gr, M, cls) { gr.cells.forEach((row, i) => row.forEach((c, j) => { setT(c.t, show(M[i][j])); c.r.setAttribute('class', 'mcell' + (M[i][j] ? ' nz' : '') + (cls ? cls(i, j) : '')); })); }
+  let op = 'w';
+  const opPills = $$('#ar-ops .pill', sec);
+  function renderOp(animate) {
+    ctx.clear();
+    opPills.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.op === op)));
+    const cmp = op === 'cmp';
+    vis([one.g, oneTitle, oneSub, fHead, ...fCol], !cmp); vis([cmpL.g, cmpR.g], cmp); setT(diffNote, '');
+    if (cmp) {
+      const diff = (i, j) => Math.abs(mats.in[i][j] - mats.inT[i][j]) > 1e-15 ? ' diff' : '';
+      paint(cmpL, mats.in, diff); paint(cmpR, mats.inT, diff);
+      const n = mats.in.flat().filter((v, k) => Math.abs(v - mats.inT.flat()[k]) > 1e-15).length;
+      setT(diffNote, `${n} of 6 nonzero cells differ: the left uses the focal tile's factor, the right the neighbour's`);
+      return;
+    }
+    const base = op === 'in' ? Wt : XEX.W, target = mats[op];
+    setT(oneTitle, op === 'w' ? 'original X weights ~W~ (unchanged in sigma_X_edges.csv)' : op === 'out' ? '~W~^{out′} = ~F W~' : '~W~^{in′} = ~F W~^{T}');
+    setT(oneSub, op === 'in' ? 'row ~i~ = tile ~i~\'s incoming links (column = source)' : 'row ~i~ = tile ~i~\'s outgoing links (column = destination)');
+    setT(fHead, op === 'w' ? '' : 'row factor ~f~_{~i~}');
+    fCol.forEach((t, i) => setT(t, op === 'w' ? '' : '× ' + f44[i].toFixed(3)));
+    paint(one, base);
+    if (op === 'w') return;
+    const rowsDone = (i) => one.cells[i].forEach((c, j) => { setT(c.t, show(target[i][j])); });
+    XEX.order.forEach((_, i) => {
+      const run = () => {
+        one.cells.forEach((row, r) => row.forEach((c, j) => c.r.setAttribute('class', 'mcell' + (base[r][j] ? ' nz' : '') + (r === i ? ' hot' : ''))));
+        fCol.forEach((t, r) => t.classList.toggle('dim', r !== i));
+        rowsDone(i);
+        if (i === 3) ctx.after(700, () => { paint(one, target); fCol.forEach(t => t.classList.remove('dim')); });
+      };
+      if (animate && !RM) ctx.after(300 + i * 750, run); else { rowsDone(i); if (i === 3) paint(one, target); }
+    });
+  }
+  opPills.forEach(b => b.addEventListener('click', () => { op = b.dataset.op; renderOp(true); }));
+  void legend;
+
+  // Current-run values, when the Explorer bundle publishes them (tutorial-live.js).
+  window.addEventListener('sigma:tile-area', ev => {
+    const t = ev.detail && ev.detail.tile;
+    if (!t || typeof t.gamma !== 'number') {
+      setT(runT, 'this run: no fitted ~γ~ published'); setT(runT2, t && t.regression_status ? `status: ${t.regression_status}` : '');
+      return;
+    }
+    const ci = Array.isArray(t.ci95) && t.ci95.every(v => typeof v === 'number') ? `95% CI [${t.ci95[0].toFixed(3)}, ${t.ci95[1].toFixed(3)}]` : '';
+    setT(runT, `this run: fitted ~γ~ = ${t.gamma.toFixed(3)}`);
+    setT(runT2, ci);
+    setT(runT3, `${(t.nodes || 0).toLocaleString('en-US')} tiles (not these toy tiles)`);
+  });
+
+  return {
+    step(i) {
+      ctx.clear(); showScene(sc, i);
+      if (i === 0) {
+        if (RM) { renderWidth(); return; }
+        const target = wid;
+        ctx.tween(1800, e => renderW(0.1 + e * (Math.max(target, 2.4) - 0.1)), () => ctx.after(400, () => ctx.tween(900, e => renderW(2.4 + e * (target - 2.4)), renderWidth)));
+      }
+      if (i === 1) {
+        pts.forEach(p => p.classList.add('off')); undraw(fitPath); vis(fitLab, false);
+        pts.forEach((p, k) => ctx.after(RM ? 0 : 30 * k, () => p.classList.remove('off')));
+        ctx.after(RM ? 0 : 30 * NT + 200, () => { drawIn(fitPath, ctx); ctx.after(RM ? 0 : 900, () => vis(fitLab, true)); });
+        renderG();
+      }
+      if (i === 2) {
+        undraw(fCurve); drawIn(fCurve, ctx, 100);
+        fPts.forEach(([c, t], k) => { vis([c, t], false); ctx.after(RM ? 0 : 900 + 250 * k, () => vis([c, t], true)); });
+        renderU();
+      }
+      if (i === 3) renderOp(true);
+    }
+  };
+};
+
+/* ================= Part 4c: balanced Katz on the adjusted operators (stages 15–16) ================= */
+FIGS.katz = (svg, sec) => {
+  const AH = plate(svg); const ctx = Ctx();
+  const sc = scenes(svg, 3);
+  const { P, order, RAD } = XEX;
+  /* scene 0: graph, walk and Katz bars */
+  const g0 = sc[0];
+  const { edgeEls, nodeEls } = drawXGraph(g0, AH);
+  const areaT = order.map(k => { const [x, y] = P[k], top = y < 200; return T(g0, x, top ? y - RAD - 9 : y + RAD + 19, `${XEX.AREA[k]} km²`, 'xs f-muted', { 'text-anchor': 'middle' }); });
+  const fT = order.map(k => { const [x, y] = P[k], top = y < 200; return T(g0, x, top ? y - RAD - 23 : y + RAD + 33, '', 'xs mono f-gold', { 'text-anchor': 'middle' }); });
+  const walk = S('g', { class: 'off' }, g0);
+  T(walk, 366, 70, '1 step adds  ~α~ · ~f~ · ~w~', 'hd'); T(walk, 366, 98, '2 steps add  ~α~^{2} · ~f w~ · ~f w~', 'hd');
+  T(walk, 366, 138, 'this walk: ~F~_{2} → ~R~_{2} → ~F~_{1}', 'sm f-gold');
+  T(walk, 366, 164, '~K~^{out}(~F~_{2}) += ~α~^{2} · ~f~_{F2}~w~ · ~f~_{R2}~w~', 'sm');
+  T(walk, 366, 186, '~K~^{in}(~F~_{1}) += ~α~^{2} · ~f~_{F1}~w~ · ~f~_{R2}~w~', 'sm');
+  const walkF = T(walk, 366, 216, '', 'xs f-muted');
+  T(walk, 366, 252, '~R~_{2} is neither start nor end,', 'sm f-gold');
+  T(walk, 366, 272, 'but ~f~_{R2} enters both sums', 'sm f-gold');
+  T(walk, 366, 304, 'indirect walks and shared ~α~', 'sm f-muted');
+  T(walk, 366, 322, 'both transmit area effects', 'sm f-muted');
+  const tokW = S('circle', { r: 8, class: 'dot f-gold off' }, g0);
+  const kat = S('g', { class: 'off' }, g0);
+  [['~K~^{in}', 'barb tealf'], ['~K~^{out}', 'barb blue'], ['~C~', 'barb gold']].forEach(([l, c], k) => { S('rect', { x: 370 + k * 62, y: 34, width: 12, height: 12, class: c }, kat); T(kat, 388 + k * 62, 45, l, 'sm'); });
+  S('rect', { x: 556, y: 34, width: 12, height: 12, class: 'ghostb' }, kat); T(kat, 572, 45, 'off', 'xs f-muted');
   const kBars = order.map((k, i) => {
-    const y = 78 + i * 84;
-    T(kat, 370, y, `~${k[0]}~_{${k[1]}}`, 'hd');
-    const mk = (dy, c) => ({ r: S('rect', { x: 400, y: y + dy, width: 0, height: 14, class: c }, kat), t: T(kat, 404, y + dy + 12, '', 'sm mono') });
+    const y = 72 + i * 80;
+    T(kat, 370, y, nodeTex(k), 'hd');
+    const mk = (dy, c) => ({ g: S('rect', { x: 400, y: y + dy, width: 0, height: 14, class: 'ghostb' }, kat), r: S('rect', { x: 400, y: y + dy, width: 0, height: 14, class: c }, kat), t: T(kat, 404, y + dy + 12, '', 'sm mono') });
     return { kin: mk(6, 'barb tealf'), kout: mk(24, 'barb blue'), C: mk(42, 'barb gold') };
   });
-  const kNote = T(kat, 370, 412, '', 'sm f-muted'), kNote2 = T(kat, 370, 430, '', 'sm f-muted');
-  const W = order.map(src => order.map(dst => EDG.find(([a, b]) => a === src && b === dst)?.[2] ?? 0)); // same weights as the edge diagram
-  function spectral(M) {
-    const n = M.length, s = Math.max(...M.map(r => r.reduce((a, b) => a + b, 0)));
-    let x = Array(n).fill(1), lam = 0;
-    for (let it = 0; it < 600; it++) {
-      const y = x.map((_, i) => M[i].reduce((a, w, j) => a + w * x[j], 0) + s * x[i]);
-      lam = y.reduce((a, v, i) => a + v * x[i], 0) / x.reduce((a, v) => a + v * v, 0);
-      const nm = Math.hypot(...y); x = y.map(v => v / nm);
-    }
-    return lam - s;
-  }
-  function solve(A, b) {
-    const n = b.length, M = A.map((r, i) => [...r, b[i]]);
-    for (let c = 0; c < n; c++) {
-      let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
-      [M[c], M[p]] = [M[p], M[c]];
-      for (let r = 0; r < n; r++) { if (r === c) continue; const f = M[r][c] / M[c][c]; for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
-    }
-    return M.map((r, i) => r[n] / r[i]);
-  }
-  const rho = spectral(W);
-  function katz(f) {
-    const a = f / rho, I = (i, j) => i === j ? 1 : 0, one = [1, 1, 1, 1];
-    const kin = solve(W.map((r, i) => r.map((_, j) => I(i, j) - a * W[j][i])), one);
-    const kout = solve(W.map((r, i) => r.map((w, j) => I(i, j) - a * w)), one);
-    const g = kin.map((v, i) => Math.sqrt(v * kout[i])), nm = Math.hypot(...g);
-    return { a, kin, kout, C: g.map(v => v / nm) };
-  }
+  const rankA = T(kat, 370, 404, '', 'sm f-gold'), rankB = T(kat, 370, 424, '', 'sm f-muted');
   const elA = $('#af', sec), oA = $('#af-o', sec), outA = $('#af-out', sec);
-  let fac = 0.85;
+  const elAdj = $('#kz-adj', sec), elGm = $('#kz-g', sec), oGm = $('#kz-g-o', sec);
+  let fac = 0.85, gam = 0.44, adj = true;
+  const factors = () => tileFactors(gam, adj);
+  function renderFactors() {
+    const f = factors();
+    order.forEach((k, i) => setT(fT[i], adj ? `~f~ = ${f[i].toFixed(3)}` : '~f~ = 1'));
+    setT(walkF, adj ? `~f~_{F2} = ${f[1].toFixed(3)}, ~f~_{R2} = ${f[3].toFixed(3)}, ~f~_{F1} = ${f[0].toFixed(3)}` : 'correction off: every ~f~ = 1');
+  }
   function renderKatz() {
-    const r = katz(fac), km = Math.max(...r.kin, ...r.kout);
+    const r = areaKatz(factors(), fac), base = areaKatz(tileFactors(gam, false), fac);
+    const km = Math.max(...r.kin, ...r.kout, ...base.kin, ...base.kout);
     order.forEach((k, i) => {
       const b = kBars[i];
-      const put = (o, v, w, digits) => { o.r.setAttribute('width', w); setAttrs(o.t, { x: 404 + w }); setT(o.t, v.toFixed(digits)); };
-      put(b.kin, r.kin[i], 130 * r.kin[i] / km, 2); put(b.kout, r.kout[i], 130 * r.kout[i] / km, 2); put(b.C, r.C[i], 130 * r.C[i], 3);
+      const put = (o, v, v0, w, w0, digits) => { o.r.setAttribute('width', w); o.g.setAttribute('width', w0); setAttrs(o.t, { x: 404 + Math.max(w, w0) }); setT(o.t, v.toFixed(digits)); };
+      put(b.kin, r.kin[i], base.kin[i], 128 * r.kin[i] / km, 128 * base.kin[i] / km, 2);
+      put(b.kout, r.kout[i], base.kout[i], 128 * r.kout[i] / km, 128 * base.kout[i] / km, 2);
+      put(b.C, r.C[i], base.C[i], 128 * r.C[i], 128 * base.C[i], 3);
       nodeEls[k].c.setAttribute('r', (18 + 26 * r.C[i]).toFixed(1));
     });
-    setT(kNote, `~ρ~(~W~) = ${rho.toExponential(3)}`); setT(kNote2, `~α~ = ${fac.toFixed(2)} / ${rho.toExponential(3)} = ${r.a.toExponential(3)}`);
-    oA.textContent = fac.toFixed(2); elA.value = fac;
-    outA.innerHTML = `ρ(<var>W</var>) = ${rho.toExponential(3)}, so α = ${fac.toFixed(2)} / ${rho.toExponential(3)} = ${r.a.toExponential(3)}.<br>` +
-      order.map((k, i) => `${k}: <var>K</var><sup>in</sup> ${r.kin[i].toFixed(2)}, <var>K</var><sup>out</sup> ${r.kout[i].toFixed(2)}, <var>C</var> ${r.C[i].toFixed(3)}`).join('<br>');
+    setT(rankA, `rank: ${rankText(r.C).map(nodeTex).join(' › ')}`);
+    setT(rankB, `without correction: ${rankText(base.C).map(nodeTex).join(' › ')}`);
+    renderFactors();
+    oA.textContent = fac.toFixed(2); elA.value = fac; oGm.textContent = gam.toFixed(2); elGm.value = gam; elGm.disabled = !adj;
+    outA.innerHTML = `${adj ? `<var>f</var> = (${factors().map(v => v.toFixed(3)).join(', ')}) from <var>γ</var> = ${gam.toFixed(2)}` : 'Correction off: <var>F</var> = <var>I</var>'}; ` +
+      `ρ(<var>F W</var>) = ${r.rho.toExponential(3)}, so α = ${fac.toFixed(2)} / ${r.rho.toExponential(3)} = ${r.a.toExponential(3)}.<br>` +
+      order.map((k, i) => `${nodeHtml(k)}: <var>K</var><sup>in</sup> ${r.kin[i].toFixed(2)}, <var>K</var><sup>out</sup> ${r.kout[i].toFixed(2)}, <var>C</var> ${r.C[i].toFixed(3)} (off: ${base.C[i].toFixed(3)})`).join('<br>');
   }
   elA.addEventListener('input', () => { fac = +elA.value; renderKatz(); });
+  elGm.addEventListener('input', () => { gam = +elGm.value; renderKatz(); });
+  elAdj.addEventListener('change', () => { adj = elAdj.checked; renderKatz(); });
   renderKatz();
   const resetNodes = () => Object.values(nodeEls).forEach(n => n.c.setAttribute('r', RAD));
 
-  /* scene 2: geometric mean */
-  const g2 = sc[2];
+  /* scene 1: geometric mean */
+  const g1 = sc[1];
   const gx = v => 80 + (v - 0) * 46, gy = v => 380 - v * 52;
-  S('path', { d: `M80,${gy(6.2)}V380H${gx(10) + 8}`, class: 'axis' }, g2);
-  [0, 1, 3, 5, 7, 9, 10].forEach(v => { S('path', { d: `M${gx(v)},380v5`, class: 'axis' }, g2); T(g2, gx(v), 400, v, 'sm mono f-muted', { 'text-anchor': 'middle' }); });
-  [0, 1, 2, 3, 4, 5, 6].forEach(v => { S('path', { d: `M75,${gy(v)}h5`, class: 'axis' }, g2); T(g2, 70, gy(v) + 4, v, 'sm mono f-muted', { 'text-anchor': 'end' }); });
-  T(g2, 310, 426, '~K~^{in} of the node (its ~K~^{out} = 10 − ~K~^{in})', 'sm f-muted', { 'text-anchor': 'middle' });
+  S('path', { d: `M80,${gy(6.2)}V380H${gx(10) + 8}`, class: 'axis' }, g1);
+  [0, 1, 3, 5, 7, 9, 10].forEach(v => { S('path', { d: `M${gx(v)},380v5`, class: 'axis' }, g1); T(g1, gx(v), 400, v, 'sm mono f-muted', { 'text-anchor': 'middle' }); });
+  [0, 1, 2, 3, 4, 5, 6].forEach(v => { S('path', { d: `M75,${gy(v)}h5`, class: 'axis' }, g1); T(g1, 70, gy(v) + 4, v, 'sm mono f-muted', { 'text-anchor': 'end' }); });
+  T(g1, 310, 426, '~K~^{in} of the node (its ~K~^{out} = 10 − ~K~^{in})', 'sm f-muted', { 'text-anchor': 'middle' });
   let cd = ''; for (let v = 1; v <= 9.0001; v += 0.1) cd += (cd ? 'L' : 'M') + gx(v).toFixed(1) + ',' + gy(Math.sqrt(v * (10 - v))).toFixed(1);
-  S('path', { d: `M${gx(1)},${gy(5)}H${gx(9)}`, class: 'mean' }, g2);
-  T(g2, gx(9) + 6, gy(5) + 4, 'arithmetic mean = 5', 'sm f-gold');
-  S('path', { d: cd, class: 'curve' }, g2);
-  T(g2, gx(2.2), gy(4.3), 'geometric mean √(~K~^{in}~K~^{out})', 'sm f-teal halo', { 'text-anchor': 'end' });
+  S('path', { d: `M${gx(1)},${gy(5)}H${gx(9)}`, class: 'mean' }, g1);
+  T(g1, gx(9) + 6, gy(5) + 4, 'arithmetic mean = 5', 'sm f-gold');
+  S('path', { d: cd, class: 'curve' }, g1);
+  T(g1, gx(2.2), gy(4.3), 'geometric mean √(~K~^{in}~K~^{out})', 'sm f-teal halo', { 'text-anchor': 'end' });
   [['A', 9, 3, 'start'], ['B', 5, 5, 'middle'], ['C', 1, 3, 'end']].forEach(([l, k, g, an]) => {
-    S('circle', { cx: gx(k), cy: gy(g), r: 5.5, class: 'exm' }, g2);
-    T(g2, gx(k) + (an === 'start' ? 10 : an === 'end' ? -10 : 0), gy(g) + (an === 'middle' ? -14 : 4), l, 'hd f-muted', { 'text-anchor': an });
+    S('circle', { cx: gx(k), cy: gy(g), r: 5.5, class: 'exm' }, g1);
+    T(g1, gx(k) + (an === 'start' ? 10 : an === 'end' ? -10 : 0), gy(g) + (an === 'middle' ? -14 : 4), l, 'hd f-muted', { 'text-anchor': an });
   });
-  const gG = S('line', { class: 'guide' }, g2), gM = S('circle', { r: 9, class: 'handle f-teal' }, g2), gTx = T(g2, 0, 0, '', 'sm halo f-teal');
+  const gG = S('line', { class: 'guide' }, g1), gM = S('circle', { r: 9, class: 'handle f-teal' }, g1), gTx = T(g1, 0, 0, '', 'sm halo f-teal');
   const elKi = $('#kin', sec), oKi = $('#kin-o', sec), outKi = $('#kin-out', sec);
   let ki = 5;
   function renderGM() {
@@ -3194,6 +3768,67 @@ FIGS.xgraph = (svg, sec) => {
   elKi.addEventListener('input', () => { ki = +elKi.value; renderGM(); });
   renderGM();
 
+  /* scene 2: Metro Manila (or current-run) diagnostics */
+  const g2 = sc[2];
+  const MM = {
+    label: 'Metro Manila read-only review · 14,631 clusters · fitted ~γ~ = 0.445',
+    deciles: [2.30, 1.34, 1.07, 0.93, 0.83, 0.76, 0.70, 0.68, 0.64, 0.74],
+    rows: [['area–Katz Spearman', '+0.422', '−0.027'], ['top 100: smallest decile', '0', '28'], ['top 100: largest decile', '56', '11'],
+      ['top-10 share', '0.85%', '1.92%'], ['top-100 share', '2.59%', '7.25%'], ['rank correlation', '', '0.853'], ['top 100 retained', '', '15']]
+  };
+  let RUN = null;
+  const bx = k => 74 + k * 29, base = 360, vmax = 2.5, by = v => base - Math.min(v, vmax) / vmax * 250;
+  S('path', { d: `M64,100V${base}H${bx(10) + 4}`, class: 'axis' }, g2);
+  [0, 0.5, 1, 1.5, 2, 2.5].forEach(v => T(g2, 58, by(v) + 4, v, 'xs mono f-muted', { 'text-anchor': 'end' }));
+  S('path', { d: `M64,${by(1)}H${bx(10) + 4}`, class: 'mean' }, g2);
+  T(g2, 70, 110, 'dashed line at 1.0: a flat result', 'xs f-gold');
+  T(g2, 70, 92, 'mean ~f~_{~i~}~k~_{~i~} by tile-area decile ÷ overall mean', 'xs f-muted');
+  T(g2, bx(0) + 12, base + 16, 'smallest', 'xs f-muted', { 'text-anchor': 'middle' }); T(g2, bx(9) + 12, base + 16, 'largest', 'xs f-muted', { 'text-anchor': 'middle' });
+  T(g2, (bx(0) + bx(10)) / 2, base + 34, 'tile-area decile', 'xs f-muted', { 'text-anchor': 'middle' });
+  const dBars = Array.from({ length: 10 }, (_, k) => ({ r: S('rect', { x: bx(k), y: base, width: 24, height: 0, class: 'barb ' + (k === 0 ? 'gold' : 'tealf') }, g2), t: T(g2, bx(k) + 12, base - 4, '', 'xs mono', { 'text-anchor': 'middle' }) }));
+  const srcT = T(g2, 70, 422, '', 'xs f-muted');
+  T(g2, 384, 92, 'balanced Katz', 'xs f-muted'); T(g2, 538, 92, 'off', 'xs f-muted', { 'text-anchor': 'end' }); T(g2, 596, 92, 'on', 'xs f-muted', { 'text-anchor': 'end' });
+  S('path', { d: 'M380,100H596', class: 'axis' }, g2);
+  const tRows = Array.from({ length: 7 }, (_, k) => [T(g2, 384, 122 + k * 30, '', 'xs'), T(g2, 538, 122 + k * 30, '', 'xs mono f-muted', { 'text-anchor': 'end' }), T(g2, 596, 122 + k * 30, '', 'xs mono', { 'text-anchor': 'end' })]);
+  T(g2, 384, 346, 'not economic validation;', 'xs f-rose'); const cautionT = T(g2, 384, 362, '', 'xs f-rose');
+  const srcPills = $$('#kz-src .pill', sec);
+  let src = 'mm';
+  function renderDiag(animate) {
+    const D = src === 'run' && RUN ? RUN : MM;
+    srcPills.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.src === src)));
+    setT(srcT, D.label);
+    setT(cautionT, D === MM ? 'the review was not a production run' : 'it describes this run only');
+    dBars.forEach((b, k) => {
+      const v = D.deciles[k];
+      vis([b.r, b.t], typeof v === 'number');
+      if (typeof v !== 'number') return;
+      setT(b.t, v.toFixed(2));
+      const set = e => { const h = (base - by(v)) * e; setAttrs(b.r, { y: base - h, height: h }); setAttrs(b.t, { y: base - h - 4 }); };
+      if (animate && !RM) { set(0); ctx.after(80 * k, () => ctx.tween(500, set)); } else set(1);
+    });
+    tRows.forEach((r, k) => { const row = D.rows[k] || ['', '', '']; setT(r[0], row[0]); setT(r[1], row[1]); setT(r[2], row[2]); });
+  }
+  srcPills.forEach(b => b.addEventListener('click', () => { if (b.disabled) return; src = b.dataset.src; ctx.clear(); renderDiag(true); }));
+  window.addEventListener('sigma:tile-area', ev => {
+    const t = ev.detail && ev.detail.tile, btn = srcPills.find(b => b.dataset.src === 'run');
+    if (!t || !Array.isArray(t.area_deciles) || !t.area_deciles.length) return;
+    const u = t.unadjusted || {}, cAdj = t.concentration || {}, cUn = u.concentration || {};
+    const num = (v, d = 3) => typeof v === 'number' ? (v > 0 ? '+' : '') + fx(v, d) : '—';
+    const pct = v => typeof v === 'number' ? (100 * v).toFixed(2) + '%' : '—';
+    const cnt = v => typeof v === 'number' ? String(v) : '—';
+    RUN = {
+      label: `this run · ${ev.detail.area} · ${(t.nodes || 0).toLocaleString('en-US')} tiles · fitted ~γ~ = ${typeof t.gamma === 'number' ? t.gamma.toFixed(3) : 'not identified'}`,
+      deciles: t.area_deciles.map(d => d.relative_mean_adjusted_degree),
+      rows: [['area–Katz Spearman', num(u.area_katz_spearman_rho), num(t.area_katz_spearman_rho)],
+        ['top 100: smallest decile', cnt(u.top100_smallest_area_decile), cnt(t.top100_smallest_area_decile)],
+        ['top 100: largest decile', cnt(u.top100_largest_area_decile), cnt(t.top100_largest_area_decile)],
+        ['top-10 share', pct(cUn.top10_share), pct(cAdj.top10_share)], ['top-100 share', pct(cUn.top100_share), pct(cAdj.top100_share)],
+        ['rank correlation', '', num(u.rank_correlation_with_adjusted)],
+        [`top ${u.top_k || 100} retained`, '', cnt(u.top_k_retained_after_adjustment)]]
+    };
+    if (btn) { btn.disabled = false; btn.textContent = `this run (${ev.detail.area})`; }
+  });
+
   function loopWalk() {
     const e1 = edgeEls.find(e => e.a === 'F2' && e.b === 'R2'), e2 = edgeEls.find(e => e.a === 'R2' && e.b === 'F1');
     vis(tokW, true);
@@ -3201,30 +3836,26 @@ FIGS.xgraph = (svg, sec) => {
   }
 
   return {
-    step(i, prev) {
+    step(i) {
       ctx.clear();
-      showScene(sc, i === 0 ? 0 : i <= 3 ? 1 : 2);
-      if (i === 0) {
-        vis([ovl, ovl2], false); rG.setAttribute('transform', 'translate(0,150)'); vis(rTitle, true);
-        ctx.after(700, () => ctx.tween(1100, e => rG.setAttribute('transform', `translate(0,${150 * (1 - e)})`), () => { vis(rTitle, false); vis(ovl, true); ctx.after(900, () => vis(ovl2, true)); }));
-      }
-      if (i >= 1 && i <= 3) {
-        vis(tab, i === 1); vis(walk, i === 2); vis(kat, i === 3); vis(tokW, false);
-        edgeEls.forEach(e => { e.path.classList.remove('dim'); vis(e.t, i !== 3); });
-        if (i === 3) renderKatz(); else resetNodes();
-        if (i === 1) { edgeEls.forEach((e, k) => { drawIn(e.path, ctx, 150 + k * 260); }); }
-        else edgeEls.forEach(e => { e.path.style.transition = 'none'; e.path.classList.add('on'); e.path.getBoundingClientRect(); e.path.style.transition = ''; });
-        if (i === 2) {
+      showScene(sc, i <= 1 ? 0 : i === 2 ? 1 : 2);
+      if (i <= 1) {
+        vis(walk, i === 0); vis(kat, i === 1); vis(tokW, false); vis([...areaT, ...fT], true);
+        edgeEls.forEach(e => { e.path.classList.remove('dim'); vis(e.t, i === 0); e.path.style.transition = 'none'; e.path.classList.add('on'); e.path.getBoundingClientRect(); e.path.style.transition = ''; });
+        renderFactors();
+        if (i === 1) renderKatz(); else resetNodes();
+        if (i === 0) {
           edgeEls.forEach(e => { if (!((e.a === 'F2' && e.b === 'R2') || (e.a === 'R2' && e.b === 'F1'))) e.path.classList.add('dim'); });
           loopWalk();
         }
       }
-      if (i === 4) renderGM();
+      if (i === 2) renderGM();
+      if (i === 3) renderDiag(true);
     }
   };
 };
 
-/* ================= Part 4b: canonical inverse-distance point score ================= */
+/* ================= Part 4d: canonical inverse-distance point score ================= */
 FIGS.score = (svg, sec) => {
   plate(svg); const ctx = Ctx();
   const sc = scenes(svg, 2);

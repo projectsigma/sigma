@@ -607,6 +607,57 @@ def _context_label_features(bounds, road_frame):
 # --------------------------------------------------------------------------- bundle
 
 
+def _clean_tree(value: Any) -> Any:
+    """``_clean`` applied through nested dicts and lists."""
+    if isinstance(value, dict):
+        return {str(key): _clean_tree(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [_clean_tree(item) for item in value]
+    return _clean(value)
+
+
+def _tile_area_metadata(diagnostics: Any) -> dict[str, Any] | None:
+    """Aggregate stage 15 values for Under the Hood (no establishment detail)."""
+    if not isinstance(diagnostics, dict):
+        return None
+    regression = diagnostics.get("regression") or {}
+    comparison = diagnostics.get("unadjusted_comparison") or {}
+    keep = ("status", "area_katz_spearman_rho", "rank_correlation_with_adjusted", "top_k",
+            "top_k_retained_after_adjustment", "top100_smallest_area_decile",
+            "top100_largest_area_decile", "concentration")
+    return _clean_tree({
+        "method": diagnostics.get("method"),
+        "x_distance_decay_lambda": diagnostics.get("x_distance_decay_lambda"),
+        "gamma": diagnostics.get("gamma"),
+        "regression_status": regression.get("status"),
+        "ci95": [regression.get("ci95_low"), regression.get("ci95_high")],
+        "robust_se_hc1": regression.get("robust_se_hc1"),
+        "nodes": diagnostics.get("regression_node_count"),
+        "area_km2_min_max": diagnostics.get("area_km2_min_max"),
+        "factor_min_max": diagnostics.get("factor_min_max"),
+        "factor_max_min_ratio": diagnostics.get("factor_max_min_ratio"),
+        "factor_quantiles_p01_p50_p99": diagnostics.get("factor_quantiles_p01_p50_p99"),
+        "area_decile_definition": diagnostics.get("area_decile_definition"),
+        "shared_alpha": diagnostics.get("shared_alpha"),
+        "katz_alpha_factor": diagnostics.get("katz_alpha_factor"),
+        "spectral_scale_method": diagnostics.get("spectral_scale_method"),
+        "area_katz_spearman_rho": diagnostics.get("area_katz_spearman_rho"),
+        "area_katz_in_spearman_rho": diagnostics.get("area_katz_in_spearman_rho"),
+        "area_katz_out_spearman_rho": diagnostics.get("area_katz_out_spearman_rho"),
+        "top100_smallest_area_decile": diagnostics.get("top100_smallest_area_decile"),
+        "top100_largest_area_decile": diagnostics.get("top100_largest_area_decile"),
+        "concentration": diagnostics.get("concentration"),
+        "degree_balance": diagnostics.get("degree_balance"),
+        "area_deciles": [
+            {key: row.get(key) for key in ("decile", "nodes", "area_km2_min", "area_km2_max",
+                                           "relative_mean_degree",
+                                           "relative_mean_adjusted_degree")}
+            for row in diagnostics.get("area_deciles") or [] if isinstance(row, dict)
+        ],
+        "unadjusted": {key: comparison.get(key) for key in keep if key in comparison},
+    })
+
+
 def _build_unstaged_bundle(
     source_dir: Path | str,
     destination: Path | str,
@@ -686,6 +737,11 @@ def _build_unstaged_bundle(
             "lon": _float(row["lon"]), "lat": _float(row["lat"]),
             "in_degree": _int(row.get("in_degree")), "out_degree": _int(row.get("out_degree")),
             "centrality": _float(row.get("centrality")),
+            # Stage 15 tile-area correction and raw Katz components (None when absent).
+            "area_km2": _float(row.get("voronoi_area_km2")),
+            "area_factor": _float(row.get("area_factor")),
+            "katz_in_raw": _float(row.get("katz_in_raw")),
+            "katz_out_raw": _float(row.get("katz_out_raw")),
             "members": 0, "route_file": (f"lazy:{nid}" if browser_routes else None),
             **({"routing_node": int(row["routing_node"])} if browser_routes else {}),
         })
@@ -1192,6 +1248,7 @@ def _build_unstaged_bundle(
         "has_boundary": bool(len(boundary)),
         "score_range": [float(finite.min()), float(finite.max())] if len(finite) else [None, None],
         "distance_unit": _distance_unit(run),
+        "tile_area": _tile_area_metadata(run.get("tile_area_adjustment")),
         **({"route_mode": "browser",
             "routing_graph_privacy": "base_vertices_and_x_centers_only"}
            if browser_routes else {}),

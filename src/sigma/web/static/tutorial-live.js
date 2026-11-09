@@ -101,6 +101,10 @@
     if (!meta || meta.schema_version !== 3 || !Array.isArray(meta.sectors)) {
       throw new Error('Incompatible Explorer metadata. Run sigma view <area> --refresh.');
     }
+    // sigma-under-the-hood-gravity-tile-area-20261109-v1: stage 15 values for the figures.
+    window.dispatchEvent(new CustomEvent('sigma:tile-area', {
+      detail: {tile: meta.tile_area || null, area: meta.area || 'current study area'}
+    }));
     // Independent summary survives missing or oversized graph.json.
     {
       const counts = meta.counts || {};
@@ -290,7 +294,7 @@
       const clusterCount = (bySector.get(idStr(node?.type)) || []).length;
       const c = k => number(counts[k]);
       const note = (what, certainty = '') => [what, certainty];
-      if (partialGraph && ['roads', 'economy', 'xgraph', 'score'].includes(section) && idx > 0) {
+      if (partialGraph && ['roads', 'economy', 'xgraph', 'gravity', 'area', 'katz', 'score'].includes(section) && idx > 0) {
         return note('The current run statistics and center positions remain available. Detailed X edge values are unavailable in this session.', 'The full graph did not load; no absent edge or unreported centrality is being inferred.');
       }
       if (section === 'places') {
@@ -365,8 +369,56 @@
       if (section === 'xgraph') {
         if (idx === 0) return note(`${c('clusters')} X nodes and ${c('edges')} directed X links (or ${c('linked_pairs')} linked node pairs) appear in ${area}.`, 'Sector coupling is a model, not confirmed commercial trade');
         if (idx === 1) return note(example ? `Published link: ${sectorLabel(nodeMap.get(idStr(example.from))?.type)} → ${sectorLabel(nodeMap.get(idStr(example.to))?.type)}; a = ${frac(example.coefficient)}, road distance = ${fmt(example.distance, 2)} ${meta.distance_unit || ''}, X weight = ${frac(example.weight)}.` : 'No incident X link for this cluster.', 'Displayed road distance is the actual center-to-center route. When effective_road_distance is present, the X weight uses center road distance plus both mean member-to-median road radii, capped below at 1 metre, then multiplies by the source and target cluster shares among clustered establishments of their respective economic types. This is not a trade probability');
-        if (idx <= 4) return note(node ? `In this run, ${nodeLabel(node)} has published centrality ${fmt(node.centrality, 6)} and degrees ${number(node.in_degree)} in / ${number(node.out_degree)} out.` : 'No cluster is selected.', 'Raw Katz in/out scores and α configuration are not present in the Explorer bundle');
-        return note('The published X graph provides combined centrality, not the complete Katz iteration history or separately normalized sender/receiver contributions.', 'Worked diagrams remain illustrative');
+        return note(node ? `In this run, ${nodeLabel(node)} has published centrality ${fmt(node.centrality, 6)} and degrees ${number(node.in_degree)} in / ${number(node.out_degree)} out.` : 'No cluster is selected.', 'The worked example on the left is invented');
+      }
+      // sigma-under-the-hood-gravity-tile-area-20261109-v1
+      const tile = meta.tile_area || null;
+      const hasGamma = tile && typeof tile.gamma === 'number';
+      const tileKm2 = node && Number.isFinite(node.area_km2) ? node.area_km2 : null;
+      const factor = node && Number.isFinite(node.area_factor) ? node.area_factor : null;
+      const notPublished = 'This bundle does not publish the stage 15 regression (an older export, the correction switched off, or an exact no-op such as equal tile areas).';
+      if (section === 'gravity') {
+        if (idx === 0) {
+          const lambda = tile && Number.isFinite(tile.x_distance_decay_lambda) ? tile.x_distance_decay_lambda : null;
+          return note(example ? `Published link: ${sectorLabel(nodeMap.get(idStr(example.from))?.type)} → ${sectorLabel(nodeMap.get(idStr(example.to))?.type)}; a = ${frac(example.coefficient)}, center road distance ${fmt(example.distance, 1)} ${meta.distance_unit || ''}${Number.isFinite(example.effective_distance) ? `, effective weight distance ${fmt(example.effective_distance, 1)} ${meta.distance_unit || ''}` : ''}, X weight ${frac(example.weight)}.` : 'No incident X link for this cluster.',
+            lambda == null ? 'The X distance exponent of this run is not recorded in the bundle' : `X distance exponent in this run: ${fmt(lambda, 2)}${lambda === 1 ? ' (canonical)' : ''}`);
+        }
+        const group = bySector.get(idStr(node?.type)) || [];
+        const total = group.reduce((sum, n) => sum + (Number.isFinite(n.members) ? n.members : 0), 0);
+        return note(node && total ? `${nodeLabel(node)} has ${number(node.members)} of the ${number(total)} clustered establishments of its sector in this bundle, so q = ${frac(node.members / total)}.${tileKm2 != null ? ` Its final tile is ${fmt(tileKm2, 3)} km²; that area is not a term of the X weight.` : ''}` : 'No published cluster membership is available for this cluster.',
+          'q is computed from published cluster memberships; the X weight itself was computed in the pipeline');
+      }
+      if (section === 'area') {
+        if (idx === 0) return note(node ? `${nodeLabel(node)}: ${number(node.in_degree)} incoming and ${number(node.out_degree)} outgoing published X links${tileKm2 != null ? `, final tile ${fmt(tileKm2, 3)} km²` : ''}.` : 'No cluster is selected.', 'Candidate overlaps that failed the coefficient or road test are not in the bundle');
+        if (idx === 1) {
+          if (!hasGamma) return note(notPublished, tile && tile.regression_status ? `Regression status: ${tile.regression_status}` : 'No exponent is borrowed from another area');
+          const ci = Array.isArray(tile.ci95) && tile.ci95.every(Number.isFinite) ? ` (95% interval ${fmt(tile.ci95[0], 3)} to ${fmt(tile.ci95[1], 3)})` : '';
+          const zeros = tile.degree_balance && Number.isFinite(tile.degree_balance.zero_degree_nodes) ? ` ${number(tile.degree_balance.zero_degree_nodes)} nodes have degree 0.` : '';
+          return note(`This run's PPML: γ̂ = ${fmt(tile.gamma, 4)}${ci} from ${number(tile.nodes)} tiles. Doubling a tile's area multiplies its expected total degree by ${fmt(Math.pow(2, tile.gamma), 3)}.${zeros}`, 'HC1 interval; spatially dependent tiles can make it too narrow');
+        }
+        if (idx === 2) {
+          const range = tile && Array.isArray(tile.factor_min_max) ? ` Factors in this run range from ${fmt(tile.factor_min_max[0], 3)} to ${fmt(tile.factor_min_max[1], 3)}${Number.isFinite(tile.factor_max_min_ratio) ? ` (ratio ${fmt(tile.factor_max_min_ratio, 1)})` : ''}.` : '';
+          const quantiles = tile && Array.isArray(tile.factor_quantiles_p01_p50_p99) && tile.factor_quantiles_p01_p50_p99.every(Number.isFinite)
+            ? ` Factors at p01 / median / p99: ${tile.factor_quantiles_p01_p50_p99.map(v => fmt(v, 3)).join(' / ')}.` : '';
+          return note(factor != null ? `${nodeLabel(node)}: A = ${fmt(tileKm2, 3)} km², f = ${fmt(factor, 4)}.${range}${quantiles}` : `${notPublished}${range}${quantiles}`, 'Factors are relative; a common change of unit cancels in Katz');
+        }
+        return note(factor != null ? `In this run, ${nodeLabel(node)}'s ${number(node.out_degree)} outgoing weights are multiplied by f = ${fmt(factor, 4)} in FW, and its ${number(node.in_degree)} incoming weights by the same f in FWᵀ.` : notPublished, 'sigma_X_edges.csv keeps the original, unadjusted weights W');
+      }
+      if (section === 'katz') {
+        if (idx === 0) return note(node ? `In this run, ${nodeLabel(node)} has published centrality ${fmt(node.centrality, 6)} and degrees ${number(node.in_degree)} in / ${number(node.out_degree)} out.` : 'No cluster is selected.', 'The walk in the figure is invented');
+        const raw = node && Number.isFinite(node.katz_in_raw) && Number.isFinite(node.katz_out_raw);
+        if (idx === 1) return note(raw ? `${nodeLabel(node)}: Kin = ${fmt(node.katz_in_raw, 4)}, Kout = ${fmt(node.katz_out_raw, 4)}, computed on the adjusted operators${factor != null ? ` (its own f = ${fmt(factor, 4)})` : ''}.` : 'Raw incoming and outgoing Katz values are not published in this bundle.', (tile && Number.isFinite(tile.shared_alpha) ? `This run's shared α = ${tile.shared_alpha.toExponential(4)} (${tile.spectral_scale_method || 'scale method not recorded'}).` : 'Shared α is not published for this run'));
+        if (idx === 2) {
+          const all = nodes.every(n => Number.isFinite(n.katz_in_raw) && Number.isFinite(n.katz_out_raw));
+          if (!raw || !all) return note('The raw components needed to repeat the geometric mean are not published in this bundle.', 'Published combined centrality only');
+          const norm = Math.sqrt(nodes.reduce((sum, n) => sum + n.katz_in_raw * n.katz_out_raw, 0));
+          const g = Math.sqrt(node.katz_in_raw * node.katz_out_raw);
+          return note(`${nodeLabel(node)}: g = √(${fmt(node.katz_in_raw, 3)} × ${fmt(node.katz_out_raw, 3)}) = ${fmt(g, 4)}; g / ‖g‖₂ = ${fmt(g / norm, 6)} (published C = ${fmt(node.centrality, 6)}).`, 'Recomputed in the browser from the published raw components of every node');
+        }
+        if (!tile || !Array.isArray(tile.area_deciles) || !tile.area_deciles.length) return note(notPublished, 'Use the Metro Manila figures only as an example');
+        const d = tile.area_deciles, u = tile.unadjusted || {};
+        const rho = v => Number.isFinite(v) ? fmt(v, 3) : 'not available';
+        return note(`This run: smallest-area decile ${fmt(d[0].relative_mean_adjusted_degree, 2)} × and largest ${fmt(d[d.length - 1].relative_mean_adjusted_degree, 2)} × the mean of f·k. Area–Katz Spearman ${rho(u.area_katz_spearman_rho)} without the correction, ${rho(tile.area_katz_spearman_rho)} with it. Choose "this run" in the figure.`, 'Diagnostics describe this run only; they are not economic validation');
       }
       if (section === 'score') {
         if (idx === 0) return note(`Published establishment-score range in ${area}: ${fmt(meta.score_range?.[0], 6)} to ${fmt(meta.score_range?.[1], 6)}.`, meta.profile === 'public' ? 'Individual establishment records are omitted from this bundle' : 'Inspect an individual published establishment score by selecting its point in Explorer');

@@ -634,7 +634,7 @@ class AnalysisPipeline:
         return ArtifactRecipe.build(
             "analysis.centrality",
             implementation_version=(
-                "tile-perspective-area-adjusted-balanced-katz-v3"
+                "tile-perspective-area-adjusted-balanced-katz-v5-consistent-area-deciles"
                 if self.config.centrality_method == "katz" and self.config.area_adjustment
                 else "balanced-directed-katz-geomean-v4-scaled-spectrum"
             ),
@@ -877,7 +877,9 @@ class AnalysisPipeline:
         table = pd.read_csv(ref.path / "centrality.csv", dtype=str, keep_default_na=False)
         for column in ("cluster", "in_degree", "out_degree"):
             table[column] = table[column].map(int)
-        for column in ("katz_in_raw", "katz_out_raw"):
+        for column in ("katz_in_raw", "katz_out_raw", "voronoi_area_km2", "area_factor",
+                       "out_strength_original", "in_strength_original",
+                       "out_strength_adjusted", "in_strength_adjusted"):
             if column in table.columns:
                 table[column] = table[column].map(lambda value: float(value) if value else float("nan"))
         table["centrality"] = table["centrality"].map(float)

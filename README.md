@@ -972,7 +972,9 @@ analysis.centrality
 analysis.scores
 ```
 
-Canonical SIGMA centrality is **tile-area-adjusted balanced weighted directed Katz** on the full directed X graph. Total directed degree is regressed on final Voronoi area (km²) using pooled PPML, estimating $\hat\gamma$ for each geography. The two tile-perspective operators $FW$ and $FW^{\mathsf T}$ discount every tile's own incoming and outgoing connections by the same $A_i^{-\hat\gamma}$ factor. The original X weights and eligibility remain unchanged.
+Each X edge carries a **gravity-inspired** weight: the directed technical coefficient times both clusters' shares of their exact sector's clustered establishments, divided by the mean hub-mediated road distance (exponent 1, not Newton's inverse square; the two notional masses are set to one). Tile area is not a term of this weight.
+
+Canonical SIGMA centrality is **tile-area-adjusted balanced weighted directed Katz** on the full directed X graph. Total directed degree is regressed on final Voronoi area (km²) using pooled PPML, estimating $\hat\gamma$ for each geography. The two tile-perspective operators $FW$ and $FW^{\mathsf T}$ discount every tile's own incoming and outgoing connections by the same $A_i^{-\hat\gamma}$ factor. The original X weights and eligibility remain unchanged. Each run records the specification's diagnostics with the centrality stage and in `sigma_run_metadata.json` (`tile_area_adjustment`): the fitted exponent and its uncertainty, an unadjusted balanced-Katz comparison, score concentration, an area-decile table of degree and $f_ik_i$, and the in/out degree balance.
 
  Incoming and outgoing Katz components are computed unnormalized with the same attenuation parameters, combined nodewise by geometric mean, and normalized once at the end:
 
@@ -1824,21 +1826,23 @@ The published road layer is clipped to the exact area boundary; the wider buffer
 - `<area>.qgz` — ready-to-open QGIS project using relative GeoParquet paths, one categorized `sigma_points` layer, per-type partition layers, centers, clipped roads, and boundary.
 - `sigma_economic_graph.csv` — full directed sector-level economic relationships under the canonical profile.
 - `sigma_io_dag.csv` — legacy-equivalent MWAS/DAG economic output when that profile is explicitly selected.
-- `sigma_X_nodes.csv` — cluster-level spatial-economic nodes and graph measures.
+- `sigma_X_nodes.csv` — cluster-level spatial-economic nodes and graph measures, including final tile area (`voronoi_area_km2`), tile-area factor (`area_factor`) and raw incoming/outgoing Katz.
 - `sigma_X_edges.csv` — inferred directed cluster-to-cluster links with economic and road-distance attributes.
 - `sigma_disconnected_overlap_pairs.csv` — candidate links that fail road-network connectivity.
 - `sigma_spatial_outputs.gpkg` — GIS-ready partitions, X nodes, and a `paths` layer that is empty in the default browser route mode and filled with `--route-geometry precomputed`.
 - `sigma_routing_graph.bin` — compact routing graph (road vertices and cluster centers only, no establishment positions) from which Explorer draws shortest routes on request.
-- `sigma_run_metadata.json` — workflow/profile counts, CRS metadata, artifact IDs, and run summary.
+- `sigma_run_metadata.json` — workflow/profile counts, CRS metadata, artifact IDs, run summary, and the stage 15 `tile_area_adjustment` diagnostics.
 - `sigma_manifest.json` — reproducible lineage and file manifest for the exported bundle.
 
 ### QGIS presentation
 
-The QGIS project uses SIGMA's fixed 336-sector color specification (IO16, IO80 and IO240 colors; residual `o` sectors use their parent's color). `sigma_points` is categorized by mutually exclusive economic `type`, marker size follows `sigma_score`, and the point label expression is equivalent to:
+The QGIS project uses SIGMA's fixed 336-sector color specification (IO16, IO80 and IO240 colors; residual `o` sectors use their parent's color). `sigma_points` is categorized by mutually exclusive economic `type` and marker size follows `sigma_score`. Canonical inverse-distance scores can be very small, so canonical runs use a display-only 5th–95th percentile size range and the label expression:
 
 ```text
-concat("canonical_name", '-', round(100 * "sigma_score", 2))
+concat("canonical_name", ' - ', format_number("sigma_score", 10))
 ```
+
+Explicit legacy eigenvector runs keep the former label, `concat("canonical_name", '-', round(100 * "sigma_score", 2))`. Neither setting changes `sigma_score`.
 
 Partition layers are present per type but start unchecked. Centers remain one layer. Roads and boundary are visible by default.
 

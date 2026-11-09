@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased — Gravity and tile-area documentation, §9.7 diagnostics, published area values
+
+- **Diagnostics (specification §9.7).** `analysis.centrality` now records, under
+  `tile_area_adjustment`: an unadjusted balanced-Katz comparison on the same X (area–Katz
+  Spearman correlations, rank correlation, top-100 retained, top-100 counts from the smallest
+  and largest area deciles, concentration), adjusted top-10/top-100 score shares, an
+  equal-count area-decile table of `k_i` and `f_i k_i`, the in/out degree balance
+  (maximum `|k_in − k_out|`, zero-degree counts), separate in-degree and out-degree PPML fits,
+  and the largest-to-smallest factor ratio. The comparison is diagnostic only: a failure is
+  recorded and no score changes. Implementation version
+  `tile-perspective-area-adjusted-balanced-katz-v4-spec97-diagnostics`; existing workspaces
+  recompute centrality, scores and export on the next `sigma run` and reuse every earlier stage.
+- **Published values.** `sigma_X_nodes.csv` adds `voronoi_area_km2`, `area_factor`,
+  `katz_in_raw` and `katz_out_raw`; `sigma_run_metadata.json` adds `tile_area_adjustment`
+  (export version `unified-compatibility-export-qgis-v10-tile-area-fields`). Explorer bundles
+  carry an aggregate `tile_area` block and the per-node values; older exports publish `null`.
+- **Under the Hood, Part 4.** New animated sections: the gravity analogy (Newton's form beside
+  the X weight, distance-exponent slider; participation shares that are not mass or area); the
+  tile-area correction (overlap growth with tile width, a PPML fit on invented tiles with a
+  deviance curve, the factor curve and unit invariance, `FW` and `FWᵀ` as matrices compared with
+  `(FW)ᵀ`); Katz on the four-node example with unequal tile areas, a γ slider and an on/off switch;
+  a walk showing a neighbour's factor entering indirectly; and the Metro Manila area-decile and
+  before/after diagnostics, with the current run's values when the bundle publishes them.
+- **Documentation.** Gravity-model motivation in the X chapter; units, factors above 1, indirect
+  effects and the per-run diagnostics in the centrality chapter; Metro Manila's 19 zero-degree
+  nodes and equal in/out degree; notes where the implementation differs from the specification
+  text (isolated untiled centers, configurable `λ_X`, opt-out); the gravity label moved from the
+  establishment score to the X weight; Tinbergen (1962) and Santos Silva & Tenreyro (2006)
+  references. The Explorer About page no longer describes distance tempering, and the README
+  shows the canonical QGIS label `format_number("sigma_score", 10)`.
+
+## Unreleased — Tile-area-adjusted Katz and inverse-distance scoring (PRs #46, #47)
+
+- Canonical centrality estimates one pooled total-directed-degree PPML exponent per geography
+  on final Voronoi tile areas (km², EPSG:6933) and computes balanced Katz on the two
+  focal-tile operators `FW` and `FWᵀ` with one shared spectrally safe α. On by default;
+  `--no-area-adjustment` gives ordinary balanced Katz. Original X weights are unchanged.
+- Canonical establishment scores are `S_p = C_c / max(d_R / 1 m, 1)`; the bounded 15% p90
+  tempering remains only for explicit legacy eigenvector scoring.
+- Lineage-aware incremental reuse with `--plan`, expensive-rebuild guards and
+  `--allow-expensive`. Documentation aligned across the README, CLI reference, Jupyter Book
+  (new diagnostics chapter) and Under the Hood.
+
 ## Unreleased — Explorer unclustered visibility and PSIC details (PR #35)
 
 - Local Explorer now provides two independent, initially off checkboxes: **Show unscored sectors**
