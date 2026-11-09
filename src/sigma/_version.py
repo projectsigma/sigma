@@ -1,3 +1,3 @@
 """Package version for the unified SIGMA repository."""
 
-__version__ = "0.1.0a9"
+__version__ = "0.1.0a10"
