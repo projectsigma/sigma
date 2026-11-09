@@ -27,6 +27,7 @@ parts:
       - file: content/methods/x_graph
       - file: content/methods/centrality
       - file: content/methods/scoring
+      - file: content/methods/area_adjustment_diagnostics
   - caption: Publication, reproducibility and interpretation
     chapters:
       - file: content/methods/routing

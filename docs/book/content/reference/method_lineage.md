@@ -16,10 +16,12 @@ This page summarizes the methodological foundations of the analytical workflow a
 | Input-output coefficients (stage 13) | Standard input-output coefficient convention, $a_{ij}=z_{ij}/x_j$ | Economy-data configuration and validation procedures. |
 | Spatial-economic X graph (stage 14) | Positive directed IO relationships; positive-area overlap of type-specific Voronoi partitions; shortest-road distances | Mean hub-mediated separation (center route plus both cluster mean radii), exact-type clustered-establishment shares at both endpoints, and inverse-power attenuation; distances only, no route geometry. These are modeling/engineering choices, not verified local supply-chain flows. |
 | Optional transaction sparsification | Maximum-weight acyclic-subgraph formulation; RAS / iterative proportional fitting | Fast deterministic MWAS heuristic, ordered feasibility repairs, and transaction-support constraints. |
-| Directed Katz centrality (stage 15) | Katz (1953) | Attenuation scaling, numerical safeguards, and consistent computational conventions. |
+| Directed Katz centrality (stage 15) | Katz (1953); PPML as an estimation method | **SIGMA-specific per-geography** total-directed-degree PPML on final Voronoi tile area; focal-tile factors $f_i=A_i^{-\hat\gamma}$ applied to $FW$ and $FW^{\mathsf T}$; shared spectrally safe Katz attenuation. This is a descriptive geometry correction, not a standard gravity or causal model. |
 | Sender–receiver coupling (stage 16) | Sharkey (2017); directed in/out-role coupling (Everett & Schoch, 2022); HITS precedent (Kleinberg, 1999) | Componentwise geometric mean, $\sqrt{K^{in}K^{out}}$, followed by a final L2 normalization. |
-| Establishment scoring (stage 17) | Distance-based score tempering | Cluster-level 90th-percentile distance reference and bounded linear distance tempering. |
+| Establishment scoring (stage 17) | Gravity-inspired inverse-distance interaction as a **SIGMA-specific modeling rule** | Canonical score $S_p=C_{c(p)}/\max(d_R(p,m_{c(p)})/(1\,\mathrm m),1)$. The former cluster-p90, bounded 15% tempering remains for the explicit legacy eigenvector mode only; it is not part of the tile-area adjustment. |
 | Route display (publication) | Dijkstra shortest paths | Contracted routing graph without establishment vertices; on-request routing in a Web Worker with a length check against the published distance. |
+
+See [Tile-area Katz and scoring diagnostics](../methods/area_adjustment_diagnostics.md) for the observed bias reduction, concentration shifts, small-tile overcompensation, and validation limits. These diagnostics do not establish economic truth or a transferable causal estimate.
 
 ## Conditional hierarchical roll-up and fixed visualization palette
 

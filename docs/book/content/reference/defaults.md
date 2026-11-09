@@ -76,14 +76,16 @@ The stage 5 settings live in `<SIGMA_HOME>/hierarchical-defaults.json` (written 
 
 | Parameter | Default |
 |---|---:|
-| centrality | `katz` |
+| centrality | `katz` (balanced sender–receiver) |
+| `area_adjustment` | **`True`**; pooled total-directed-degree PPML per geography on final Voronoi areas in km²; focal-tile adjustments $FW$ and $FW^{\mathsf T}$; `--no-area-adjustment` disables |
+| point scoring (canonical Katz) | **full inverse-road-distance** $S_p=C_{c(p)}/\max(d_R(p,m_{c(p)})/(1\,\mathrm m),1)$ (no p90 scale or 15% tempering) |
 | Katz alpha factor | 0.85 |
 | Katz beta | 1.0 |
 | X inverse-distance exponent `x_distance_decay_lambda` | 1.0 |
 | X distance floor | 1 metre |
 | X effective separation | center road distance + source mean road radius + target mean road radius |
 | X cluster size shares | cluster members / all clustered members in the identical economic type, at each endpoint |
-| distance tempering (establishments) | 0.15 |
+| `distance_tempering` (legacy eigenvector mode only) | 0.15; non-default values are not accepted for canonical Katz |
 
 ## Managed roads (stage 6)
 

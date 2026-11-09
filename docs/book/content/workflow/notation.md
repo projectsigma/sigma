@@ -27,7 +27,12 @@ The same symbols recur throughout the book and in Under the Hood. Stage numbers 
 | $D_{AB}$ | effective hub-mediated distance $r_A+d_R(m_A,m_B)+r_B$ |
 | $N_A/N_{s(A)}$ | share of all retained **clustered** establishments of exact sector $s(A)$ found in cluster $A$ |
 | $\lambda_X$ | inverse-road-distance exponent on X edges (default 1) |
-| $K^{in},K^{out}$ | raw incoming and outgoing Katz vectors |
+| $A_i$ | final Voronoi tile area of node $i$ in km², evaluated in an equal-area CRS |
+| $k_i^{total}$ | original X incoming plus outgoing directed degree, including zero-degree nodes |
+| $\hat\gamma$ | per-geography PPML exponent of total directed degree on tile area |
+| $f_i$, $F$ | focal-tile factor $A_i^{-\hat\gamma}$ and its diagonal matrix |
+| $W^{\prime\,out}$, $W^{\prime\,in}$ | orientation-specific adjusted weight operators $FW$ and $FW^{\mathsf T}$ |
+| $K^{in},K^{out}$ | raw incoming and outgoing Katz vectors on the corresponding adjusted operators |
 | $C_i$ | normalized balanced Katz centrality of X node $i$ |
 | $S_p$ | final SIGMA score of establishment $p$ |
 

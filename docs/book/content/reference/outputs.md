@@ -98,7 +98,7 @@ For canonical Katz, retain all three quantities when possible:
 - `katz_out_raw`; and
 - normalized `centrality`.
 
-The two raw components explain *why* a node is balanced or unbalanced as receiver and sender; the final scalar alone cannot show that distinction.
+The two raw components explain *why* a node is balanced or unbalanced as receiver and sender; the final scalar alone cannot show that distinction. For canonical Katz, examine the `analysis.centrality` artifact's PPML tile-area diagnostics, estimated $\hat\gamma$, factor extremes, area/degree counts, and X/partition provenance. `analysis.x` and `sigma_X_edges.csv` retain the **original unadjusted** X edge weights: $FW$ and $FW^{\mathsf T}$ are centrality-stage operators, not exported replacements for X.
 
 ## Point score (stage 17)
 
@@ -106,10 +106,10 @@ Useful columns are:
 
 - `cluster_centrality`;
 - road distance to cluster median;
-- cluster distance p90;
-- normalized cluster distance;
-- `distance_tempering`; and
-- `sigma_score`.
+- `sigma_score` (canonical Katz: cluster centrality divided by maximum of road distance in metres and 1); and
+- scoring formula and mode in the stage artifact metadata.
+
+The p90 cluster distance, normalized distance, and `distance_tempering` belong to the **legacy eigenvector / bounded-tempering** scoring path, not the canonical Katz establishment score. A score is model-based and normalized within the current geography; different geography runs are not automatically on a common economic influence scale.
 
 ## Explore published results in a browser
 

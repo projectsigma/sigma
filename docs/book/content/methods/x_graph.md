@@ -108,3 +108,7 @@ The managed X edge weight above is the **original gravity-inspired weight**, not
 ## Self-use
 
 Positive sector self-use remains in the economic graph. By the X topology policy, an X self-edge whose source and target are the same spatial cluster is omitted, **even though its capped inverse-distance factor would equal 1**. Self-use can instantiate edges between different clusters of the same economic type when their partitions overlap and their centers are road-connected.
+
+## Subsequent tile-area correction (not part of X)
+
+The canonical $W_{ij}$ above does **not** contain an area-share-density term, Voronoi polygon area, or the fitted degree–area exponent. The PPML exponent is estimated from the topology of this **unchanged** graph and final polygon areas, then applied **only inside centrality** as the two focal-tile operators $FW$ and $FW^{\mathsf T}$. No X edge is created or removed by the adjustment. See [Centrality](centrality.md), [Scoring](scoring.md), and [Empirical diagnostics](area_adjustment_diagnostics.md).

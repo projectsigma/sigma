@@ -21,9 +21,9 @@ SIGMA is implemented as a dependency-aware artifact graph. The conceptual order 
 | 12 | network Voronoi territories | `sigma run` | `spatial.partitions` | [Voronoi](../methods/voronoi.md) |
 | 13 | effective transactions → technical coefficients | `sigma run` | `economy.*` | [Economy](../methods/economy.md) |
 | 14 | spatial-economic graph X | `sigma run` | `analysis.x` | [The X graph](../methods/x_graph.md) |
-| 15 | incoming and outgoing Katz | `sigma run` | `analysis.centrality` | [Centrality](../methods/centrality.md) |
+| 15 | PPML tile-area correction; incoming and outgoing Katz | `sigma run` | `analysis.centrality` | [Centrality](../methods/centrality.md) |
 | 16 | balanced centrality (geometric mean, L2) | `sigma run` | `analysis.centrality` | [Centrality](../methods/centrality.md) |
-| 17 | establishment scores | `sigma run` | `analysis.scores` | [Scoring](../methods/scoring.md) |
+| 17 | inverse-road-distance establishment scores | `sigma run` | `analysis.scores` | [Scoring](../methods/scoring.md) |
 | — | publication: GIS outputs and routing graph | `sigma run` | `export.bundle` | [Route publication](../methods/routing.md) |
 | — | browser view (read only) | `sigma view` | `output/explorer/` | [Explorer](../intro/explorer.md) |
 
@@ -140,7 +140,7 @@ The workflow separates four different kinds of inference:
 1. **identity inference** — deciding which source records refer to one place, which activity a place carries, and which IO industry and ownership side it supports;
 2. **spatial structure inference** — deciding which establishments form local road-network clusters and how territory is assigned;
 3. **economic structure** — translating transactions into directed technical requirements; and
-4. **spatial-economic influence** — instantiating positive directed sector relationships only where spatial cluster territories overlap and the 1-medians are road-connected; weighting each X edge by direct technical coefficients, clustered-sector shares, and mean hub-mediated road distance; then measuring directed centrality. These modeled edges are not verified local trades.
+4. **spatial-economic influence** — instantiating positive directed sector relationships only where spatial cluster territories overlap and the 1-medians are road-connected; weighting each X edge by direct technical coefficients, clustered-sector shares, and mean hub-mediated road distance; then estimating degree–area scaling on the original X topology (per-geography pooled PPML) and measuring **focal-tile-area-adjusted** incoming and outgoing Katz centrality. Establishment scores apply a separate full inverse-road-distance rule. Neither the degree–area correction nor point scoring validates economic influence against observed local trade. These modeled edges are not verified local trades.
 
 A downstream score therefore cannot be interpreted independently of the upstream choices. A centrality value summarizes a graph whose nodes already encode classification, sector, clustering, center, and partition decisions.
 
