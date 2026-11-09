@@ -219,6 +219,13 @@ def test_run_publishes_qgis_project_with_relative_parquet_layers(tmp_path):
     assert all(area_geometry.covers(geometry) for geometry in roads.geometry)
     metadata = json.loads(Path(result.outputs["sigma_run_metadata.json"]).read_text(encoding="utf-8"))
     assert metadata["published_roads_clipped_to_area"] is True
+    tile = metadata["tile_area_adjustment"]
+    assert tile["method"].startswith("tile-perspective")
+    assert tile["diagnostics_version"].startswith("spec-9.7")
+    assert {"degree_balance", "area_deciles", "unadjusted_comparison", "concentration"} <= set(tile)
+    nodes = pd.read_csv(result.outputs["sigma_X_nodes.csv"])
+    assert {"voronoi_area_km2", "area_factor", "katz_in_raw", "katz_out_raw"} <= set(nodes.columns)
+    assert (nodes["area_factor"] > 0).all()
 
     points = gpd.read_parquet(result.outputs["sigma_points.parquet"])
     assert {

@@ -202,7 +202,10 @@ def write_outputs_description(
         "sigma_partitions.parquet: final WGS84 cluster polygons; also represented "
         "in the GeoPackage.",
         "sigma_economic_graph.csv: canonical effective directed economic edges; legacy equivalent profiles publish sigma_io_dag.csv.",
-        "sigma_X_nodes.csv: tabular X nodes and centrality.",
+        "sigma_X_nodes.csv: tabular X nodes, degrees, raw incoming/outgoing Katz, balanced "
+        "centrality, final tile area (km2) and tile-area factor f_i.",
+        "sigma_run_metadata.json tile_area_adjustment: per-geography PPML gamma, "
+        "its uncertainty and the section 9.7 diagnostics.",
         "sigma_X_edges.csv: tabular X edges and shortest-path distances.",
         "sigma_disconnected_overlap_pairs.csv: candidate overlaps whose centers are "
         "road-disconnected.",

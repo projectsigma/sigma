@@ -77,6 +77,41 @@ def _clip_roads_to_boundary(
     return clipped.reset_index(drop=True)
 
 
+TILE_AREA_NODE_COLUMNS = ("voronoi_area_km2", "area_factor", "katz_in_raw", "katz_out_raw")
+
+
+def attach_tile_area_columns(nodes: pd.DataFrame, centrality_table: pd.DataFrame) -> pd.DataFrame:
+    """Add each X node's final tile area, area factor and raw Katz components.
+
+    ``area_factor`` is f_i = A_i ** -gamma from the centrality stage (1.0 when
+    the correction is off, an exact no-op, or the node is an isolated center
+    without a tile). Columns absent from the centrality table are not invented.
+    """
+    columns = [c for c in TILE_AREA_NODE_COLUMNS if c in centrality_table.columns]
+    if not columns:
+        return nodes
+    extra = centrality_table[["node_id", *columns]].copy()
+    for column in columns:
+        extra[column] = pd.to_numeric(extra[column], errors="coerce")
+    merged = nodes.merge(extra, on="node_id", how="left", validate="one_to_one")
+    if "geometry" in nodes.columns:
+        merged = merged[[c for c in merged.columns if c != "geometry"] + ["geometry"]]
+        merged = gpd.GeoDataFrame(merged, geometry="geometry", crs=nodes.crs)
+    return merged
+
+
+def _tile_area_summary(deps) -> dict | None:
+    """Stage 15 diagnostics recorded with ``analysis.centrality`` (None when absent)."""
+    ref = deps.get("analysis.centrality")
+    if ref is None:
+        return None
+    path = ref.path / "centrality.json"
+    if not path.is_file():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload.get("tile_area_adjustment")
+
+
 def _build_published_points(
     scores: gpd.GeoDataFrame,
     centrality_table: pd.DataFrame,
@@ -221,7 +256,7 @@ class ExportPipeline:
     def _recipe(self, planner, deps) -> ArtifactRecipe:
         return ArtifactRecipe.build(
             "export.bundle",
-            implementation_version="unified-compatibility-export-qgis-v9-optional-browser-routes",
+            implementation_version="unified-compatibility-export-qgis-v10-tile-area-fields",
             dependencies=deps,
             parameters={
                 "compatibility": self.compatibility,
@@ -313,6 +348,10 @@ class ExportPipeline:
             )
         )
         node_table, node_geo = build_x_node_outputs(x.graph, centrality.values, centers_analysis.crs)
+        # Tile-area correction values (stage 15) for each published X node. The
+        # original X weights are unchanged; these columns explain the adjusted Katz.
+        node_table = attach_tile_area_columns(node_table, centrality_table)
+        node_geo = attach_tile_area_columns(node_geo, centrality_table)
         # Mode-specific downstream geometry is decoupled from the numerical X recipe.
         from sigma.export.routing_geometry import materialize_x_paths
         route_mode = self.route_geometry
@@ -426,6 +465,7 @@ class ExportPipeline:
             "export_crs": WGS84,
             "published_roads_clipped_to_area": boundary is not None,
             "road_distance_unit": "CRS units",
+            "tile_area_adjustment": _tile_area_summary(deps),
             **summary,
             "artifacts": {name: ref.artifact_id for name, ref in sorted(deps.items())},
         }

@@ -525,6 +525,30 @@ def test_explorer_builds_from_a_genuine_sigma_export(tmp_path: Path):
     assert meta["has_roads"] and meta["has_boundary"]
     assert sum(n["members"] for n in graph["nodes"]) == run["scored_points"]
     assert bundle_is_current(output, dest)
+    # Stage 15 values reach the bundle from a genuine run (tile-area Katz is default-on).
+    tile = run["tile_area_adjustment"]
+    assert meta["tile_area"]["gamma"] == tile["gamma"]
+    assert meta["tile_area"]["nodes"] == tile["regression_node_count"]
+    assert len(meta["tile_area"]["area_deciles"]) == len(tile["area_deciles"])
+    assert meta["tile_area"]["unadjusted"]["status"] == tile["unadjusted_comparison"]["status"]
+    nodes_csv = pd.read_csv(output / "sigma_X_nodes.csv")
+    for node in graph["nodes"]:
+        row = nodes_csv.loc[nodes_csv["node_id"] == node["id"]].iloc[0]
+        assert node["area_factor"] == pytest.approx(row["area_factor"], rel=1e-12)
+        assert node["area_km2"] == pytest.approx(row["voronoi_area_km2"], rel=1e-12)
+        assert node["katz_in_raw"] == pytest.approx(row["katz_in_raw"], rel=1e-12)
+        if tile["gamma"] is not None:
+            assert node["area_factor"] == pytest.approx(node["area_km2"] ** -tile["gamma"], rel=1e-9)
+
+
+def test_bundle_without_tile_area_values_publishes_none(published: Path, tmp_path: Path):
+    """Older exports have no tile-area columns; nothing is invented."""
+    dest = tmp_path / "older-export"
+    build_web_bundle(published, dest)
+    meta = _json(dest / "data/metadata.json")
+    graph = _json(dest / "data/graph.json")
+    assert meta["tile_area"] is None
+    assert all(n["area_factor"] is None and n["area_km2"] is None for n in graph["nodes"])
 
 
 def test_local_finder_index_and_public_privacy(published: Path, tmp_path: Path):
