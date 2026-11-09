@@ -269,3 +269,112 @@ def test_no_edges_and_no_tiles_are_neutral():
     assert all(v == 1.0 for v in result.katz_in_raw.values())
     assert audit["voronoi_area_km2"].isna().all()
     json.dumps(diagnostics, allow_nan=False)
+
+
+def test_section97_comparison_matches_independent_unadjusted_katz():
+    """Spec §9.7: before/after diagnostics use ordinary balanced Katz on the same X."""
+    nodes, edges, partitions, graph = _case(n=140, p=0.05, seed=21)
+    result, diagnostics, audit = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    comparison = diagnostics["unadjusted_comparison"]
+    assert comparison["status"] == "ok"
+    reference = balanced_katz_centrality(graph)
+    ids = nodes["node_id"].tolist()
+    before = np.array([reference.values[i] for i in ids])
+    after = np.array([result.values[i] for i in ids])
+    area = audit["voronoi_area_km2"].to_numpy()
+    from scipy.stats import spearmanr
+    assert math.isclose(comparison["area_katz_spearman_rho"],
+                        spearmanr(np.log(area), before).statistic, abs_tol=1e-9)
+    assert math.isclose(comparison["rank_correlation_with_adjusted"],
+                        spearmanr(before, after).statistic, abs_tol=1e-9)
+    top_before = set(np.argsort(-before, kind="stable")[:100])
+    top_after = set(np.argsort(-after, kind="stable")[:100])
+    assert comparison["top_k_retained_after_adjustment"] == len(top_before & top_after)
+    ordered = np.sort(before)[::-1]
+    assert math.isclose(comparison["concentration"]["top10_share"],
+                        ordered[:10].sum() / ordered.sum(), rel_tol=1e-9)
+    ordered = np.sort(after)[::-1]
+    assert math.isclose(diagnostics["concentration"]["top100_share"],
+                        ordered[:100].sum() / ordered.sum(), rel_tol=1e-9)
+    json.dumps(diagnostics, allow_nan=False)
+
+
+def test_section97_deciles_degree_balance_and_orientation_fits():
+    nodes, edges, partitions, _ = _case(n=140, p=0.05, seed=22)
+    _, diagnostics, audit = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    index = tile_area._node_index(nodes, "type", "cluster")
+    source, target, _ = tile_area._edge_arrays(index, edges)
+    k_out = np.bincount(source, minlength=len(nodes))
+    k_in = np.bincount(target, minlength=len(nodes))
+    balance = diagnostics["degree_balance"]
+    assert balance["max_abs_in_minus_out"] == int(np.abs(k_in - k_out).max())
+    assert balance["nodes_with_unequal_in_out"] == int(np.count_nonzero(k_in != k_out))
+    assert balance["zero_degree_nodes"] == int(np.count_nonzero(k_in + k_out == 0))
+    deciles = diagnostics["area_deciles"]
+    assert [row["decile"] for row in deciles] == list(range(1, 11))
+    assert sum(row["nodes"] for row in deciles) == len(nodes)
+    assert all(a["area_km2_max"] <= b["area_km2_min"]
+               for a, b in zip(deciles[:-1], deciles[1:], strict=True))
+    adjusted = audit["area_factor"].to_numpy() * (k_in + k_out)
+    weighted = sum(row["nodes"] * row["mean_adjusted_degree"] for row in deciles)
+    assert math.isclose(weighted / len(nodes), adjusted.mean(), rel_tol=1e-12)
+    for row in deciles:
+        assert math.isclose(row["relative_mean_adjusted_degree"],
+                            row["mean_adjusted_degree"] / adjusted.mean(), rel_tol=1e-12)
+    fits = diagnostics["degree_orientation_regressions"]
+    assert fits["in_degree"]["status"] == fits["out_degree"]["status"] == "ok"
+    factor = audit["area_factor"].to_numpy()
+    assert math.isclose(diagnostics["factor_max_min_ratio"], factor.max() / factor.min(),
+                        rel_tol=1e-12)
+
+
+def test_symmetric_x_has_equal_in_out_degree_and_equal_orientation_exponents():
+    """Metro Manila had k_in = k_out for every node, so all three fits agree."""
+    nodes, edges, partitions, _ = _case(n=120, p=0.06, seed=23)
+    reverse = edges.rename(columns={
+        "source_type": "target_type", "source_cluster": "target_cluster",
+        "target_type": "source_type", "target_cluster": "source_cluster",
+    })[edges.columns]
+    both = pd.concat([edges, reverse], ignore_index=True).drop_duplicates(
+        subset=["source_type", "source_cluster", "target_type", "target_cluster"])
+    _, diagnostics, _ = tile_area.calculate_tile_area_katz(nodes, both, partitions)
+    assert diagnostics["degree_balance"]["max_abs_in_minus_out"] == 0
+    fits = diagnostics["degree_orientation_regressions"]
+    gamma = diagnostics["gamma"]
+    assert math.isclose(fits["in_degree"]["area_elasticity"], gamma, abs_tol=1e-6)
+    assert math.isclose(fits["out_degree"]["area_elasticity"], gamma, abs_tol=1e-6)
+
+
+def test_constant_area_comparison_is_identical_without_second_solve(monkeypatch):
+    nodes, edges, partitions, _ = _case(equal_area=True)
+    calls = []
+    original = tile_area._tile_katz
+    monkeypatch.setattr(tile_area, "_tile_katz",
+                        lambda *a, **k: calls.append(1) or original(*a, **k))
+    _, diagnostics, _ = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    comparison = diagnostics["unadjusted_comparison"]
+    assert len(calls) == 1
+    assert comparison["status"] == "identical_exact_no_op"
+    assert math.isclose(comparison["rank_correlation_with_adjusted"], 1.0)
+    assert comparison["top_k_retained_after_adjustment"] == comparison["top_k"]
+    assert diagnostics["degree_orientation_regressions"]["status"] == "not_estimated_exact_no_op"
+
+
+def test_failed_comparison_is_recorded_and_scores_are_unchanged(monkeypatch):
+    nodes, edges, partitions, _ = _case(seed=24)
+    expected, _, _ = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    original = tile_area._tile_katz
+    calls = []
+
+    def second_call_fails(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 2:
+            raise RuntimeError("forced comparison failure")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(tile_area, "_tile_katz", second_call_fails)
+    result, diagnostics, _ = tile_area.calculate_tile_area_katz(nodes, edges, partitions)
+    assert diagnostics["unadjusted_comparison"]["status"] == "failed"
+    assert "forced comparison failure" in diagnostics["unadjusted_comparison"]["error"]
+    assert result.values == expected.values
+    json.dumps(diagnostics, allow_nan=False)

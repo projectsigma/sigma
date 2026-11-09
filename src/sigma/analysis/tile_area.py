@@ -20,6 +20,8 @@ from scipy.stats import norm, spearmanr
 from .centrality import CentralityResult
 
 METHOD_ID = "tile-perspective-total-degree-ppml-20261109-r3"
+# Diagnostics only (spec §9.7); the scores of METHOD_ID are unchanged.
+DIAGNOSTICS_VERSION = "spec-9.7-20261109-v1"
 EDGE_COLUMNS = ("source_type", "source_cluster", "target_type", "target_cluster", "edge_weight")
 ORIGINAL_X_EDGE_WEIGHT = (
     "technical_coefficient_times_both_clustered_sector_shares_times_inverse_mean_hub_distance"
@@ -191,6 +193,111 @@ def _tile_katz(W: csr_matrix, Wt: csr_matrix, factor: np.ndarray, alpha: float, 
                                         "last_l1_error_in": error_in,
                                         "last_l1_error_out": error_out}
     raise RuntimeError(f"Area-adjusted Katz did not converge after {max_iter} iterations")
+
+
+def _top_k(values: np.ndarray, k: int) -> np.ndarray:
+    """Indices of the ``k`` largest values; ties keep node order (stable)."""
+    return np.argsort(-np.asarray(values, dtype=float), kind="stable")[:min(int(k), len(values))]
+
+
+def _concentration(values: np.ndarray) -> dict:
+    """Shares of the summed normalized scores held by the top 10 and top 100 nodes."""
+    values = np.asarray(values, dtype=float)
+    total = float(values.sum())
+    if not math.isfinite(total) or total <= 0:
+        return {"top10_share": None, "top100_share": None}
+    order = np.sort(values)[::-1]
+    return {"top10_share": float(order[:10].sum() / total),
+            "top100_share": float(order[:100].sum() / total)}
+
+
+def _area_deciles(area: np.ndarray, degree: np.ndarray, factor: np.ndarray) -> list[dict]:
+    """Equal-count tile-area groups (smallest first) of degree and f_i k_i.
+
+    Each mean is divided by the mean over every tiled node, so a value above 1
+    means that area group has more than the average. Groups split the
+    area-sorted nodes into ten equal-count parts (fewer when n < 10); ties keep
+    node order. This is the spec's diagnostic for small-tile overcompensation.
+    """
+    n = len(area)
+    if n == 0:
+        return []
+    adjusted = factor * degree
+    mean_degree = float(degree.mean())
+    mean_adjusted = float(adjusted.mean())
+    order = np.argsort(area, kind="stable")
+    rows = []
+    for number, members in enumerate(np.array_split(order, min(10, n)), start=1):
+        if len(members) == 0:
+            continue
+        rows.append({
+            "decile": number,
+            "nodes": int(len(members)),
+            "area_km2_min": float(area[members].min()),
+            "area_km2_max": float(area[members].max()),
+            "mean_degree": float(degree[members].mean()),
+            "mean_adjusted_degree": float(adjusted[members].mean()),
+            "relative_mean_degree": (float(degree[members].mean()) / mean_degree
+                                     if mean_degree > 0 else None),
+            "relative_mean_adjusted_degree": (float(adjusted[members].mean()) / mean_adjusted
+                                              if mean_adjusted > 0 else None),
+        })
+    return rows
+
+
+def _rho(left: np.ndarray, right: np.ndarray) -> float | None:
+    if len(left) < 2 or np.ptp(left) == 0 or np.ptp(right) == 0:
+        return None  # a constant input has no rank correlation
+    value = float(spearmanr(left, right).statistic)
+    return value if math.isfinite(value) else None
+
+
+def _unadjusted_comparison(
+    W: csr_matrix, Wt: csr_matrix, *, acyclic: bool, alpha_factor: float, beta: float,
+    adjusted: np.ndarray, has_tile: np.ndarray, area: np.ndarray, identical: bool,
+) -> dict:
+    """Ordinary balanced Katz on the same X, for the spec's before/after diagnostics.
+
+    The comparison is diagnostic only: it never changes the published scores,
+    and a failure is recorded instead of stopping the stage. When the area
+    factor is an exact no-op, the unadjusted result equals the adjusted one.
+    """
+    n = W.shape[0]
+    if identical:
+        unadjusted, kin, kout = adjusted, None, None
+        info = {"status": "identical_exact_no_op"}
+    else:
+        try:
+            ones = np.ones(n, dtype=float)
+            scale = _spectral_scale(W, Wt, ones, acyclic=acyclic)
+            alpha = float(alpha_factor) / scale["scale"]
+            kin, kout, _ = _tile_katz(W, Wt, ones, alpha, float(beta))
+            combined = np.sqrt(np.maximum(kin, 0.0) * np.maximum(kout, 0.0))
+            unadjusted = combined / float(np.linalg.norm(combined))
+            if not np.isfinite(unadjusted).all():
+                raise RuntimeError("non-finite unadjusted balanced Katz")
+            info = {"status": "ok", "alpha": alpha, "spectral_scale_method": scale["method"]}
+        except (RuntimeError, ValueError, ArpackNoConvergence, FloatingPointError) as exc:
+            return {"status": "failed", "error": f"{type(exc).__name__}: {exc}"}
+    k = min(100, n)
+    top_before, top_after = _top_k(unadjusted, k), _top_k(adjusted, k)
+    tiled_area = area[has_tile]
+    small_cut = float(np.quantile(tiled_area, 0.1)) if has_tile.any() else math.nan
+    large_cut = float(np.quantile(tiled_area, 0.9)) if has_tile.any() else math.nan
+    result = {
+        **info,
+        "top_k": k,
+        "area_katz_spearman_rho": _rho(np.log(tiled_area), unadjusted[has_tile]),
+        "rank_correlation_with_adjusted": _rho(unadjusted, adjusted),
+        "top_k_retained_after_adjustment": int(len(np.intersect1d(top_before, top_after))),
+        "top100_smallest_area_decile": int(np.sum(area[top_before] <= small_cut)),
+        "top100_largest_area_decile": int(np.sum(area[top_before] >= large_cut)),
+        "concentration": _concentration(unadjusted),
+    }
+    if kin is not None:
+        result["area_katz_in_spearman_rho"] = _rho(np.log(tiled_area), kin[has_tile])
+        result["area_katz_out_spearman_rho"] = _rho(np.log(tiled_area), kout[has_tile])
+    return result
 
 
 def _node_index(frame: pd.DataFrame, typ: str, cluster: str) -> pd.MultiIndex:
@@ -400,8 +507,26 @@ def calculate_tile_area_katz(
     smallest_cut = float(np.quantile(area[has_tile], 0.1)) if has_tile.any() else np.nan
     largest_cut = float(np.quantile(area[has_tile], 0.9)) if has_tile.any() else np.nan
     top100 = np.argsort(-centrality, kind="stable")[:min(100, n)]
+
+    # 6. Spec §9.7 comparison diagnostics. They never change any score.
+    if progress is not None and gamma is not None:
+        progress("area-adjusted Katz: unadjusted balanced-Katz comparison (diagnostic only)")
+    comparison = _unadjusted_comparison(
+        W, Wt, acyclic=acyclic, alpha_factor=float(alpha_factor), beta=float(beta),
+        adjusted=centrality, has_tile=has_tile, area=area, identical=gamma is None,
+    )
+    if gamma is not None:
+        orientation_fits = {
+            "in_degree": _ppml(in_degree[has_tile], regression_area, "in_degree"),
+            "out_degree": _ppml(out_degree[has_tile], regression_area, "out_degree"),
+        }
+    else:
+        orientation_fits = {"status": "not_estimated_exact_no_op"}
+    degree_gap = np.abs(in_degree - out_degree)
+    tiled_factor = factor[has_tile]
     diagnostics = _json_safe({
         "method": METHOD_ID,
+        "diagnostics_version": DIAGNOSTICS_VERSION,
         "input_edge_weights": "original_x_gravity_shares_coefficient_inverse_mean_hub_distance",
         "area_units": "km2",
         "area_projection": AREA_CRS,
@@ -435,6 +560,19 @@ def calculate_tile_area_katz(
         "top100_smallest_area_decile": int(np.sum(area[top100] <= smallest_cut)),
         "top100_largest_area_decile": int(np.sum(area[top100] >= largest_cut)),
         "strength_area_regressions": strength_fits,
+        "degree_orientation_regressions": orientation_fits,
+        "degree_balance": {
+            "max_abs_in_minus_out": int(degree_gap.max()) if n else 0,
+            "nodes_with_unequal_in_out": int(np.count_nonzero(degree_gap)),
+            "zero_degree_nodes": int(np.count_nonzero(degree == 0)),
+            "zero_degree_nodes_in_regression": int(np.count_nonzero(regression_degree == 0)),
+        },
+        "factor_max_min_ratio": (float(tiled_factor.max() / tiled_factor.min())
+                                 if len(tiled_factor) else None),
+        "area_deciles": _area_deciles(area[has_tile], degree[has_tile].astype(float),
+                                      tiled_factor),
+        "concentration": _concentration(centrality),
+        "unadjusted_comparison": comparison,
     })
     audit = pd.DataFrame({
         "node_id": identifiers,
