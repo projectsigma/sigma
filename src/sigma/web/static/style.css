@@ -1097,3 +1097,19 @@ html[data-theme='dark'] .sigma-linked-unscored-control {color:var(--muted);}
 #central .central-table .central-cluster-link {
   box-sizing:border-box; width:100%; max-width:100%; min-width:0;
 }
+
+/* SIGMA_EXPLORER_LOCATION_LABELS_ONLY_20261109: roads-matched, map-only labels. */
+.sigma-location-label-overlay {position:absolute; inset:0; z-index:1; pointer-events:none; overflow:hidden;}
+.sigma-place-label {position:absolute; display:block; transform:translate(-50%,-50%);
+  white-space:nowrap; font-family:system-ui,-apple-system,'Segoe UI',sans-serif;
+  font-weight:500; line-height:1.2; letter-spacing:.01em; user-select:none;
+  pointer-events:none; text-shadow:none;}
+.sigma-place-label-town {font-weight:600; letter-spacing:.035em;}
+.sigma-place-label-road {font-style:italic;}
+
+/* Location-name toggle fits alongside Roads at 1649px, while the native
+   flex-wrap layout remains available on narrower desktop/mobile screens. */
+@media (min-width:901px) and (max-width:1700px) {
+  .toolbar { column-gap:10px; }
+}
+.sigma-locations-control { white-space:nowrap; }

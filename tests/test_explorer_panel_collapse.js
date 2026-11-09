@@ -9,8 +9,8 @@ const css = fs.readFileSync(path.join(dir, 'style.css'), 'utf8');
 const js = fs.readFileSync(path.join(dir, 'app.js'), 'utf8');
 const ci = fs.readFileSync(path.join(__dirname, '../.github/workflows/explorer_js.yml'), 'utf8');
 const specs = [
-  ['finder-section', false, 'Find a Place', 'finder-query'],
-  ['selection', true, 'Selected Place', 'place-name'],
+  ['finder-section', true, 'Find a Place', 'finder-query'],
+  ['selection', false, 'Selected Place', 'place-name'],
   ['graph-section', false, 'Cluster network', 'network'],
   ['connections-section', true, 'Linked clusters', 'connections'],
   ['central-section', true, 'Most central clusters', 'central'],
@@ -36,5 +36,18 @@ assert(css.includes('html[data-theme="dark"] .side .sidebar-disclosure'));
 assert.match(js, /querySelector\('\.graph-section \.sidebar-disclosure'\)\.addEventListener\('toggle'/);
 assert.match(js, /cy\.resize\(\);\s*if \(network\) cy\.fit/);
 assert.match(js, /finderPanel\.open = false;/);
+// The Selected Place section starts collapsed but opens for explicit selections.
+assert.match(html, /<section class="selection">\s*<details class="sidebar-disclosure">/);
+assert.match(js, /function expandSelectedPlace\(\)/);
+assert.match(js, /function selectUnclustered\(point\) \{\s*preferPlacesForSelection\(\);\s*expandSelectedPlace\(\);/);
+assert.match(js, /function selectNode\(id, point = null, options = \{\}\) \{\s*preferPlacesForSelection\(\);\s*if \(options\.expandDetails !== false\) expandSelectedPlace\(\);/);
 assert.match(ci, /node tests\/test_explorer_panel_collapse\.js/);
-console.log('PASS: finder and graph start collapsed; other sections remain independently collapsible; graph resizes when opened.');
+// Both defaults are reasserted at startup, regardless of browser-restored disclosure state.
+assert.match(html, /<section class="finder-section"[^>]*>\s*<details class="sidebar-disclosure" open>/);
+assert.match(js, /const finderDisclosure = document\.querySelector\('\.finder-section \.sidebar-disclosure'\);/);
+assert.match(js, /const selectedDisclosure = document\.querySelector\('\.selection \.sidebar-disclosure'\);/);
+assert.match(js, /if \(finderDisclosure\) finderDisclosure\.open = true;/);
+assert.match(js, /if \(selectedDisclosure\) selectedDisclosure\.open = false;/);
+// A URL hash restores network focus without opening Selected Place prematurely.
+assert.match(js, /if \(fromHash && nodeIndex\.has\(fromHash\)\) selectNode\(fromHash, null, \{fly: true, expandDetails: false\}\);/);
+console.log('PASS: finder opens initially, selection stays collapsed until an explicit click; bookmarked networks retain collapsed startup.');

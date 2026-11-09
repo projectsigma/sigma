@@ -104,5 +104,8 @@ jobs:
           echo "::group::Native point vector LOD"
           node tests/test_explorer_vector_lod_v7.js || { echo "::error file=tests/test_explorer_vector_lod_v7.js::Explorer regression failed"; failures=$((failures + 1)); }
           echo "::endgroup::"
-          echo "Explorer JavaScript failures: $failures / 22"
+          echo "::group::Geographic name labels"
+          node tests/test_explorer_location_labels.js || { echo "::error file=tests/test_explorer_location_labels.js::Explorer regression failed"; failures=$((failures + 1)); }
+          echo "::endgroup::"
+          echo "Explorer JavaScript failures: $failures / 23"
           if [ "$failures" -ne 0 ]; then exit 1; fi
