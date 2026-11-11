@@ -128,6 +128,15 @@ function evaluate(expr, props) {
   const [op, ...args] = expr;
   if (op === 'get') return props[args[0]];
   if (op === 'literal') return args[0];
+  if (op === 'coalesce') {
+    for (const arg of args) {
+      const value = evaluate(arg, props);
+      if (value !== null && value !== undefined) return value;
+    }
+    return null;
+  }
+  if (op === 'to-string') return String(evaluate(args[0], props) ?? '');
+  if (op === '!') return !evaluate(args[0], props);
   if (op === '==') return evaluate(args[0], props) === evaluate(args[1], props);
   if (op === 'in') return evaluate(args[1], props).includes(evaluate(args[0], props));
   if (op === 'match') {
@@ -184,4 +193,49 @@ for (const linked of [retail, realEstate]) {
 assert.equal(evaluate(opacityExpr, focus.properties), 0, 'Focused normal triangle hidden behind selected icon');
 assert.equal(evaluate(iconExpr, unrelated.properties), unrelated.properties.center_icon);
 assert(evaluate(opacityExpr, unrelated.properties) < 0.3, 'Unrelated context triangle stays faint');
+// Exercise the ACTUAL browser expressions, not a reimplementation of the fix.
+// A hidden original sector must be hidden even after roll-up; blank provenance
+// must use the effective sector consistently for both paint and filtering.
+const originalPaint = new Function('sectors', 'sigmaHiddenOriginals',
+  `${originalFilterSource}\n${paletteSource}\n` +
+  'return {color: sigmaEstablishmentColors(), filter: sigmaOriginalFilter()};')(
+    sectors, new Set(['70']));
+for (const [props, expectedColor, visible, label] of [
+  [{type: '55'}, '#f7336f', true, 'absent original_type'],
+  [{type: '55', original_type: null}, '#f7336f', true, 'null original_type'],
+  [{type: '55', original_type: ''}, '#f7336f', true, 'empty original_type'],
+  [{type: 55, original_type: ''}, '#f7336f', true, 'legacy numeric sector'],
+  [{type: '55', original_type: '70'}, '#692c39', false, 'hidden original within roll-up'],
+  [{type: '70', original_type: ''}, '#692c39', false, 'hidden effective sector fallback'],
+  [{type: '70', original_type: '55'}, '#f7336f', true, 'visible original after roll-up'],
+  [{type: '55', original_type: '63'}, '#25c8d1', true, 'valid original retained'],
+  [{type: '99', original_type: ''}, '#657f78', true, 'unknown sector stays conspicuous'],
+]) {
+  assert.equal(evaluate(originalPaint.color, props), expectedColor, `${label} color`);
+  assert.equal(evaluate(originalPaint.filter, props), visible, `${label} visibility`);
+}
+for (const layerName of ['establishments', 'aggregate-establishments']) {
+  assert.deepEqual(layers.get(layerName).paint['circle-color'], originalPaint.color,
+    `${layerName} must use the same original-sector palette`);
+}
+assert.deepEqual(layers.get('unclustered-establishments').paint['circle-stroke-color'],
+  originalPaint.color, 'Hollow circles retain the same palette');
+// True roll-up case: effective parent alone is in the catalog, and the original
+// child code appears only in rollup_children. Color and visibility use the child.
+const rolledPaint = new Function('sectors', 'sigmaHiddenOriginals',
+  `${originalFilterSource}
+${paletteSource}
+` +
+  'return {color: sigmaEstablishmentColors(), filter: sigmaOriginalFilter()};')(
+    new Map([['09:65:o', {code: '09:65:o', color: '#aabbcc',
+      rollup_children: [{code: '09:65:201', color: '#113355'}]}]]),
+    new Set(['09:65:201']));
+assert.equal(evaluate(rolledPaint.color,
+  {type: '09:65:o', original_type: '09:65:201'}), '#113355');
+assert.equal(evaluate(rolledPaint.filter,
+  {type: '09:65:o', original_type: '09:65:201'}), false);
+assert.equal(evaluate(rolledPaint.color,
+  {type: '09:65:o', original_type: ''}), '#aabbcc');
+assert.equal(evaluate(rolledPaint.filter,
+  {type: '09:65:o', original_type: ''}), true);
 console.log('PASS: real sector palette registered before use; normal, linked, selected and dimmed centroids render correctly.');

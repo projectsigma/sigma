@@ -975,7 +975,11 @@ def _build_unstaged_bundle(
     ]
     evidence_text = _column(points, "economy_evidence")
     sources_text = _column(points, "sources", "source")
+    # Non-roll-up publications may lack original-sector provenance entirely.
+    # Empty provenance is not a sector: retain the effective code for display.
+    # When present (notably after iterative roll-up), preserve the original code.
     original_types = _column(points, "original_economy_code")
+    original_types = original_types.where(original_types.ne(""), types)
     tiles: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
     # Local-only name index: sector -> [name, tile key, position in tile, cluster].
     finder_rows: dict[str, list[list[Any]]] = defaultdict(list)
