@@ -156,6 +156,42 @@ def test_bundle_has_directed_pairs_exact_paths_and_tiled_points(published: Path,
     assert meta["score_range"] == [0.2, 0.9]
 
 
+def test_original_sector_export_falls_back_without_discarding_valid_provenance(
+    published: Path, tmp_path: Path,
+):
+    """Exact tiles supply normalized provenance to native MVT tiles as well.
+
+    Baseline economies lack original_economy_code; derived runs can carry it.
+    Preserve a genuine original tag while recovering absent or empty tags.
+    """
+    def tile_types(bundle: Path) -> dict[str, tuple[str, str]]:
+        out = {}
+        for file in (bundle / "data/tiles/13").rglob("*.geojson"):
+            for feature in _json(file)["features"]:
+                p = feature["properties"]
+                out[p["name"]] = (p["type"], p["original_type"])
+        return out
+
+    baseline = tmp_path / "baseline-explorer"
+    build_web_bundle(published, baseline)
+    original = tile_types(baseline)
+    assert len(original) == 3
+    assert all(effective == previous for effective, previous in original.values())
+
+    # Mix nonempty original codes, empty strings, and missing values, row-wise.
+    points_file = published / "sigma_points.parquet"
+    points = gpd.read_parquet(points_file)
+    points["original_economy_code"] = ["63", "", None]
+    points.to_parquet(points_file, index=False)
+    mixed = tmp_path / "mixed-explorer"
+    build_web_bundle(published, mixed)
+    assert tile_types(mixed) == {
+        "Test Shop": ("54", "63"),
+        "Another shop": ("55", "55"),
+        "Eatery": ("63", "63"),
+    }
+
+
 def test_bundle_is_self_contained(published: Path, tmp_path: Path):
     dest = tmp_path / "web"
     build_web_bundle(published, dest)

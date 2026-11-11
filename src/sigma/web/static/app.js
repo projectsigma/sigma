@@ -44,8 +44,17 @@
   }
   function sigmaOriginalAllowed(p) { return !sigmaHiddenOriginals.has(sigmaOriginalType(p)); }
   function sigmaOriginalFilter() {
-    return ['!', ['in', ['coalesce', ['get', 'original_type'], ['get', 'type']],
+    return ['!', ['in', sigmaOriginalSectorExpr(),
       ['literal', [...sigmaHiddenOriginals]]]];
+  }
+  // One expression for palette AND original-sector visibility, including
+  // older vector/GeoJSON tiles with an empty original_type. `coalesce` does
+  // not fall back from ""; normalize numeric legacy codes to text as well.
+  // Keep this helper next to the filter (the JS regression extracts both).
+  function sigmaOriginalSectorExpr() {
+    return ['to-string', ['case',
+      ['==', ['coalesce', ['get', 'original_type'], ''], ''],
+      ['get', 'type'], ['get', 'original_type']]];
   }
   function sigmaEstablishmentColors() {
     const pairs = new Map([...sectors.values()].map(s => [String(s.code), String(s.color)]));
@@ -53,7 +62,7 @@
       pairs.set(String(child.code), String(child.color || sector.color));
     const result = [];
     for (const [code, color] of pairs) result.push(code, color);
-    return ['match', ['coalesce', ['get', 'original_type'], ['get', 'type']],
+    return ['match', sigmaOriginalSectorExpr(),
       ...(result.length ? result : ['__none__', '#657f78']), '#657f78'];
   }
   const selectedIconByType = new Map(); // explicit sector => filled triangle icon
