@@ -332,7 +332,7 @@ def test_cli_view_rebuilds_only_after_new_outputs(published: Path, monkeypatch: 
     (published / "sigma_manifest.json").write_text('{"files": ["new run"]}', encoding="utf-8")
     third = runner.invoke(app, args)
     assert "built from the latest SIGMA outputs" in third.output
-    assert served == [published / "explorer"] * 3
+    assert served == [published / "anything-explorer"] * 3
 
 
 def test_stale_csv_invalidates_even_unchanged_manifest(published: Path, tmp_path: Path):
@@ -450,7 +450,7 @@ def test_cli_view_keeps_a_public_bundle_public(published: Path, monkeypatch: pyt
     made = runner.invoke(app, ["export-web", "x", "--source-dir", str(published), "--public"])
     assert made.exit_code == 0, made.output
     assert "sigma view x --public" in made.output
-    target = published / "explorer-public"
+    target = published / "x-explorer-public"
     (published / "sigma_manifest.json").write_text('{"files": ["newer run"]}', encoding="utf-8")
     for args in (["--public"], ["--output-dir", str(target)]):
         result = runner.invoke(app, ["view", "x", "--source-dir", str(published), "--no-browser", *args])
@@ -628,7 +628,7 @@ def test_view_ui_only_updates_assets_not_data(published: Path, monkeypatch: pyte
     import sigma.web
     from sigma.cli import app
 
-    dest = published / "explorer"
+    dest = published / "example-explorer"
     build_web_bundle(published, dest)
     graph_before = (dest / "data/graph.json").read_bytes()
     marker_before = (dest / ".sigma-explorer").read_bytes()
@@ -655,7 +655,7 @@ def test_view_ui_only_refuses_missing_bundle_and_conflicting_refresh(published: 
     base = ["view", "example", "--source-dir", str(published), "--no-browser"]
     missing = runner.invoke(app, base + ["--ui-only"])
     assert missing.exit_code != 0
-    assert not (published / "explorer").exists()
+    assert not (published / "example-explorer").exists()
     both = runner.invoke(app, base + ["--ui-only", "--refresh"])
     assert both.exit_code != 0
 
@@ -665,7 +665,7 @@ def test_view_ui_only_preserves_public_profile(published: Path, monkeypatch: pyt
     import sigma.web
     from sigma.cli import app
 
-    dest = published / "explorer-public"
+    dest = published / "example-explorer-public"
     build_web_bundle(published, dest, profile="public")
     before = (dest / ".sigma-explorer").read_bytes()
     monkeypatch.setattr(sigma.web, "serve_bundle", lambda *_a, **_kw: None)
@@ -677,11 +677,12 @@ def test_view_ui_only_preserves_public_profile(published: Path, monkeypatch: pyt
     assert not (dest / "data/search/index.json").exists()
 
 
-def test_about_sigmapage_is_shared_and_not_copied_into_area_bundle(published: Path, tmp_path: Path):
+def test_about_sigmapage_is_copied_for_standalone_explorer(published: Path, tmp_path: Path):
     """Explorer and Under the Hood link to one page served from the SIGMA package."""
     dest = tmp_path / "about-shared-bundle"
     build_web_bundle(published, dest)
-    assert not (dest / "about.html").exists()  # no per-area duplicate
+    assert (dest / "about.html").is_file()
+    assert (dest / "sigma.exe").read_bytes().startswith(b"MZ")
     for name in ("index.html", "tutorial.html"):
         html = (dest / name).read_text(encoding="utf-8")
         assert 'href="about.html"' in html

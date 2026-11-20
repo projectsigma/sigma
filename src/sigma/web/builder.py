@@ -58,6 +58,8 @@ AGGREGATE_BUDGET = 4_000  # summary glyphs per view, independent of establishmen
 GRAPH_SHARD_SIZE = 16  # X nodes per adjacency shard for lazy browser exploration
 STATIC_FILES = (
     "index.html",
+    "about.html",
+    "sigma.exe",
     "tutorial.html",
     "tutorial-live.css",
     "sigma-tutorial-scrolly-refine.css",
@@ -1364,9 +1366,13 @@ def build_web_bundle(
         raise ValueError("Explorer profile must be 'local' or 'public'")
     if dest == source or dest in source.parents:
         raise ValueError("Explorer destination must not contain SIGMA source outputs")
-    if source in dest.parents and dest not in {source / "explorer", source / "explorer-public"}:
-        raise ValueError("Explorer inside source outputs must use its dedicated explorer/ child")
-    if profile == "local" and (dest.name == "explorer-public" or bundle_profile(dest) == "public"):
+    if source in dest.parents and (
+        dest.parent != source
+        or not (dest.name in {"explorer", "explorer-public"}
+                or dest.name.endswith(("-explorer", "-explorer-public")))
+    ):
+        raise ValueError("Explorer inside source outputs must use its dedicated area-explorer/ child")
+    if profile == "local" and (dest.name.endswith("explorer-public") or bundle_profile(dest) == "public"):
         raise ValueError(
             f"{dest} is reserved for a public-profile Explorer; refusing to write establishment-level "
             "data there. Use the 'explorer' folder or another --output-dir for the full local bundle."

@@ -1,0 +1,4 @@
+LIBRARY SHELL32.dll
+EXPORTS
+Shell_NotifyIconW
+ShellExecuteW

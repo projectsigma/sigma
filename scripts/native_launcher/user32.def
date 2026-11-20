@@ -1,0 +1,24 @@
+LIBRARY USER32.dll
+EXPORTS
+RegisterClassW
+CreateWindowExW
+DefWindowProcW
+DestroyWindow
+FindWindowW
+PostMessageW
+GetMessageW
+TranslateMessage
+DispatchMessageW
+PostQuitMessage
+LoadImageW
+MessageBoxW
+CreatePopupMenu
+AppendMenuW
+TrackPopupMenu
+DestroyMenu
+SetForegroundWindow
+GetCursorPos
+OpenClipboard
+EmptyClipboard
+SetClipboardData
+CloseClipboard
