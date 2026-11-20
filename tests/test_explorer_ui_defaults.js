@@ -18,7 +18,7 @@ function selectedOption(id) {
   return value[1];
 }
 
-assert.equal(selectedOption('depth'), '1', 'Direct links is the default depth');
+assert.equal(selectedOption('depth'), '2', 'Two steps is the default depth');
 assert.equal(selectedOption('top'), '3', 'Three per cluster is the default link cap');
 const state = js.match(/const state\s*=\s*\{[^}]*depth:\s*'([^']+)'\s*,\s*top:\s*'([^']+)'/);
 assert(state, 'Explorer startup state missing');
@@ -32,4 +32,4 @@ assert(!js.includes('tile.openstreetmap.org'), 'No tile request to external serv
 assert(js.includes("id: 'roads-line'"), 'SIGMA road background must remain');
 assert(js.includes("id: 'routes-in'"), 'Incoming network paths must remain');
 assert(js.includes("id: 'routes'"), 'Outgoing network paths must remain');
-console.log('PASS: Direct links + 3 per cluster default, no OSM raster UI, SIGMA roads/routes preserved.');
+console.log('PASS: Two steps + 3 per cluster default, no OSM raster UI, SIGMA roads/routes preserved.');

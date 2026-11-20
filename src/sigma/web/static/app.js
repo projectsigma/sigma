@@ -72,7 +72,7 @@
   const darkLinkedIconByType = new Map(); // dark linked center icons
   const hidden = new Set();      // sector codes switched off in the sector panel
   const globalSectorStrength = new Map(); // max incident IO coefficient per sector
-  const state = {direction: 'both', depth: '1', top: '3', partitions: 'network'};
+  const state = {direction: 'both', depth: '2', top: '3', partitions: 'network'};
   let selection = null;          // {id, point}
   let network = null;
   const jsonCache = new Map();

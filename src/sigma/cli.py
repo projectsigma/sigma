@@ -1880,14 +1880,48 @@ def doctor(json_output: bool = typer.Option(False, "--json")) -> None:
 
 
 # SIGMA_EXPLORER_OVERLAY_V3_START
+def _explorer_area_name(area: str) -> str:
+    """A filesystem-safe area slug; never allow an area name to escape the output directory."""
+    import re
+
+    name = re.sub(r"[^a-z0-9_-]+", "_", area.casefold()).strip("_")
+    if not name or len(name) > 100:
+        raise ValueError("Explorer area name must produce a nonempty slug up to 100 characters")
+    return name
+
+
 def _explorer_paths(
     area: str, workspace: Path | None, source_dir: Path | None, output_dir: Path | None
 ) -> tuple[Path, Path]:
     from .web import resolve_output_directory
 
     source = source_dir if source_dir is not None else resolve_output_directory(_workspace_for(area, workspace))
-    destination = output_dir if output_dir is not None else Path(source) / "explorer"
+    destination = (
+        output_dir if output_dir is not None
+        else Path(source) / f"{_explorer_area_name(area)}-explorer"
+    )
     return Path(source), Path(destination)
+
+
+def _migrate_legacy_explorer(source: Path, destination: Path, *, public: bool) -> bool:
+    """Rename a valid legacy bundle without rebuilding analytical data.
+
+    Fail closed on an unrecognized or incompatible folder. Never overwrite a
+    named bundle and never migrate an explicit --output-dir.
+    """
+    from .web.builder import read_marker
+
+    legacy = source / ("explorer-public" if public else "explorer")
+    if destination.exists() or not legacy.exists():
+        return False
+    marker = read_marker(legacy)
+    if marker is None or not (legacy / "index.html").is_file():
+        raise ValueError(f"Legacy Explorer is incomplete or unrecognized: {legacy}")
+    legacy_public = marker.get("profile") == "public"
+    if legacy_public != public:
+        raise ValueError(f"Legacy Explorer has the wrong privacy profile: {legacy}")
+    legacy.rename(destination)
+    return True
 
 
 @app.command("export-web")
@@ -1908,7 +1942,7 @@ def export_web_command(
 
         source, destination = _explorer_paths(area, workspace, source_dir, output_dir)
         if public and output_dir is None:
-            destination = source / "explorer-public"
+            destination = destination.with_name(destination.name + "-public")
         result = build_web_bundle(source, destination, include_roads=roads, force=force,
                                   profile="public" if public else "local")
         for warning in result.get("warnings", []):
@@ -1942,20 +1976,22 @@ def view_command(
     roads: bool | None = typer.Option(
         None, "--roads/--no-roads", help="Include SIGMA's published roads. Default: include unless very large."
     ),
-    public: bool = typer.Option(False, "--public", help="View the public-profile bundle (explorer-public)."),
+    public: bool = typer.Option(False, "--public", help="View the public-profile bundle (<area>-explorer-public)."),
 ) -> None:
     """Open a local-only Explorer for an area; it is rebuilt automatically after new SIGMA runs."""
     try:
         from .web import build_web_bundle, bundle_is_current, bundle_profile, serve_bundle, refresh_web_assets
 
         source, destination = _explorer_paths(area, workspace, source_dir, output_dir)
-        if public and output_dir is None:
-            destination = source / "explorer-public"
-        # A public bundle stays public: never rebuild it with establishment-level data.
-        public = public or destination.name == "explorer-public" or bundle_profile(destination) == "public"
-        profile = "public" if public else "local"
         if ui_only and refresh:
             raise ValueError("--fast/--ui-only cannot be combined with --refresh")
+        if public and output_dir is None:
+            destination = destination.with_name(destination.name + "-public")
+        if output_dir is None and _migrate_legacy_explorer(source, destination, public=public):
+            typer.echo(f"Renamed existing Explorer without rebuilding data: {destination}")
+        # A public bundle stays public: never rebuild it with establishment-level data.
+        public = public or destination.name.endswith("explorer-public") or bundle_profile(destination) == "public"
+        profile = "public" if public else "local"
         if ui_only:
             updated = refresh_web_assets(destination, profile=profile)
             typer.echo(f"Explorer UI assets refreshed ({updated} files); analytical data reused.")
